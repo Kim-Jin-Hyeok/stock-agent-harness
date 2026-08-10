@@ -1,6 +1,6 @@
 package com.stock.harness;
 
-import com.stock.agent.InvestmentAction;
+import com.stock.agent.InvestmentAgent;
 import com.stock.agent.InvestmentDecision;
 import com.stock.market.MarketService;
 import com.stock.market.MarketSnapshot;
@@ -28,6 +28,7 @@ public class InvestmentHarness {
     private final TradeExecutor tradeExecutor;
     private final PortfolioService portfolioService;
     private final MarketService marketService;
+    private final InvestmentAgent investmentAgent;
 
     public HarnessRunResult run() {
         LocalDateTime startedAt = LocalDateTime.now();
@@ -37,9 +38,7 @@ public class InvestmentHarness {
 
         MarketSnapshot marketSnapshot = marketService.getCurrentSnapshot();
 
-        InvestmentDecision decision = new InvestmentDecision(
-                InvestmentAction.HOLD,
-                "Initial harness run uses fixed HOLD decision.");
+        InvestmentDecision decision = investmentAgent.decide(portfolioSnapshot, marketSnapshot);
 
         RiskCheckResult riskCheckResult = riskGuard.validate(decision);
 
