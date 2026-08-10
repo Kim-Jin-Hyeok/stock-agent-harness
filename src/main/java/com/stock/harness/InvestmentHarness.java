@@ -25,16 +25,6 @@ public class InvestmentHarness {
         LocalDateTime startedAt = LocalDateTime.now();
         log.info("Investment Harness started.");
 
-        List<String> steps = List.of(
-                "LOAD_PORTFOLIO",
-                "LOAD_MARKET",
-                "RUN_INVESTMENT_AGENT",
-                "VALIDATE_DECISION",
-                "EXECUTE_TRADE"
-        );
-
-        steps.forEach(step -> log.info("Harness step: {}", step));
-
         InvestmentDecision decision = new InvestmentDecision(
                 InvestmentAction.HOLD,
                 "Initial harness run uses fixed HOLD decision.");
@@ -42,6 +32,16 @@ public class InvestmentHarness {
         RiskCheckResult riskCheckResult = riskGuard.validate(decision);
 
         TradeResult tradeResult = tradeExecutor.execute(decision, riskCheckResult);
+
+        List<HarnessStepResult> steps = List.of(
+                new HarnessStepResult(HarnessStepType.LOAD_PORTFOLIO, HarnessStepStatus.SKIPPED, "Portfolio loading is not implemented yet."),
+                new HarnessStepResult(HarnessStepType.LOAD_MARKET, HarnessStepStatus.SKIPPED, "Market loading is not implemented yet."),
+                new HarnessStepResult(HarnessStepType.RUN_INVESTMENT_AGENT, HarnessStepStatus.COMPLETED, "Fixed HOLD decision was created."),
+                new HarnessStepResult(HarnessStepType.VALIDATE_DECISION, HarnessStepStatus.COMPLETED, "Risk guard validated the decision."),
+                new HarnessStepResult(HarnessStepType.EXECUTE_TRADE, HarnessStepStatus.COMPLETED, "Trade executor processed the decision.")
+        );
+
+        steps.forEach(step -> log.info("Harness step: {}", step));
 
         LocalDateTime finishedAt = LocalDateTime.now();
 

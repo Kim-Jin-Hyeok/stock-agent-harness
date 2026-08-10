@@ -12,7 +12,7 @@ public record HarnessRunResult(
         HarnessRunStatus status,
         LocalDateTime startedAt,
         LocalDateTime finishedAt,
-        List<String> steps,
+        List<HarnessStepResult> steps,
         InvestmentDecision decision,
         RiskCheckResult riskCheckResult,
         TradeResult tradeResult
