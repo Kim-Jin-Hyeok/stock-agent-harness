@@ -17,7 +17,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -56,16 +55,36 @@ public class InvestmentHarness {
 
         TradeResult tradeResult = tradeExecutor.execute(decision, riskCheckResult);
 
-        List<HarnessStepResult> steps = new ArrayList<>();
-        steps.add(new HarnessStepResult(HarnessStepType.LOAD_PORTFOLIO, HarnessStepStatus.COMPLETED, "Portfolio loading complete."));
-        steps.add(new HarnessStepResult(HarnessStepType.LOAD_MARKET, HarnessStepStatus.COMPLETED, "Market loading complete."));
-        steps.add(new HarnessStepResult(HarnessStepType.RUN_INVESTMENT_AGENT, HarnessStepStatus.COMPLETED, decision.reason()));
-        steps.add(new HarnessStepResult(HarnessStepType.VALIDATE_DECISION, riskCheckResult.status() == RiskCheckStatus.APPROVED ? HarnessStepStatus.COMPLETED : HarnessStepStatus.FAILED, riskCheckResult.reason()));
-        steps.add(new HarnessStepResult(HarnessStepType.EXECUTE_TRADE, tradeResult.status() == TradeStatus.REJECTED ? HarnessStepStatus.FAILED : HarnessStepStatus.COMPLETED, tradeResult.reason()));
+        HarnessStepRecorder stepRecorder = new HarnessStepRecorder();
+        stepRecorder.completed(HarnessStepType.LOAD_PORTFOLIO, "Portfolio loading complete.");
+        stepRecorder.completed(HarnessStepType.LOAD_MARKET, "Market loading complete.");
+        stepRecorder.completed(HarnessStepType.RUN_INVESTMENT_AGENT, decision.reason());
 
-        boolean stepLimitExceeded = steps.size() > harnessProperties.maxSteps();
+        if (riskCheckResult.status() == RiskCheckStatus.APPROVED) {
+            stepRecorder.completed(HarnessStepType.VALIDATE_DECISION, riskCheckResult.reason());
+        } else {
+            stepRecorder.failed(HarnessStepType.VALIDATE_DECISION, riskCheckResult.reason());
+        }
 
-        steps.add(new HarnessStepResult(HarnessStepType.CHECK_STEP_LIMIT, stepLimitExceeded ? HarnessStepStatus.FAILED : HarnessStepStatus.COMPLETED, "Executable steps: " + steps.size() + ", max steps: " + harnessProperties.maxSteps()));
+        if (tradeResult.status() == TradeStatus.REJECTED) {
+            stepRecorder.failed(HarnessStepType.EXECUTE_TRADE, tradeResult.reason());
+        } else {
+            stepRecorder.completed(HarnessStepType.EXECUTE_TRADE, tradeResult.reason());
+        }
+
+        boolean stepLimitExceeded = stepRecorder.size() > harnessProperties.maxSteps();
+        String stepLimitMessage = "Executable steps: "
+                + stepRecorder.size()
+                + ", max steps: "
+                + harnessProperties.maxSteps();
+
+        if (stepLimitExceeded) {
+            stepRecorder.failed(HarnessStepType.CHECK_STEP_LIMIT, stepLimitMessage);
+        } else {
+            stepRecorder.completed(HarnessStepType.CHECK_STEP_LIMIT, stepLimitMessage);
+        }
+
+        List<HarnessStepResult> steps = stepRecorder.steps();
 
         boolean hasFailedStep = steps.stream()
                 .anyMatch(step -> step.status() == HarnessStepStatus.FAILED);
