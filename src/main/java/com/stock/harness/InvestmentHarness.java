@@ -2,6 +2,9 @@ package com.stock.harness;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
+import com.stock.risk.RiskCheckResult;
+import com.stock.risk.RiskGuard;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -11,7 +14,9 @@ import java.util.UUID;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class InvestmentHarness {
+    private final RiskGuard riskGuard;
 
     public HarnessRunResult run() {
         LocalDateTime startedAt = LocalDateTime.now();
@@ -27,6 +32,12 @@ public class InvestmentHarness {
 
         steps.forEach(step -> log.info("Harness step: {}", step));
 
+        InvestmentDecision decision = new InvestmentDecision(
+                InvestmentAction.HOLD,
+                "Initial harness run uses fixed HOLD decision.");
+
+        RiskCheckResult riskCheckResult =  riskGuard.validate(decision);
+
         LocalDateTime finishedAt = LocalDateTime.now();
 
         log.info("Investment Harness finished.");
@@ -37,7 +48,8 @@ public class InvestmentHarness {
                 startedAt,
                 finishedAt,
                 steps,
-                new InvestmentDecision(InvestmentAction.HOLD, "Initial harness run uses fixed HOLD decision.")
+                decision,
+                riskCheckResult
         );
     }
 }

@@ -3,6 +3,7 @@ package com.stock.harness.api;
 import com.stock.agent.InvestmentDecision;
 import com.stock.harness.HarnessRunResult;
 import com.stock.harness.HarnessRunStatus;
+import com.stock.risk.RiskCheckResult;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -13,7 +14,8 @@ public record HarnessRunResponse(
         LocalDateTime startedAt,
         LocalDateTime finishedAt,
         List<String> steps,
-        InvestmentDecision decision
+        InvestmentDecision decision,
+        RiskCheckResult riskCheckResult
 ) {
     public static HarnessRunResponse from(HarnessRunResult result) {
         return new HarnessRunResponse(
@@ -22,7 +24,8 @@ public record HarnessRunResponse(
                 result.startedAt(),
                 result.finishedAt(),
                 result.steps(),
-                result.decision()
+                result.decision(),
+                result.riskCheckResult()
         );
     }
 }

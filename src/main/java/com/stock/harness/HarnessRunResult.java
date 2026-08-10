@@ -1,6 +1,7 @@
 package com.stock.harness;
 
 import com.stock.agent.InvestmentDecision;
+import com.stock.risk.RiskCheckResult;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -11,6 +12,7 @@ public record HarnessRunResult(
         LocalDateTime startedAt,
         LocalDateTime finishedAt,
         List<String> steps,
-        InvestmentDecision decision
+        InvestmentDecision decision,
+        RiskCheckResult riskCheckResult
 ) {
 }
