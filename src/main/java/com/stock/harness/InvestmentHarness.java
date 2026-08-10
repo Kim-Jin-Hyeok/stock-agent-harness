@@ -52,6 +52,11 @@ public class InvestmentHarness {
                 new HarnessStepResult(HarnessStepType.EXECUTE_TRADE, tradeResult.status() == TradeStatus.REJECTED ? HarnessStepStatus.FAILED : HarnessStepStatus.COMPLETED, tradeResult.reason())
         );
 
+        HarnessRunStatus runStatus = steps.stream()
+                .anyMatch(step -> step.status() == HarnessStepStatus.FAILED)
+                ? HarnessRunStatus.FAILED
+                : HarnessRunStatus.COMPLETED;
+
         steps.forEach(step -> log.info("Harness step: {}", step));
 
         LocalDateTime finishedAt = LocalDateTime.now();
@@ -60,7 +65,7 @@ public class InvestmentHarness {
 
         return new HarnessRunResult(
                 UUID.randomUUID().toString(),
-                HarnessRunStatus.COMPLETED,
+                runStatus,
                 startedAt,
                 finishedAt,
                 steps,
