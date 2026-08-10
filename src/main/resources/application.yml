@@ -9,3 +9,8 @@ logging:
   level:
     root: INFO
     com.stockagent: DEBUG
+
+harness:
+  scheduler:
+    enabled: false
+    fixed-delay-ms: 600000
