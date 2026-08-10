@@ -20,6 +20,7 @@ public class HarnessScheduler {
     public void run() {
         if (!enabled) {
             log.debug("Harness scheduler is disabled");
+            return;
         }
 
         log.info("Harness scheduler triggered");
