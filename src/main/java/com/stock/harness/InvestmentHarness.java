@@ -29,6 +29,7 @@ public class InvestmentHarness {
     private final PortfolioService portfolioService;
     private final MarketService marketService;
     private final InvestmentAgent investmentAgent;
+    private final HarnessProperties harnessProperties;
 
     public HarnessRunResult run() {
         LocalDateTime startedAt = LocalDateTime.now();
@@ -62,8 +63,11 @@ public class InvestmentHarness {
                 new HarnessStepResult(HarnessStepType.EXECUTE_TRADE, tradeResult.status() == TradeStatus.REJECTED ? HarnessStepStatus.FAILED : HarnessStepStatus.COMPLETED, tradeResult.reason())
         );
 
-        HarnessRunStatus runStatus = steps.stream()
-                .anyMatch(step -> step.status() == HarnessStepStatus.FAILED)
+        boolean hasFailedStep = steps.stream()
+                .anyMatch(step -> step.status() == HarnessStepStatus.FAILED);
+        boolean stepLimitExceeded = steps.size() > harnessProperties.maxSteps();
+
+        HarnessRunStatus runStatus = (hasFailedStep || stepLimitExceeded)
                 ? HarnessRunStatus.FAILED
                 : HarnessRunStatus.COMPLETED;
 

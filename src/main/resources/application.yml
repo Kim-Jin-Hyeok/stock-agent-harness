@@ -11,6 +11,7 @@ logging:
     com.stockagent: DEBUG
 
 harness:
+  max-steps: 10
   scheduler:
     enabled: false
     fixed-delay-ms: 600000
