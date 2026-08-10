@@ -1,5 +1,6 @@
 package com.stock.harness.api;
 
+import com.stock.agent.InvestmentDecision;
 import com.stock.harness.HarnessRunResult;
 import com.stock.harness.HarnessRunStatus;
 
@@ -11,7 +12,8 @@ public record HarnessRunResponse(
         HarnessRunStatus status,
         LocalDateTime startedAt,
         LocalDateTime finishedAt,
-        List<String> steps
+        List<String> steps,
+        InvestmentDecision decision
 ) {
     public static HarnessRunResponse from(HarnessRunResult result) {
         return new HarnessRunResponse(
@@ -19,7 +21,8 @@ public record HarnessRunResponse(
                 result.status(),
                 result.startedAt(),
                 result.finishedAt(),
-                result.steps()
+                result.steps(),
+                result.decision()
         );
     }
 }

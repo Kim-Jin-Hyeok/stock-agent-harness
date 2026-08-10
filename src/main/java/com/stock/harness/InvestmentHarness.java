@@ -1,5 +1,7 @@
 package com.stock.harness;
 
+import com.stock.agent.InvestmentAction;
+import com.stock.agent.InvestmentDecision;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -34,7 +36,8 @@ public class InvestmentHarness {
                 HarnessRunStatus.COMPLETED,
                 startedAt,
                 finishedAt,
-                steps
+                steps,
+                new InvestmentDecision(InvestmentAction.HOLD, "Initial harness run uses fixed HOLD decision.")
         );
     }
 }
