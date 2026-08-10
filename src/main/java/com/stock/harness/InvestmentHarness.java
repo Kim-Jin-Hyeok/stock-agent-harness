@@ -3,9 +3,11 @@ package com.stock.harness;
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
 import com.stock.risk.RiskCheckResult;
+import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskGuard;
 import com.stock.trade.TradeExecutor;
 import com.stock.trade.TradeResult;
+import com.stock.trade.TradeStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -36,9 +38,9 @@ public class InvestmentHarness {
         List<HarnessStepResult> steps = List.of(
                 new HarnessStepResult(HarnessStepType.LOAD_PORTFOLIO, HarnessStepStatus.SKIPPED, "Portfolio loading is not implemented yet."),
                 new HarnessStepResult(HarnessStepType.LOAD_MARKET, HarnessStepStatus.SKIPPED, "Market loading is not implemented yet."),
-                new HarnessStepResult(HarnessStepType.RUN_INVESTMENT_AGENT, HarnessStepStatus.COMPLETED, "Fixed HOLD decision was created."),
-                new HarnessStepResult(HarnessStepType.VALIDATE_DECISION, HarnessStepStatus.COMPLETED, "Risk guard validated the decision."),
-                new HarnessStepResult(HarnessStepType.EXECUTE_TRADE, HarnessStepStatus.COMPLETED, "Trade executor processed the decision.")
+                new HarnessStepResult(HarnessStepType.RUN_INVESTMENT_AGENT, HarnessStepStatus.COMPLETED, decision.reason()),
+                new HarnessStepResult(HarnessStepType.VALIDATE_DECISION, riskCheckResult.status() == RiskCheckStatus.APPROVED ? HarnessStepStatus.COMPLETED : HarnessStepStatus.FAILED, riskCheckResult.reason()),
+                new HarnessStepResult(HarnessStepType.EXECUTE_TRADE, tradeResult.status() == TradeStatus.REJECTED ? HarnessStepStatus.FAILED : HarnessStepStatus.COMPLETED, tradeResult.reason())
         );
 
         steps.forEach(step -> log.info("Harness step: {}", step));
