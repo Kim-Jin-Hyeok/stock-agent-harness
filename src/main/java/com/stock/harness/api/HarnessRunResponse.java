@@ -4,6 +4,7 @@ import com.stock.agent.InvestmentDecision;
 import com.stock.harness.HarnessRunResult;
 import com.stock.harness.HarnessRunStatus;
 import com.stock.risk.RiskCheckResult;
+import com.stock.trade.TradeResult;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -15,7 +16,8 @@ public record HarnessRunResponse(
         LocalDateTime finishedAt,
         List<String> steps,
         InvestmentDecision decision,
-        RiskCheckResult riskCheckResult
+        RiskCheckResult riskCheckResult,
+        TradeResult tradeResult
 ) {
     public static HarnessRunResponse from(HarnessRunResult result) {
         return new HarnessRunResponse(
@@ -25,7 +27,8 @@ public record HarnessRunResponse(
                 result.finishedAt(),
                 result.steps(),
                 result.decision(),
-                result.riskCheckResult()
+                result.riskCheckResult(),
+                result.tradeResult()
         );
     }
 }
