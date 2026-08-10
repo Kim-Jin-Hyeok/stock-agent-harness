@@ -34,11 +34,21 @@ public class InvestmentHarness {
         LocalDateTime startedAt = LocalDateTime.now();
         log.info("Investment Harness started.");
 
-        PortfolioSnapshot portfolioSnapshot = portfolioService.getCurrentSnapshot();
+        String runId = UUID.randomUUID().toString();
 
+        PortfolioSnapshot portfolioSnapshot = portfolioService.getCurrentSnapshot();
         MarketSnapshot marketSnapshot = marketService.getCurrentSnapshot();
 
-        InvestmentDecision decision = investmentAgent.decide(portfolioSnapshot, marketSnapshot);
+        HarnessRunContext context = new HarnessRunContext(
+                runId,
+                portfolioSnapshot,
+                marketSnapshot
+        );
+
+        InvestmentDecision decision = investmentAgent.decide(
+                context.portfolioSnapshot(),
+                context.marketSnapshot()
+        );
 
         RiskCheckResult riskCheckResult = riskGuard.validate(decision);
 
@@ -64,7 +74,7 @@ public class InvestmentHarness {
         log.info("Investment Harness finished.");
 
         return new HarnessRunResult(
-                UUID.randomUUID().toString(),
+                context.runId(),
                 runStatus,
                 startedAt,
                 finishedAt,
@@ -72,8 +82,8 @@ public class InvestmentHarness {
                 decision,
                 riskCheckResult,
                 tradeResult,
-                portfolioSnapshot,
-                marketSnapshot
+                context.portfolioSnapshot(),
+                context.marketSnapshot()
         );
     }
 }
