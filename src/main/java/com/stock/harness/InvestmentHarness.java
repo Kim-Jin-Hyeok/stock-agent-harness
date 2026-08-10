@@ -2,6 +2,8 @@ package com.stock.harness;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
+import com.stock.market.MarketService;
+import com.stock.market.MarketSnapshot;
 import com.stock.portfolio.PortfolioService;
 import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.risk.RiskCheckResult;
@@ -25,12 +27,15 @@ public class InvestmentHarness {
     private final RiskGuard riskGuard;
     private final TradeExecutor tradeExecutor;
     private final PortfolioService portfolioService;
+    private final MarketService marketService;
 
     public HarnessRunResult run() {
         LocalDateTime startedAt = LocalDateTime.now();
         log.info("Investment Harness started.");
 
         PortfolioSnapshot portfolioSnapshot = portfolioService.getCurrentSnapshot();
+
+        MarketSnapshot marketSnapshot = marketService.getCurrentSnapshot();
 
         InvestmentDecision decision = new InvestmentDecision(
                 InvestmentAction.HOLD,
@@ -42,7 +47,7 @@ public class InvestmentHarness {
 
         List<HarnessStepResult> steps = List.of(
                 new HarnessStepResult(HarnessStepType.LOAD_PORTFOLIO, HarnessStepStatus.COMPLETED, "Portfolio loading complete."),
-                new HarnessStepResult(HarnessStepType.LOAD_MARKET, HarnessStepStatus.SKIPPED, "Market loading is not implemented yet."),
+                new HarnessStepResult(HarnessStepType.LOAD_MARKET, HarnessStepStatus.COMPLETED, "Market loading complete."),
                 new HarnessStepResult(HarnessStepType.RUN_INVESTMENT_AGENT, HarnessStepStatus.COMPLETED, decision.reason()),
                 new HarnessStepResult(HarnessStepType.VALIDATE_DECISION, riskCheckResult.status() == RiskCheckStatus.APPROVED ? HarnessStepStatus.COMPLETED : HarnessStepStatus.FAILED, riskCheckResult.reason()),
                 new HarnessStepResult(HarnessStepType.EXECUTE_TRADE, tradeResult.status() == TradeStatus.REJECTED ? HarnessStepStatus.FAILED : HarnessStepStatus.COMPLETED, tradeResult.reason())
@@ -63,7 +68,8 @@ public class InvestmentHarness {
                 decision,
                 riskCheckResult,
                 tradeResult,
-                portfolioSnapshot
+                portfolioSnapshot,
+                marketSnapshot
         );
     }
 }

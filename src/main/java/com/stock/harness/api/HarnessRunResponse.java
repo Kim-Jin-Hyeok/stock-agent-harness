@@ -4,6 +4,7 @@ import com.stock.agent.InvestmentDecision;
 import com.stock.harness.HarnessRunResult;
 import com.stock.harness.HarnessRunStatus;
 import com.stock.harness.HarnessStepResult;
+import com.stock.market.MarketSnapshot;
 import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.risk.RiskCheckResult;
 import com.stock.trade.TradeResult;
@@ -20,7 +21,8 @@ public record HarnessRunResponse(
         InvestmentDecision decision,
         RiskCheckResult riskCheckResult,
         TradeResult tradeResult,
-        PortfolioSnapshot portfolioSnapshot
+        PortfolioSnapshot portfolioSnapshot,
+        MarketSnapshot marketSnapshot
 ) {
     public static HarnessRunResponse from(HarnessRunResult result) {
         return new HarnessRunResponse(
@@ -32,7 +34,8 @@ public record HarnessRunResponse(
                 result.decision(),
                 result.riskCheckResult(),
                 result.tradeResult(),
-                result.portfolioSnapshot()
+                result.portfolioSnapshot(),
+                result.marketSnapshot()
         );
     }
 }

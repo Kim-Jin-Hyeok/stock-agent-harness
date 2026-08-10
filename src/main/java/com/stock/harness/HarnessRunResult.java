@@ -1,6 +1,7 @@
 package com.stock.harness;
 
 import com.stock.agent.InvestmentDecision;
+import com.stock.market.MarketSnapshot;
 import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.risk.RiskCheckResult;
 import com.stock.trade.TradeResult;
@@ -17,6 +18,7 @@ public record HarnessRunResult(
         InvestmentDecision decision,
         RiskCheckResult riskCheckResult,
         TradeResult tradeResult,
-        PortfolioSnapshot portfolioSnapshot
+        PortfolioSnapshot portfolioSnapshot,
+        MarketSnapshot marketSnapshot
 ) {
 }
