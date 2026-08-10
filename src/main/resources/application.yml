@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: stock-agent-harness
+
+server:
+  port: 8080
+
+logging:
+  level:
+    root: INFO
+    com.stockagent: DEBUG
