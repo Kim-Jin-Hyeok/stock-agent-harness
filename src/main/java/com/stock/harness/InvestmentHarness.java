@@ -17,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -55,19 +56,21 @@ public class InvestmentHarness {
 
         TradeResult tradeResult = tradeExecutor.execute(decision, riskCheckResult);
 
-        List<HarnessStepResult> steps = List.of(
-                new HarnessStepResult(HarnessStepType.LOAD_PORTFOLIO, HarnessStepStatus.COMPLETED, "Portfolio loading complete."),
-                new HarnessStepResult(HarnessStepType.LOAD_MARKET, HarnessStepStatus.COMPLETED, "Market loading complete."),
-                new HarnessStepResult(HarnessStepType.RUN_INVESTMENT_AGENT, HarnessStepStatus.COMPLETED, decision.reason()),
-                new HarnessStepResult(HarnessStepType.VALIDATE_DECISION, riskCheckResult.status() == RiskCheckStatus.APPROVED ? HarnessStepStatus.COMPLETED : HarnessStepStatus.FAILED, riskCheckResult.reason()),
-                new HarnessStepResult(HarnessStepType.EXECUTE_TRADE, tradeResult.status() == TradeStatus.REJECTED ? HarnessStepStatus.FAILED : HarnessStepStatus.COMPLETED, tradeResult.reason())
-        );
+        List<HarnessStepResult> steps = new ArrayList<>();
+        steps.add(new HarnessStepResult(HarnessStepType.LOAD_PORTFOLIO, HarnessStepStatus.COMPLETED, "Portfolio loading complete."));
+        steps.add(new HarnessStepResult(HarnessStepType.LOAD_MARKET, HarnessStepStatus.COMPLETED, "Market loading complete."));
+        steps.add(new HarnessStepResult(HarnessStepType.RUN_INVESTMENT_AGENT, HarnessStepStatus.COMPLETED, decision.reason()));
+        steps.add(new HarnessStepResult(HarnessStepType.VALIDATE_DECISION, riskCheckResult.status() == RiskCheckStatus.APPROVED ? HarnessStepStatus.COMPLETED : HarnessStepStatus.FAILED, riskCheckResult.reason()));
+        steps.add(new HarnessStepResult(HarnessStepType.EXECUTE_TRADE, tradeResult.status() == TradeStatus.REJECTED ? HarnessStepStatus.FAILED : HarnessStepStatus.COMPLETED, tradeResult.reason()));
+
+        boolean stepLimitExceeded = steps.size() > harnessProperties.maxSteps();
+
+        steps.add(new HarnessStepResult(HarnessStepType.CHECK_STEP_LIMIT, stepLimitExceeded ? HarnessStepStatus.FAILED : HarnessStepStatus.COMPLETED, "Executable steps: " + steps.size() + ", max steps: " + harnessProperties.maxSteps()));
 
         boolean hasFailedStep = steps.stream()
                 .anyMatch(step -> step.status() == HarnessStepStatus.FAILED);
-        boolean stepLimitExceeded = steps.size() > harnessProperties.maxSteps();
 
-        HarnessRunStatus runStatus = (hasFailedStep || stepLimitExceeded)
+        HarnessRunStatus runStatus = hasFailedStep
                 ? HarnessRunStatus.FAILED
                 : HarnessRunStatus.COMPLETED;
 

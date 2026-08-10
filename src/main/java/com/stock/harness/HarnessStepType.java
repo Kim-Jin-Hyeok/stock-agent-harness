@@ -5,5 +5,6 @@ public enum HarnessStepType {
     LOAD_MARKET,
     RUN_INVESTMENT_AGENT,
     VALIDATE_DECISION,
-    EXECUTE_TRADE
+    EXECUTE_TRADE,
+    CHECK_STEP_LIMIT
 }
