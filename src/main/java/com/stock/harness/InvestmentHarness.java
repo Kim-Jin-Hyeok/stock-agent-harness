@@ -2,6 +2,8 @@ package com.stock.harness;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
+import com.stock.portfolio.PortfolioService;
+import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.risk.RiskCheckResult;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskGuard;
@@ -22,10 +24,13 @@ import java.util.UUID;
 public class InvestmentHarness {
     private final RiskGuard riskGuard;
     private final TradeExecutor tradeExecutor;
+    private final PortfolioService portfolioService;
 
     public HarnessRunResult run() {
         LocalDateTime startedAt = LocalDateTime.now();
         log.info("Investment Harness started.");
+
+        PortfolioSnapshot portfolioSnapshot = portfolioService.getCurrentSnapshot();
 
         InvestmentDecision decision = new InvestmentDecision(
                 InvestmentAction.HOLD,
@@ -36,7 +41,7 @@ public class InvestmentHarness {
         TradeResult tradeResult = tradeExecutor.execute(decision, riskCheckResult);
 
         List<HarnessStepResult> steps = List.of(
-                new HarnessStepResult(HarnessStepType.LOAD_PORTFOLIO, HarnessStepStatus.SKIPPED, "Portfolio loading is not implemented yet."),
+                new HarnessStepResult(HarnessStepType.LOAD_PORTFOLIO, HarnessStepStatus.COMPLETED, "Portfolio loading complete."),
                 new HarnessStepResult(HarnessStepType.LOAD_MARKET, HarnessStepStatus.SKIPPED, "Market loading is not implemented yet."),
                 new HarnessStepResult(HarnessStepType.RUN_INVESTMENT_AGENT, HarnessStepStatus.COMPLETED, decision.reason()),
                 new HarnessStepResult(HarnessStepType.VALIDATE_DECISION, riskCheckResult.status() == RiskCheckStatus.APPROVED ? HarnessStepStatus.COMPLETED : HarnessStepStatus.FAILED, riskCheckResult.reason()),
@@ -57,7 +62,8 @@ public class InvestmentHarness {
                 steps,
                 decision,
                 riskCheckResult,
-                tradeResult
+                tradeResult,
+                portfolioSnapshot
         );
     }
 }
