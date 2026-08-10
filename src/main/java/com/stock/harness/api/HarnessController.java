@@ -1,5 +1,7 @@
-package com.stock.agent;
+package com.stock.harness.api;
 
+import com.stock.harness.HarnessRunResult;
+import com.stock.harness.InvestmentHarness;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -13,7 +15,9 @@ public class HarnessController {
     private final InvestmentHarness investmentHarness;
 
     @PostMapping("/run")
-    public void run() {
-        investmentHarness.run();
+    public HarnessRunResponse run() {
+        HarnessRunResult result = investmentHarness.run();
+
+        return HarnessRunResponse.from(result);
     }
 }
