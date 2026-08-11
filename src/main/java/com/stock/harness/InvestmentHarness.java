@@ -38,14 +38,7 @@ public class InvestmentHarness {
         String runId = UUID.randomUUID().toString();
 
         try {
-            PortfolioSnapshot portfolioSnapshot = portfolioService.getCurrentSnapshot();
-            MarketSnapshot marketSnapshot = marketService.getCurrentSnapshot();
-
-            HarnessRunContext context = new HarnessRunContext(
-                    runId,
-                    portfolioSnapshot,
-                    marketSnapshot
-            );
+            HarnessRunContext context = createContext(runId);
 
             InvestmentDecision decision = investmentAgent.decide(
                     context.portfolioSnapshot(),
@@ -56,43 +49,13 @@ public class InvestmentHarness {
 
             TradeResult tradeResult = tradeExecutor.execute(decision, riskCheckResult);
 
-            HarnessStepRecorder stepRecorder = new HarnessStepRecorder();
-            stepRecorder.completed(HarnessStepType.LOAD_PORTFOLIO, "Portfolio loading complete.");
-            stepRecorder.completed(HarnessStepType.LOAD_MARKET, "Market loading complete.");
-            stepRecorder.completed(HarnessStepType.RUN_INVESTMENT_AGENT, decision.reason());
+            List<HarnessStepResult> steps = recordSteps(
+                    decision,
+                    riskCheckResult,
+                    tradeResult
+            );
 
-            if (riskCheckResult.status() == RiskCheckStatus.APPROVED) {
-                stepRecorder.completed(HarnessStepType.VALIDATE_DECISION, riskCheckResult.reason());
-            } else {
-                stepRecorder.failed(HarnessStepType.VALIDATE_DECISION, riskCheckResult.reason());
-            }
-
-            if (tradeResult.status() == TradeStatus.REJECTED) {
-                stepRecorder.failed(HarnessStepType.EXECUTE_TRADE, tradeResult.reason());
-            } else {
-                stepRecorder.completed(HarnessStepType.EXECUTE_TRADE, tradeResult.reason());
-            }
-
-            boolean stepLimitExceeded = stepRecorder.size() > harnessProperties.maxSteps();
-            String stepLimitMessage = "Executable steps: "
-                    + stepRecorder.size()
-                    + ", max steps: "
-                    + harnessProperties.maxSteps();
-
-            if (stepLimitExceeded) {
-                stepRecorder.failed(HarnessStepType.CHECK_STEP_LIMIT, stepLimitMessage);
-            } else {
-                stepRecorder.completed(HarnessStepType.CHECK_STEP_LIMIT, stepLimitMessage);
-            }
-
-            List<HarnessStepResult> steps = stepRecorder.steps();
-
-            boolean hasFailedStep = steps.stream()
-                    .anyMatch(step -> step.status() == HarnessStepStatus.FAILED);
-
-            HarnessRunStatus runStatus = hasFailedStep
-                    ? HarnessRunStatus.FAILED
-                    : HarnessRunStatus.COMPLETED;
+            HarnessRunStatus runStatus = determineRunStatus(steps);
 
             steps.forEach(step -> log.info("Harness step: {}", step));
 
@@ -120,28 +83,97 @@ public class InvestmentHarness {
                     context.marketSnapshot()
             );
         } catch (Exception e) {
-            LocalDateTime finishedAt = LocalDateTime.now();
-
-            log.error("Investment Harness failed. runId={}", runId, e);
-
-            String failureMessage = e.getMessage() != null
-                    ? e.getMessage()
-                    : e.getClass().getSimpleName();
-
-            List<HarnessStepResult> steps = List.of(
-                    new HarnessStepResult(
-                            HarnessStepType.RUN_FAILED,
-                            HarnessStepStatus.FAILED,
-                            failureMessage
-                    )
-            );
-
-            return HarnessRunResult.failed(
+            return createFailedResult(
                     runId,
                     startedAt,
-                    finishedAt,
-                    steps
+                    e
             );
         }
+    }
+
+    private HarnessRunContext createContext(String runId) {
+        PortfolioSnapshot portfolioSnapshot = portfolioService.getCurrentSnapshot();
+        MarketSnapshot marketSnapshot = marketService.getCurrentSnapshot();
+
+        return new HarnessRunContext(
+                runId,
+                portfolioSnapshot,
+                marketSnapshot
+        );
+    }
+
+    private List<HarnessStepResult> recordSteps(
+            InvestmentDecision decision,
+            RiskCheckResult riskCheckResult,
+            TradeResult tradeResult
+    ) {
+        HarnessStepRecorder stepRecorder = new HarnessStepRecorder();
+        stepRecorder.completed(HarnessStepType.LOAD_PORTFOLIO, "Portfolio loading complete.");
+        stepRecorder.completed(HarnessStepType.LOAD_MARKET, "Market loading complete.");
+        stepRecorder.completed(HarnessStepType.RUN_INVESTMENT_AGENT, decision.reason());
+
+        if (riskCheckResult.status() == RiskCheckStatus.APPROVED) {
+            stepRecorder.completed(HarnessStepType.VALIDATE_DECISION, riskCheckResult.reason());
+        } else {
+            stepRecorder.failed(HarnessStepType.VALIDATE_DECISION, riskCheckResult.reason());
+        }
+
+        if (tradeResult.status() == TradeStatus.REJECTED) {
+            stepRecorder.failed(HarnessStepType.EXECUTE_TRADE, tradeResult.reason());
+        } else {
+            stepRecorder.completed(HarnessStepType.EXECUTE_TRADE, tradeResult.reason());
+        }
+
+        boolean stepLimitExceeded = stepRecorder.size() > harnessProperties.maxSteps();
+        String stepLimitMessage = "Executable steps: "
+                + stepRecorder.size()
+                + ", max steps: "
+                + harnessProperties.maxSteps();
+
+        if (stepLimitExceeded) {
+            stepRecorder.failed(HarnessStepType.CHECK_STEP_LIMIT, stepLimitMessage);
+        } else {
+            stepRecorder.completed(HarnessStepType.CHECK_STEP_LIMIT, stepLimitMessage);
+        }
+
+        return stepRecorder.steps();
+    }
+
+    private HarnessRunStatus determineRunStatus(List<HarnessStepResult> steps) {
+        boolean hasFailedStep = steps.stream()
+                .anyMatch(step -> step.status() == HarnessStepStatus.FAILED);
+
+        return hasFailedStep
+                ? HarnessRunStatus.FAILED
+                : HarnessRunStatus.COMPLETED;
+    }
+
+    private HarnessRunResult createFailedResult(
+            String runId,
+            LocalDateTime startedAt,
+            Exception e
+    ) {
+        LocalDateTime finishedAt = LocalDateTime.now();
+
+        log.error("Investment Harness failed. runId={}", runId, e);
+
+        String failureMessage = e.getMessage() != null
+                ? e.getMessage()
+                : e.getClass().getSimpleName();
+
+        List<HarnessStepResult> steps = List.of(
+                new HarnessStepResult(
+                        HarnessStepType.RUN_FAILED,
+                        HarnessStepStatus.FAILED,
+                        failureMessage
+                )
+        );
+
+        return HarnessRunResult.failed(
+                runId,
+                startedAt,
+                finishedAt,
+                steps
+        );
     }
 }
