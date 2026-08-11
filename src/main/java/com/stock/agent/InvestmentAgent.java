@@ -9,6 +9,7 @@ public class InvestmentAgent {
     public InvestmentDecision decide(HarnessRunContext context) {
         return new InvestmentDecision(
                 InvestmentAction.HOLD,
+                null,
                 "Fixed HOLD decision. cashAmount="
                 + context.portfolioSnapshot().cashAmount()
                 + ", marketOpen="
