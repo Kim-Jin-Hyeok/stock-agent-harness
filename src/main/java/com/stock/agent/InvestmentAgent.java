@@ -10,6 +10,7 @@ public class InvestmentAgent {
         return new InvestmentDecision(
                 InvestmentAction.HOLD,
                 null,
+                null,
                 "Fixed HOLD decision. cashAmount="
                 + context.portfolioSnapshot().cashAmount()
                 + ", marketOpen="

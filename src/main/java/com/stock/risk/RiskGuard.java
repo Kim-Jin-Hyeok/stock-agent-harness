@@ -22,6 +22,13 @@ public class RiskGuard {
             );
         }
 
+        if (decision.orderAmount() == null || decision.orderAmount() <= 0) {
+            return new RiskCheckResult(
+                    RiskCheckStatus.DENIED,
+                    "BUY and SELL decisions require a positive order amount."
+            );
+        }
+
         return new RiskCheckResult(
                 RiskCheckStatus.DENIED,
                 "BUY and SELL are not supported yet."
