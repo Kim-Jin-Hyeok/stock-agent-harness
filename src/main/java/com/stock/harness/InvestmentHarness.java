@@ -42,7 +42,10 @@ public class InvestmentHarness {
 
             InvestmentDecision decision = investmentAgent.decide(context);
 
-            RiskCheckResult riskCheckResult = riskGuard.validate(decision);
+            RiskCheckResult riskCheckResult = riskGuard.validate(
+                    decision,
+                    context.portfolioSnapshot()
+            );
 
             TradeResult tradeResult = tradeExecutor.execute(decision, riskCheckResult);
 

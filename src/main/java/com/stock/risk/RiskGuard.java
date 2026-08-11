@@ -2,12 +2,16 @@ package com.stock.risk;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
+import com.stock.portfolio.PortfolioSnapshot;
 import org.springframework.stereotype.Component;
 
 @Component
 public class RiskGuard {
 
-    public RiskCheckResult validate(InvestmentDecision decision) {
+    public RiskCheckResult validate(
+            InvestmentDecision decision,
+            PortfolioSnapshot portfolioSnapshot
+    ) {
         if (decision.action() == InvestmentAction.HOLD) {
             return new RiskCheckResult(
                     RiskCheckStatus.APPROVED,
@@ -26,6 +30,13 @@ public class RiskGuard {
             return new RiskCheckResult(
                     RiskCheckStatus.DENIED,
                     "BUY and SELL decisions require a positive order amount."
+            );
+        }
+
+        if (decision.orderAmount() > portfolioSnapshot.cashAmount()) {
+            return new RiskCheckResult(
+                    RiskCheckStatus.DENIED,
+                    "Order amount exceeds available cash."
             );
         }
 
