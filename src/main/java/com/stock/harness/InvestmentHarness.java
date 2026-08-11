@@ -107,7 +107,7 @@ public class InvestmentHarness {
                     tradeResult.status()
             );
 
-            return new HarnessRunResult(
+            return HarnessRunResult.of(
                     context.runId(),
                     runStatus,
                     startedAt,
@@ -132,17 +132,11 @@ public class InvestmentHarness {
                     )
             );
 
-            return new HarnessRunResult(
+            return HarnessRunResult.failed(
                     runId,
-                    HarnessRunStatus.FAILED,
                     startedAt,
                     finishedAt,
-                    steps,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
+                    steps
             );
         }
     }

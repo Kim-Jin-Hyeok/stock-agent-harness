@@ -21,4 +21,49 @@ public record HarnessRunResult(
         PortfolioSnapshot portfolioSnapshot,
         MarketSnapshot marketSnapshot
 ) {
+    public static HarnessRunResult of(
+            String runId,
+            HarnessRunStatus status,
+            LocalDateTime startedAt,
+            LocalDateTime finishedAt,
+            List<HarnessStepResult> steps,
+            InvestmentDecision decision,
+            RiskCheckResult riskCheckResult,
+            TradeResult tradeResult,
+            PortfolioSnapshot portfolioSnapshot,
+            MarketSnapshot marketSnapshot
+    ) {
+        return new HarnessRunResult(
+                runId,
+                status,
+                startedAt,
+                finishedAt,
+                steps,
+                decision,
+                riskCheckResult,
+                tradeResult,
+                portfolioSnapshot,
+                marketSnapshot
+        );
+    }
+
+    public static HarnessRunResult failed(
+            String runId,
+            LocalDateTime startedAt,
+            LocalDateTime finishedAt,
+            List<HarnessStepResult> steps
+    ) {
+        return new HarnessRunResult(
+                runId,
+                HarnessRunStatus.FAILED,
+                startedAt,
+                finishedAt,
+                steps,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+    }
 }
