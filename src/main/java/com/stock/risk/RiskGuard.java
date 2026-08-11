@@ -2,11 +2,18 @@ package com.stock.risk;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
+import com.stock.harness.HarnessProperties;
 import com.stock.portfolio.PortfolioSnapshot;
 import org.springframework.stereotype.Component;
 
 @Component
 public class RiskGuard {
+
+    private final HarnessProperties harnessProperties;
+
+    public RiskGuard(HarnessProperties harnessProperties) {
+        this.harnessProperties = harnessProperties;
+    }
 
     public RiskCheckResult validate(
             InvestmentDecision decision,
@@ -49,6 +56,25 @@ public class RiskGuard {
                     decision.symbol(),
                     decision.orderAmountKrw(),
                     "Order amount exceeds available cash."
+            );
+        }
+
+        long maxOrderAmountKrw = (long) (
+                portfolioSnapshot.totalAssetAmountKrw() * harnessProperties.maxOrderRatio()
+        );
+
+        if (decision.orderAmountKrw() > maxOrderAmountKrw) {
+            return new RiskCheckResult(
+                    RiskCheckStatus.DENIED,
+                    decision.action(),
+                    decision.symbol(),
+                    decision.orderAmountKrw(),
+                    "Order amount exceeds max order ratio. orderAmountKrw="
+                            + decision.orderAmountKrw()
+                            + ", maxOrderAmountKrw="
+                            + maxOrderAmountKrw
+                            + ", maxOrderRatio="
+                            + harnessProperties.maxOrderRatio()
             );
         }
 

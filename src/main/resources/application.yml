@@ -12,6 +12,7 @@ logging:
 
 harness:
   max-steps: 10
+  max-order-ratio: 0.1
   scheduler:
     enabled: false
     fixed-delay-ms: 600000
