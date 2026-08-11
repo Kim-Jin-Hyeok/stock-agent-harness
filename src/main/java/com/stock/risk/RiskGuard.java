@@ -15,6 +15,13 @@ public class RiskGuard {
             );
         }
 
+        if (decision.symbol() == null || decision.symbol().isBlank()) {
+            return new RiskCheckResult(
+                    RiskCheckStatus.DENIED,
+                    "BUY and SELL decisions require a symbol."
+            );
+        }
+
         return new RiskCheckResult(
                 RiskCheckStatus.DENIED,
                 "BUY and SELL are not supported yet."
