@@ -40,10 +40,7 @@ public class InvestmentHarness {
         try {
             HarnessRunContext context = createContext(runId);
 
-            InvestmentDecision decision = investmentAgent.decide(
-                    context.portfolioSnapshot(),
-                    context.marketSnapshot()
-            );
+            InvestmentDecision decision = investmentAgent.decide(context);
 
             RiskCheckResult riskCheckResult = riskGuard.validate(decision);
 
