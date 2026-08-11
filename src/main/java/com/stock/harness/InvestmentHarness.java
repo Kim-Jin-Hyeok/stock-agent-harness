@@ -58,7 +58,12 @@ public class InvestmentHarness {
 
             HarnessRunStatus runStatus = determineRunStatus(steps);
 
-            steps.forEach(step -> log.info("Harness step: {}", step));
+            steps.forEach(step -> log.info(
+                    "Harness step recorded. type={}, status={}, message={}",
+                    step.type(),
+                    step.status(),
+                    step.message())
+            );
 
             LocalDateTime finishedAt = LocalDateTime.now();
 
