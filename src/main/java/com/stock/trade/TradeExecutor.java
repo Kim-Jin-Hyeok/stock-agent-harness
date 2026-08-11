@@ -16,6 +16,7 @@ public class TradeExecutor {
                     decision.action(),
                     decision.symbol(),
                     decision.orderAmountKrw(),
+                    TradeReasonCode.RISK_DENIED,
                     "Risk check denied the decision."
             );
         }
@@ -26,6 +27,7 @@ public class TradeExecutor {
                     decision.action(),
                     decision.symbol(),
                     decision.orderAmountKrw(),
+                    TradeReasonCode.HOLD_NO_ORDER,
                     "HOLD decision does not create an order."
             );
         }
@@ -35,6 +37,7 @@ public class TradeExecutor {
                 decision.action(),
                 decision.symbol(),
                 decision.orderAmountKrw(),
+                TradeReasonCode.UNSUPPORTED_ACTION,
                 "BUY and SELL execution are not supported yet."
         );
     }

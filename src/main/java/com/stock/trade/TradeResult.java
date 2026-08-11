@@ -7,6 +7,7 @@ public record TradeResult(
         InvestmentAction action,
         String symbol,
         Long orderAmountKrw,
+        TradeReasonCode reasonCode,
         String reason
 ) {
 }
