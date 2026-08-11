@@ -8,7 +8,7 @@ server:
 logging:
   level:
     root: INFO
-    com.stockagent: DEBUG
+    com.stock: DEBUG
 
 harness:
   max-steps: 10
