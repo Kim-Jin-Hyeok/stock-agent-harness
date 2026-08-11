@@ -1,7 +1,7 @@
 package com.stock.portfolio;
 
 public record PortfolioSnapshot(
-        long cashAmount,
-        long totalAssetAmount
+        long cashAmountKrw,
+        long totalAssetAmountKrw
 ) {
 }

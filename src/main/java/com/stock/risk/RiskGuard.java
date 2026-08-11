@@ -42,7 +42,7 @@ public class RiskGuard {
             );
         }
 
-        if (decision.orderAmountKrw() > portfolioSnapshot.cashAmount()) {
+        if (decision.orderAmountKrw() > portfolioSnapshot.cashAmountKrw()) {
             return new RiskCheckResult(
                     RiskCheckStatus.DENIED,
                     decision.action(),
