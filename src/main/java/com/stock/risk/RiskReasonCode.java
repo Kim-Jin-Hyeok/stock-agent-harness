@@ -1,0 +1,10 @@
+package com.stock.risk;
+
+public enum RiskReasonCode {
+    HOLD_NO_ORDER_REQUIRED,
+    SYMBOL_REQUIRED,
+    ORDER_AMOUNT_REQUIRED,
+    INSUFFICIENT_CASH,
+    MAX_ORDER_RATIO_EXCEEDED,
+    UNSUPPORTED_ACTION
+}

@@ -25,6 +25,7 @@ public class RiskGuard {
                     decision.action(),
                     decision.symbol(),
                     decision.orderAmountKrw(),
+                    RiskReasonCode.HOLD_NO_ORDER_REQUIRED,
                     "HOLD decision does not require order risk validation."
             );
         }
@@ -35,6 +36,7 @@ public class RiskGuard {
                     decision.action(),
                     decision.symbol(),
                     decision.orderAmountKrw(),
+                    RiskReasonCode.SYMBOL_REQUIRED,
                     "BUY and SELL decisions require a symbol."
             );
         }
@@ -45,6 +47,7 @@ public class RiskGuard {
                     decision.action(),
                     decision.symbol(),
                     decision.orderAmountKrw(),
+                    RiskReasonCode.ORDER_AMOUNT_REQUIRED,
                     "BUY and SELL decisions require a positive order amount."
             );
         }
@@ -55,6 +58,7 @@ public class RiskGuard {
                     decision.action(),
                     decision.symbol(),
                     decision.orderAmountKrw(),
+                    RiskReasonCode.INSUFFICIENT_CASH,
                     "Order amount exceeds available cash."
             );
         }
@@ -69,6 +73,7 @@ public class RiskGuard {
                     decision.action(),
                     decision.symbol(),
                     decision.orderAmountKrw(),
+                    RiskReasonCode.MAX_ORDER_RATIO_EXCEEDED,
                     "Order amount exceeds max order ratio. orderAmountKrw="
                             + decision.orderAmountKrw()
                             + ", maxOrderAmountKrw="
@@ -83,6 +88,7 @@ public class RiskGuard {
                 decision.action(),
                 decision.symbol(),
                 decision.orderAmountKrw(),
+                RiskReasonCode.UNSUPPORTED_ACTION,
                 "BUY and SELL are not supported yet."
         );
     }
