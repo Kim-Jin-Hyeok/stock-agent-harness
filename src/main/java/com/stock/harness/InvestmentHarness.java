@@ -47,6 +47,7 @@ public class InvestmentHarness {
             TradeResult tradeResult = tradeExecutor.execute(decision, riskCheckResult);
 
             List<HarnessStepResult> steps = recordSteps(
+                    context,
                     decision,
                     riskCheckResult,
                     tradeResult
@@ -94,12 +95,14 @@ public class InvestmentHarness {
 
         return new HarnessRunContext(
                 runId,
+                harnessProperties.maxSteps(),
                 portfolioSnapshot,
                 marketSnapshot
         );
     }
 
     private List<HarnessStepResult> recordSteps(
+            HarnessRunContext context,
             InvestmentDecision decision,
             RiskCheckResult riskCheckResult,
             TradeResult tradeResult
@@ -121,11 +124,11 @@ public class InvestmentHarness {
             stepRecorder.completed(HarnessStepType.EXECUTE_TRADE, tradeResult.reason());
         }
 
-        boolean stepLimitExceeded = stepRecorder.size() > harnessProperties.maxSteps();
+        boolean stepLimitExceeded = stepRecorder.size() > context.maxSteps();
         String stepLimitMessage = "Executable steps: "
                 + stepRecorder.size()
                 + ", max steps: "
-                + harnessProperties.maxSteps();
+                + context.maxSteps();
 
         if (stepLimitExceeded) {
             stepRecorder.failed(HarnessStepType.CHECK_STEP_LIMIT, stepLimitMessage);
