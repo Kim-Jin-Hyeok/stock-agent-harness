@@ -17,7 +17,7 @@ public class RiskGuard {
                     RiskCheckStatus.APPROVED,
                     decision.action(),
                     decision.symbol(),
-                    decision.orderAmount(),
+                    decision.orderAmountKrw(),
                     "HOLD decision does not require order risk validation."
             );
         }
@@ -27,27 +27,27 @@ public class RiskGuard {
                     RiskCheckStatus.DENIED,
                     decision.action(),
                     decision.symbol(),
-                    decision.orderAmount(),
+                    decision.orderAmountKrw(),
                     "BUY and SELL decisions require a symbol."
             );
         }
 
-        if (decision.orderAmount() == null || decision.orderAmount() <= 0) {
+        if (decision.orderAmountKrw() == null || decision.orderAmountKrw() <= 0) {
             return new RiskCheckResult(
                     RiskCheckStatus.DENIED,
                     decision.action(),
                     decision.symbol(),
-                    decision.orderAmount(),
+                    decision.orderAmountKrw(),
                     "BUY and SELL decisions require a positive order amount."
             );
         }
 
-        if (decision.orderAmount() > portfolioSnapshot.cashAmount()) {
+        if (decision.orderAmountKrw() > portfolioSnapshot.cashAmount()) {
             return new RiskCheckResult(
                     RiskCheckStatus.DENIED,
                     decision.action(),
                     decision.symbol(),
-                    decision.orderAmount(),
+                    decision.orderAmountKrw(),
                     "Order amount exceeds available cash."
             );
         }
@@ -56,7 +56,7 @@ public class RiskGuard {
                 RiskCheckStatus.DENIED,
                 decision.action(),
                 decision.symbol(),
-                decision.orderAmount(),
+                decision.orderAmountKrw(),
                 "BUY and SELL are not supported yet."
         );
     }

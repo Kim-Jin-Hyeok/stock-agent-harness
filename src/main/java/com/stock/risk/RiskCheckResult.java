@@ -6,7 +6,7 @@ public record RiskCheckResult(
         RiskCheckStatus status,
         InvestmentAction action,
         String symbol,
-        Long orderAmount,
+        Long orderAmountKrw,
         String reason
 ) {
 }
