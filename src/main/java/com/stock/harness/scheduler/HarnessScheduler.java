@@ -1,5 +1,6 @@
 package com.stock.harness.scheduler;
 
+import com.stock.harness.HarnessRunResult;
 import com.stock.harness.InvestmentHarness;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +25,13 @@ public class HarnessScheduler {
         }
 
         log.info("Harness scheduler triggered");
-        investmentHarness.run();
+
+        HarnessRunResult result = investmentHarness.run();
+
+        log.info(
+                "Harness scheduler completed. runId={}, status={}",
+                result.runId(),
+                result.status()
+        );
     }
 }
