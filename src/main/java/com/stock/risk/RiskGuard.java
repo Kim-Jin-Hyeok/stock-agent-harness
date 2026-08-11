@@ -15,6 +15,9 @@ public class RiskGuard {
         if (decision.action() == InvestmentAction.HOLD) {
             return new RiskCheckResult(
                     RiskCheckStatus.APPROVED,
+                    decision.action(),
+                    decision.symbol(),
+                    decision.orderAmount(),
                     "HOLD decision does not require order risk validation."
             );
         }
@@ -22,6 +25,9 @@ public class RiskGuard {
         if (decision.symbol() == null || decision.symbol().isBlank()) {
             return new RiskCheckResult(
                     RiskCheckStatus.DENIED,
+                    decision.action(),
+                    decision.symbol(),
+                    decision.orderAmount(),
                     "BUY and SELL decisions require a symbol."
             );
         }
@@ -29,6 +35,9 @@ public class RiskGuard {
         if (decision.orderAmount() == null || decision.orderAmount() <= 0) {
             return new RiskCheckResult(
                     RiskCheckStatus.DENIED,
+                    decision.action(),
+                    decision.symbol(),
+                    decision.orderAmount(),
                     "BUY and SELL decisions require a positive order amount."
             );
         }
@@ -36,12 +45,18 @@ public class RiskGuard {
         if (decision.orderAmount() > portfolioSnapshot.cashAmount()) {
             return new RiskCheckResult(
                     RiskCheckStatus.DENIED,
+                    decision.action(),
+                    decision.symbol(),
+                    decision.orderAmount(),
                     "Order amount exceeds available cash."
             );
         }
 
         return new RiskCheckResult(
                 RiskCheckStatus.DENIED,
+                decision.action(),
+                decision.symbol(),
+                decision.orderAmount(),
                 "BUY and SELL are not supported yet."
         );
     }
