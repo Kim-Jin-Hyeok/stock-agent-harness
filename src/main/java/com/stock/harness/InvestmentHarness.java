@@ -97,7 +97,14 @@ public class InvestmentHarness {
 
         LocalDateTime finishedAt = LocalDateTime.now();
 
-        log.info("Investment Harness finished.");
+        log.info(
+                "Investment Harness finished. runId={}, status={}, decision={}, riskStatus={}, tradeStatus={}",
+                context.runId(),
+                runStatus,
+                decision.action(),
+                riskCheckResult.status(),
+                tradeResult.status()
+        );
 
         return new HarnessRunResult(
                 context.runId(),
