@@ -124,11 +124,15 @@ public class InvestmentHarness {
 
             log.error("Investment Harness failed. runId={}", runId, e);
 
+            String failureMessage = e.getMessage() != null
+                    ? e.getMessage()
+                    : e.getClass().getSimpleName();
+
             List<HarnessStepResult> steps = List.of(
                     new HarnessStepResult(
                             HarnessStepType.RUN_FAILED,
                             HarnessStepStatus.FAILED,
-                            e.getMessage()
+                            failureMessage
                     )
             );
 
