@@ -13,6 +13,9 @@ public class TradeExecutor {
         if (riskCheckResult.status() == RiskCheckStatus.DENIED) {
             return new TradeResult(
                     TradeStatus.REJECTED,
+                    decision.action(),
+                    decision.symbol(),
+                    decision.orderAmount(),
                     "Risk check denied the decision."
             );
         }
@@ -20,12 +23,18 @@ public class TradeExecutor {
         if (decision.action() == InvestmentAction.HOLD) {
             return new TradeResult(
                     TradeStatus.SKIPPED,
+                    decision.action(),
+                    decision.symbol(),
+                    decision.orderAmount(),
                     "HOLD decision does not create an order."
             );
         }
 
         return new TradeResult(
                 TradeStatus.REJECTED,
+                decision.action(),
+                decision.symbol(),
+                decision.orderAmount(),
                 "BUY and SELL execution are not supported yet."
         );
     }
