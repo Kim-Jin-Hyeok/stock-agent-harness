@@ -72,4 +72,32 @@ class PortfolioSnapshotTest {
 
         assertThat(result).isZero();
     }
+
+    @Test
+    void positionQuantityReturnsSumForMatchingSymbol() {
+        long result = portfolioSnapshot.positionQuantity("005930");
+
+        assertThat(result).isEqualTo(15L);
+    }
+
+    @Test
+    void positionQuantityReturnsZeroForUnknownSymbol() {
+        long result = portfolioSnapshot.positionQuantity("11111");
+
+        assertThat(result).isZero();
+    }
+
+    @Test
+    void positionQuantityReturnsZeroForBlankSymbol() {
+        long result = portfolioSnapshot.positionQuantity(" ");
+
+        assertThat(result).isZero();
+    }
+
+    @Test
+    void positionQuantityReturnsZeroForNullSymbol() {
+        long result = portfolioSnapshot.positionQuantity(null);
+
+        assertThat(result).isZero();
+    }
 }
