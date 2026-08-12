@@ -11,6 +11,7 @@ public class InvestmentAgent {
                 InvestmentAction.HOLD,
                 null,
                 null,
+                null,
                 "Fixed HOLD decision. cashAmountKrw="
                 + context.portfolioSnapshot().cashAmountKrw()
                 + ", marketOpen="

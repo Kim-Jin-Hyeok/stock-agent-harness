@@ -15,7 +15,9 @@ public class TradeExecutor {
                     TradeStatus.REJECTED,
                     decision.action(),
                     decision.symbol(),
-                    decision.orderAmountKrw(),
+                    decision.quantity(),
+                    decision.expectedPriceKrw(),
+                    decision.estimatedOrderAmountKrw(),
                     TradeReasonCode.RISK_DENIED,
                     "Risk check denied the decision."
             );
@@ -26,7 +28,9 @@ public class TradeExecutor {
                     TradeStatus.SKIPPED,
                     decision.action(),
                     decision.symbol(),
-                    decision.orderAmountKrw(),
+                    decision.quantity(),
+                    decision.expectedPriceKrw(),
+                    decision.estimatedOrderAmountKrw(),
                     TradeReasonCode.HOLD_NO_ORDER,
                     "HOLD decision does not create an order."
             );
@@ -36,7 +40,9 @@ public class TradeExecutor {
                 TradeStatus.REJECTED,
                 decision.action(),
                 decision.symbol(),
-                decision.orderAmountKrw(),
+                decision.quantity(),
+                decision.expectedPriceKrw(),
+                decision.estimatedOrderAmountKrw(),
                 TradeReasonCode.UNSUPPORTED_ACTION,
                 "BUY and SELL execution are not supported yet."
         );

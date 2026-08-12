@@ -6,7 +6,9 @@ public record TradeResult(
         TradeStatus status,
         InvestmentAction action,
         String symbol,
-        Long orderAmountKrw,
+        Long quantity,
+        Long expectedPriceKrw,
+        Long estimatedOrderAmountKrw,
         TradeReasonCode reasonCode,
         String reason
 ) {

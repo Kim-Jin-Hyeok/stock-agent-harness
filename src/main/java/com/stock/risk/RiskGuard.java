@@ -24,7 +24,9 @@ public class RiskGuard {
                     RiskCheckStatus.APPROVED,
                     decision.action(),
                     decision.symbol(),
-                    decision.orderAmountKrw(),
+                    decision.quantity(),
+                    decision.expectedPriceKrw(),
+                    decision.estimatedOrderAmountKrw(),
                     RiskReasonCode.HOLD_NO_ORDER_REQUIRED,
                     "HOLD decision does not require order risk validation."
             );
@@ -35,83 +37,110 @@ public class RiskGuard {
                     RiskCheckStatus.DENIED,
                     decision.action(),
                     decision.symbol(),
-                    decision.orderAmountKrw(),
+                    decision.quantity(),
+                    decision.expectedPriceKrw(),
+                    decision.estimatedOrderAmountKrw(),
                     RiskReasonCode.SYMBOL_REQUIRED,
                     "BUY and SELL decisions require a symbol."
             );
         }
 
-        if (decision.orderAmountKrw() == null || decision.orderAmountKrw() <= 0) {
+        if (decision.quantity() == null || decision.quantity() <= 0) {
             return new RiskCheckResult(
                     RiskCheckStatus.DENIED,
                     decision.action(),
                     decision.symbol(),
-                    decision.orderAmountKrw(),
-                    RiskReasonCode.ORDER_AMOUNT_REQUIRED,
-                    "BUY and SELL decisions require a positive order amount."
+                    decision.quantity(),
+                    decision.expectedPriceKrw(),
+                    decision.estimatedOrderAmountKrw(),
+                    RiskReasonCode.QUANTITY_REQUIRED,
+                    "BUY and SELL decisions require a positive quantity."
             );
         }
 
-        if (decision.orderAmountKrw() > portfolioSnapshot.cashAmountKrw()) {
+        if (decision.expectedPriceKrw() == null || decision.expectedPriceKrw() <= 0) {
             return new RiskCheckResult(
                     RiskCheckStatus.DENIED,
                     decision.action(),
                     decision.symbol(),
-                    decision.orderAmountKrw(),
-                    RiskReasonCode.INSUFFICIENT_CASH,
-                    "Order amount exceeds available cash."
+                    decision.quantity(),
+                    decision.expectedPriceKrw(),
+                    decision.estimatedOrderAmountKrw(),
+                    RiskReasonCode.EXPECTED_PRICE_REQUIRED,
+                    "BUY and SELL decisions require a positive expectedPriceKrw."
             );
         }
 
-        long maxOrderAmountKrw = (long) (
-                portfolioSnapshot.totalAssetAmountKrw() * harnessProperties.maxOrderRatio()
-        );
+        if (decision.action() == InvestmentAction.BUY) {
+            if (decision.estimatedOrderAmountKrw() > portfolioSnapshot.cashAmountKrw()) {
+                return new RiskCheckResult(
+                        RiskCheckStatus.DENIED,
+                        decision.action(),
+                        decision.symbol(),
+                        decision.quantity(),
+                        decision.expectedPriceKrw(),
+                        decision.estimatedOrderAmountKrw(),
+                        RiskReasonCode.INSUFFICIENT_CASH,
+                        "Order amount exceeds available cash."
+                );
+            }
 
-        if (decision.orderAmountKrw() > maxOrderAmountKrw) {
-            return new RiskCheckResult(
-                    RiskCheckStatus.DENIED,
-                    decision.action(),
-                    decision.symbol(),
-                    decision.orderAmountKrw(),
-                    RiskReasonCode.MAX_ORDER_RATIO_EXCEEDED,
-                    "Order amount exceeds max order ratio. orderAmountKrw="
-                            + decision.orderAmountKrw()
-                            + ", maxOrderAmountKrw="
-                            + maxOrderAmountKrw
-                            + ", maxOrderRatio="
-                            + harnessProperties.maxOrderRatio()
+            long maxOrderAmountKrw = (long) (
+                    portfolioSnapshot.totalAssetAmountKrw() * harnessProperties.maxOrderRatio()
             );
-        }
 
-        long currentPositionMarketValueKrw =
-                portfolioSnapshot.positionMarketValueKrw(decision.symbol());
-        long expectedPositionAmountKrw =
-                currentPositionMarketValueKrw + decision.orderAmountKrw();
-        long maxPositionAmountKrw = (long) (
-                portfolioSnapshot.totalAssetAmountKrw() * harnessProperties.maxPositionRatio()
-        );
+            if (decision.estimatedOrderAmountKrw() > maxOrderAmountKrw) {
+                return new RiskCheckResult(
+                        RiskCheckStatus.DENIED,
+                        decision.action(),
+                        decision.symbol(),
+                        decision.quantity(),
+                        decision.expectedPriceKrw(),
+                        decision.estimatedOrderAmountKrw(),
+                        RiskReasonCode.MAX_ORDER_RATIO_EXCEEDED,
+                        "Order amount exceeds max order ratio. estimatedOrderAmountKrw="
+                                + decision.estimatedOrderAmountKrw()
+                                + ", maxOrderAmountKrw="
+                                + maxOrderAmountKrw
+                                + ", maxOrderRatio="
+                                + harnessProperties.maxOrderRatio()
+                );
+            }
 
-        if (expectedPositionAmountKrw > maxPositionAmountKrw) {
-            return new RiskCheckResult(
-                    RiskCheckStatus.DENIED,
-                    decision.action(),
-                    decision.symbol(),
-                    decision.orderAmountKrw(),
-                    RiskReasonCode.MAX_POSITION_RATIO_EXCEEDED,
-                    "Order amount exceeds max position ratio. orderAmountKrw="
-                            + decision.orderAmountKrw()
-                            + ", maxPositionAmountKrw="
-                            + maxPositionAmountKrw
-                            + ", maxPositionRatio="
-                            + harnessProperties.maxPositionRatio()
+            long currentPositionMarketValueKrw =
+                    portfolioSnapshot.positionMarketValueKrw(decision.symbol());
+            long expectedPositionAmountKrw =
+                    currentPositionMarketValueKrw + decision.estimatedOrderAmountKrw();
+            long maxPositionAmountKrw = (long) (
+                    portfolioSnapshot.totalAssetAmountKrw() * harnessProperties.maxPositionRatio()
             );
+
+            if (expectedPositionAmountKrw > maxPositionAmountKrw) {
+                return new RiskCheckResult(
+                        RiskCheckStatus.DENIED,
+                        decision.action(),
+                        decision.symbol(),
+                        decision.quantity(),
+                        decision.expectedPriceKrw(),
+                        decision.estimatedOrderAmountKrw(),
+                        RiskReasonCode.MAX_POSITION_RATIO_EXCEEDED,
+                        "Order amount exceeds max position ratio. estimatedOrderAmountKrw="
+                                + decision.estimatedOrderAmountKrw()
+                                + ", maxPositionAmountKrw="
+                                + maxPositionAmountKrw
+                                + ", maxPositionRatio="
+                                + harnessProperties.maxPositionRatio()
+                );
+            }
         }
 
         return new RiskCheckResult(
                 RiskCheckStatus.DENIED,
                 decision.action(),
                 decision.symbol(),
-                decision.orderAmountKrw(),
+                decision.quantity(),
+                decision.expectedPriceKrw(),
+                decision.estimatedOrderAmountKrw(),
                 RiskReasonCode.UNSUPPORTED_ACTION,
                 "BUY and SELL are not supported yet."
         );

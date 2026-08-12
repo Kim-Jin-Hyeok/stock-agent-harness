@@ -57,6 +57,7 @@ class TradeExecutorTest {
                 InvestmentAction.HOLD,
                 null,
                 null,
+                null,
                 "Test HOLD decision."
         );
     }
@@ -65,7 +66,8 @@ class TradeExecutorTest {
         return new InvestmentDecision(
                 InvestmentAction.BUY,
                 "TEST",
-                1_000_000L,
+                10L,
+                100_000L,
                 "Test BUY decision."
         );
     }
@@ -75,7 +77,9 @@ class TradeExecutorTest {
                 RiskCheckStatus.APPROVED,
                 decision.action(),
                 decision.symbol(),
-                decision.orderAmountKrw(),
+                decision.quantity(),
+                decision.expectedPriceKrw(),
+                decision.estimatedOrderAmountKrw(),
                 RiskReasonCode.HOLD_NO_ORDER_REQUIRED,
                 "Test risk approved."
         );
@@ -86,7 +90,9 @@ class TradeExecutorTest {
                 RiskCheckStatus.DENIED,
                 decision.action(),
                 decision.symbol(),
-                decision.orderAmountKrw(),
+                decision.quantity(),
+                decision.expectedPriceKrw(),
+                decision.estimatedOrderAmountKrw(),
                 RiskReasonCode.MAX_ORDER_RATIO_EXCEEDED,
                 "Test risk denied."
         );

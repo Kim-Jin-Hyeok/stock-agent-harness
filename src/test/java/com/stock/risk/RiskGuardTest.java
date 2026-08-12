@@ -54,7 +54,7 @@ class RiskGuardTest {
     @Test
     void missingSymbolIsDenied() {
         RiskCheckResult result = riskGuard.validate(
-                buyDecision(null, 100000L),
+                buyDecision(null, 1L, 100_000L),
                 portfolioSnapshot
         );
 
@@ -65,7 +65,7 @@ class RiskGuardTest {
     @Test
     void blankSymbolIsDenied() {
         RiskCheckResult result = riskGuard.validate(
-                buyDecision("", 100000L),
+                buyDecision("", 1L, 100_000L),
                 portfolioSnapshot
         );
 
@@ -74,31 +74,53 @@ class RiskGuardTest {
     }
 
     @Test
-    void missingOrderAmountIsDenied() {
+    void missingQuantityIsDenied() {
         RiskCheckResult result = riskGuard.validate(
-                buyDecision("TEST", null),
+                buyDecision("TEST", null, 100_000L),
                 portfolioSnapshot
         );
 
         assertThat(result.status()).isEqualTo(RiskCheckStatus.DENIED);
-        assertThat(result.reasonCode()).isEqualTo(RiskReasonCode.ORDER_AMOUNT_REQUIRED);
+        assertThat(result.reasonCode()).isEqualTo(RiskReasonCode.QUANTITY_REQUIRED);
     }
 
     @Test
-    void zeroOrderAmountIsDenied() {
+    void zeroQuantityIsDenied() {
         RiskCheckResult result = riskGuard.validate(
-                buyDecision("TEST", 0L),
+                buyDecision("TEST", 0L, 100_000L),
                 portfolioSnapshot
         );
 
         assertThat(result.status()).isEqualTo(RiskCheckStatus.DENIED);
-        assertThat(result.reasonCode()).isEqualTo(RiskReasonCode.ORDER_AMOUNT_REQUIRED);
+        assertThat(result.reasonCode()).isEqualTo(RiskReasonCode.QUANTITY_REQUIRED);
     }
 
     @Test
-    void orderAmountGreaterThanCashIsDenied() {
+    void missingExpectedPriceIsDenied() {
         RiskCheckResult result = riskGuard.validate(
-                buyDecision("TEST", 100_000_000L),
+                buyDecision("TEST", 1L, null),
+                portfolioSnapshot
+        );
+
+        assertThat(result.status()).isEqualTo(RiskCheckStatus.DENIED);
+        assertThat(result.reasonCode()).isEqualTo(RiskReasonCode.EXPECTED_PRICE_REQUIRED);
+    }
+
+    @Test
+    void zeroExpectedPriceIsDenied() {
+        RiskCheckResult result = riskGuard.validate(
+                buyDecision("TEST", 1L, 0L),
+                portfolioSnapshot
+        );
+
+        assertThat(result.status()).isEqualTo(RiskCheckStatus.DENIED);
+        assertThat(result.reasonCode()).isEqualTo(RiskReasonCode.EXPECTED_PRICE_REQUIRED);
+    }
+
+    @Test
+    void estimatedOrderAmountGreaterThanCashIsDenied() {
+        RiskCheckResult result = riskGuard.validate(
+                buyDecision("TEST", 1_000L, 100_000L),
                 portfolioSnapshot
         );
 
@@ -107,9 +129,9 @@ class RiskGuardTest {
     }
 
     @Test
-    void orderAmountGreaterThanMaxOrderRatioIsDenied() {
+    void estimatedOrderAmountGreaterThanMaxOrderRatioIsDenied() {
         RiskCheckResult result = riskGuard.validate(
-                buyDecision("TEST", 2_000_000L),
+                buyDecision("TEST", 20L, 100_000L),
                 portfolioSnapshot
         );
 
@@ -120,7 +142,7 @@ class RiskGuardTest {
     @Test
     void validBuyDecisionIsDeniedBecauseBuyIsNotSupportedYet() {
         RiskCheckResult result = riskGuard.validate(
-                buyDecision("TEST", 1_000_000L),
+                buyDecision("TEST", 10L, 100_000L),
                 portfolioSnapshot
         );
 
@@ -130,7 +152,7 @@ class RiskGuardTest {
 
     @Test
     void orderIsDeniedWhenExpectedPositionAmountExceedsMaxPositionRatio() {
-        InvestmentDecision decision = buyDecision("TEST", 1_000_000L);
+        InvestmentDecision decision = buyDecision("TEST", 10L, 100_000L);
 
         RiskCheckResult result = riskGuard.validate(
                 decision,
@@ -146,18 +168,21 @@ class RiskGuardTest {
                 InvestmentAction.HOLD,
                 null,
                 null,
+                null,
                 "Test HOLD decision."
         );
     }
 
     private InvestmentDecision buyDecision(
             String symbol,
-            Long orderAmountKrw
+            Long quantity,
+            Long expectedPriceKrw
     ) {
         return new InvestmentDecision(
                 InvestmentAction.BUY,
                 symbol,
-                orderAmountKrw,
+                quantity,
+                expectedPriceKrw,
                 "Test BUY decision."
         );
     }
