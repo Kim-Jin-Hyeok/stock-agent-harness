@@ -7,4 +7,14 @@ public record PortfolioSnapshot(
         long totalAssetAmountKrw,
         List<PortfolioPosition> positions
 ) {
+    public long positionMarketValueKrw(String symbol) {
+        if (symbol == null || symbol.isBlank()) {
+            return 0L;
+        }
+
+        return positions.stream()
+                .filter(position -> symbol.equals(position.symbol()))
+                .mapToLong(PortfolioPosition::marketValueKrw)
+                .sum();
+    }
 }
