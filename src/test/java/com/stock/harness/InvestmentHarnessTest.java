@@ -2,6 +2,7 @@ package com.stock.harness;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentAgent;
+import com.stock.agent.InvestmentDecision;
 import com.stock.market.MarketService;
 import com.stock.portfolio.PortfolioService;
 import com.stock.risk.RiskCheckStatus;
@@ -83,5 +84,31 @@ class InvestmentHarnessTest {
 
         assertThat(lastStep.type()).isEqualTo(HarnessStepType.CHECK_STEP_LIMIT);
         assertThat(lastStep.status()).isEqualTo(HarnessStepStatus.FAILED);
+    }
+
+    @Test
+    void runFailsWhenAgentDecisionThrowsException() {
+        InvestmentHarness failingHarness = new InvestmentHarness(
+                riskGuard,
+                tradeExecutor,
+                portfolioService,
+                marketService,
+                new FailingInvestmentAgent(),
+                harnessProperties
+        );
+
+        HarnessRunResult result = failingHarness.run();
+
+        assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
+        assertThat(result.steps().size()).isEqualTo(1);
+        assertThat(result.steps().getFirst().type()).isEqualTo(HarnessStepType.RUN_FAILED);
+        assertThat(result.steps().getFirst().status()).isEqualTo(HarnessStepStatus.FAILED);
+    }
+
+    private static class FailingInvestmentAgent extends InvestmentAgent {
+        @Override
+        public InvestmentDecision decide(HarnessRunContext context) {
+            throw new IllegalStateException("Test agent failure");
+        }
     }
 }
