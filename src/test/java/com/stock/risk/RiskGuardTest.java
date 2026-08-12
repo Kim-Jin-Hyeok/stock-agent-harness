@@ -6,6 +6,8 @@ import com.stock.harness.HarnessProperties;
 import com.stock.portfolio.PortfolioSnapshot;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class RiskGuardTest {
@@ -19,7 +21,8 @@ class RiskGuardTest {
 
     private final PortfolioSnapshot portfolioSnapshot = new PortfolioSnapshot(
             10_000_000L,
-            10_000_000L
+            10_000_000L,
+            List.of()
     );
 
     @Test
