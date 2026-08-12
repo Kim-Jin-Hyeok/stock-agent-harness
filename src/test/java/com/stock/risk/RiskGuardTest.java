@@ -163,6 +163,32 @@ class RiskGuardTest {
         assertThat(result.reasonCode()).isEqualTo(RiskReasonCode.MAX_POSITION_RATIO_EXCEEDED);
     }
 
+    @Test
+    void sellDecisionIsDeniedWhenPositionNotFound() {
+        InvestmentDecision decision = sellDecision("ABCD", 10L, 100L);
+
+        RiskCheckResult result = riskGuard.validate(
+                decision,
+                portfolioSnapshotWithPosition
+        );
+
+        assertThat(result.status()).isEqualTo(RiskCheckStatus.DENIED);
+        assertThat(result.reasonCode()).isEqualTo(RiskReasonCode.POSITION_NOT_FOUND);
+    }
+
+    @Test
+    void sellDecisionIsDeniedWhenQuantityExceedsPosition() {
+        InvestmentDecision decision = sellDecision("TEST", 30L, 100L);
+
+        RiskCheckResult result = riskGuard.validate(
+                decision,
+                portfolioSnapshotWithPosition
+        );
+
+        assertThat(result.status()).isEqualTo(RiskCheckStatus.DENIED);
+        assertThat(result.reasonCode()).isEqualTo(RiskReasonCode.SELL_QUANTITY_EXCEEDS_POSITION);
+    }
+
     private InvestmentDecision holdDecision() {
         return new InvestmentDecision(
                 InvestmentAction.HOLD,
@@ -184,6 +210,20 @@ class RiskGuardTest {
                 quantity,
                 expectedPriceKrw,
                 "Test BUY decision."
+        );
+    }
+
+    private InvestmentDecision sellDecision(
+            String symbol,
+            Long quantity,
+            Long expectedPriceKrw
+    ) {
+        return new InvestmentDecision(
+                InvestmentAction.SELL,
+                symbol,
+                quantity,
+                expectedPriceKrw,
+                "Test SELL decision."
         );
     }
 }

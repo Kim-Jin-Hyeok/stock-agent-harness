@@ -134,6 +134,37 @@ public class RiskGuard {
             }
         }
 
+        if (decision.action() == InvestmentAction.SELL) {
+            if (portfolioSnapshot.positionQuantity(decision.symbol()) == 0) {
+                return new RiskCheckResult(
+                        RiskCheckStatus.DENIED,
+                        decision.action(),
+                        decision.symbol(),
+                        decision.quantity(),
+                        decision.expectedPriceKrw(),
+                        decision.estimatedOrderAmountKrw(),
+                        RiskReasonCode.POSITION_NOT_FOUND,
+                        "Position not found."
+                );
+            }
+
+            if (decision.quantity() > portfolioSnapshot.positionQuantity(decision.symbol())) {
+                return new RiskCheckResult(
+                        RiskCheckStatus.DENIED,
+                        decision.action(),
+                        decision.symbol(),
+                        decision.quantity(),
+                        decision.expectedPriceKrw(),
+                        decision.estimatedOrderAmountKrw(),
+                        RiskReasonCode.SELL_QUANTITY_EXCEEDS_POSITION,
+                        "Sell quantity exceeds position. decisionQuantity="
+                                + decision.quantity()
+                                + ", positionQuantity="
+                                + portfolioSnapshot.positionQuantity(decision.symbol())
+                );
+            }
+        }
+
         return new RiskCheckResult(
                 RiskCheckStatus.DENIED,
                 decision.action(),
