@@ -3,6 +3,7 @@ package com.stock.risk;
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
 import com.stock.harness.HarnessProperties;
+import com.stock.portfolio.PortfolioPosition;
 import com.stock.portfolio.PortfolioSnapshot;
 import org.junit.jupiter.api.Test;
 
@@ -14,7 +15,8 @@ class RiskGuardTest {
 
     private final HarnessProperties harnessProperties = new HarnessProperties(
             10,
-            0.1
+            0.1,
+            0.3
     );
 
     private final RiskGuard riskGuard = new RiskGuard(harnessProperties);
@@ -23,6 +25,19 @@ class RiskGuardTest {
             10_000_000L,
             10_000_000L,
             List.of()
+    );
+
+    private final PortfolioSnapshot portfolioSnapshotWithPosition = new PortfolioSnapshot(
+            10_000_000L,
+            10_000_000L,
+            List.of(
+                    new PortfolioPosition(
+                            "TEST",
+                            25L,
+                            100_000L,
+                            2_500_000L
+                    )
+            )
     );
 
     @Test
@@ -111,6 +126,19 @@ class RiskGuardTest {
 
         assertThat(result.status()).isEqualTo(RiskCheckStatus.DENIED);
         assertThat(result.reasonCode()).isEqualTo(RiskReasonCode.UNSUPPORTED_ACTION);
+    }
+
+    @Test
+    void orderIsDeniedWhenExpectedPositionAmountExceedsMaxPositionRatio() {
+        InvestmentDecision decision = buyDecision("TEST", 1_000_000L);
+
+        RiskCheckResult result = riskGuard.validate(
+                decision,
+                portfolioSnapshotWithPosition
+        );
+
+        assertThat(result.status()).isEqualTo(RiskCheckStatus.DENIED);
+        assertThat(result.reasonCode()).isEqualTo(RiskReasonCode.MAX_POSITION_RATIO_EXCEEDED);
     }
 
     private InvestmentDecision holdDecision() {

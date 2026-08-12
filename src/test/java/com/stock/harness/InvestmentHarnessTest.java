@@ -19,11 +19,13 @@ class InvestmentHarnessTest {
 
     private final HarnessProperties harnessProperties = new HarnessProperties(
             10,
-            0.1
+            0.1,
+            0.3
     );
     private final HarnessProperties failHarnessProperties = new HarnessProperties(
             4,
-            0.1
+            0.1,
+            0.3
     );
 
     private final RiskGuard riskGuard = new RiskGuard(harnessProperties);

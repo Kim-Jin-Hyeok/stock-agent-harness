@@ -83,6 +83,30 @@ public class RiskGuard {
             );
         }
 
+        long currentPositionMarketValueKrw =
+                portfolioSnapshot.positionMarketValueKrw(decision.symbol());
+        long expectedPositionAmountKrw =
+                currentPositionMarketValueKrw + decision.orderAmountKrw();
+        long maxPositionAmountKrw = (long) (
+                portfolioSnapshot.totalAssetAmountKrw() * harnessProperties.maxPositionRatio()
+        );
+
+        if (expectedPositionAmountKrw > maxPositionAmountKrw) {
+            return new RiskCheckResult(
+                    RiskCheckStatus.DENIED,
+                    decision.action(),
+                    decision.symbol(),
+                    decision.orderAmountKrw(),
+                    RiskReasonCode.MAX_POSITION_RATIO_EXCEEDED,
+                    "Order amount exceeds max position ratio. orderAmountKrw="
+                            + decision.orderAmountKrw()
+                            + ", maxPositionAmountKrw="
+                            + maxPositionAmountKrw
+                            + ", maxPositionRatio="
+                            + harnessProperties.maxPositionRatio()
+            );
+        }
+
         return new RiskCheckResult(
                 RiskCheckStatus.DENIED,
                 decision.action(),
