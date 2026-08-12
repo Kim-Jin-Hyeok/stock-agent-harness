@@ -20,6 +20,10 @@ class InvestmentHarnessTest {
             10,
             0.1
     );
+    private final HarnessProperties failHarnessProperties = new HarnessProperties(
+            4,
+            0.1
+    );
 
     private final RiskGuard riskGuard = new RiskGuard(harnessProperties);
     private final TradeExecutor tradeExecutor = new TradeExecutor();
@@ -34,6 +38,15 @@ class InvestmentHarnessTest {
             marketService,
             investmentAgent,
             harnessProperties
+    );
+
+    private final InvestmentHarness failInvestmentHarness = new InvestmentHarness(
+            riskGuard,
+            tradeExecutor,
+            portfolioService,
+            marketService,
+            investmentAgent,
+            failHarnessProperties
     );
 
     @Test
@@ -58,5 +71,17 @@ class InvestmentHarnessTest {
                 HarnessStepType.EXECUTE_TRADE,
                 HarnessStepType.CHECK_STEP_LIMIT
         );
+    }
+
+    @Test
+    void runFailsWhenStepLimitExceeded() {
+        HarnessRunResult result = failInvestmentHarness.run();
+
+        assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
+
+        HarnessStepResult lastStep = result.steps().getLast();
+
+        assertThat(lastStep.type()).isEqualTo(HarnessStepType.CHECK_STEP_LIMIT);
+        assertThat(lastStep.status()).isEqualTo(HarnessStepStatus.FAILED);
     }
 }
