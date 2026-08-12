@@ -52,6 +52,19 @@ class TradeExecutorTest {
         assertThat(result.reasonCode()).isEqualTo(TradeReasonCode.UNSUPPORTED_ACTION);
     }
 
+    @Test
+    void approvedSellDecisionIsRejectedBecauseSellIsNotSupportedYet() {
+        InvestmentDecision decision = sellDecision();
+
+        TradeResult result = tradeExecutor.execute(
+                decision,
+                approvedRiskCheckResult(decision)
+        );
+
+        assertThat(result.status()).isEqualTo(TradeStatus.REJECTED);
+        assertThat(result.reasonCode()).isEqualTo(TradeReasonCode.UNSUPPORTED_ACTION);
+    }
+
     private InvestmentDecision holdDecision() {
         return new InvestmentDecision(
                 InvestmentAction.HOLD,
@@ -69,6 +82,16 @@ class TradeExecutorTest {
                 10L,
                 100_000L,
                 "Test BUY decision."
+        );
+    }
+
+    private InvestmentDecision sellDecision() {
+        return new InvestmentDecision(
+                InvestmentAction.SELL,
+                "TEST",
+                10L,
+                100_000L,
+                "Test SELL decision."
         );
     }
 
