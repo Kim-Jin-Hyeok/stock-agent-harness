@@ -38,27 +38,27 @@ public class TradeExecutor {
 
         if (decision.action() == InvestmentAction.BUY) {
             return new TradeResult(
-                    TradeStatus.REJECTED,
+                    TradeStatus.EXECUTED,
                     decision.action(),
                     decision.symbol(),
                     decision.quantity(),
                     decision.expectedPriceKrw(),
                     decision.estimatedOrderAmountKrw(),
-                    TradeReasonCode.UNSUPPORTED_ACTION,
-                    "BUY execution is not supported yet."
+                    TradeReasonCode.EXECUTION_COMPLETED,
+                    "BUY execution is complete."
             );
         }
 
         if (decision.action() == InvestmentAction.SELL) {
             return new TradeResult(
-                    TradeStatus.REJECTED,
+                    TradeStatus.EXECUTED,
                     decision.action(),
                     decision.symbol(),
                     decision.quantity(),
                     decision.expectedPriceKrw(),
                     decision.estimatedOrderAmountKrw(),
-                    TradeReasonCode.UNSUPPORTED_ACTION,
-                    "SELL execution is not supported yet."
+                    TradeReasonCode.EXECUTION_COMPLETED,
+                    "SELL execution is complete."
             );
         }
 

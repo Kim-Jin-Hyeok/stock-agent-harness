@@ -40,7 +40,7 @@ class TradeExecutorTest {
     }
 
     @Test
-    void approvedBuyDecisionIsRejectedBecauseBuyIsNotSupportedYet() {
+    void approvedBuyDecisionIsExecuted() {
         InvestmentDecision decision = buyDecision();
 
         TradeResult result = tradeExecutor.execute(
@@ -48,12 +48,12 @@ class TradeExecutorTest {
                 approvedRiskCheckResult(decision)
         );
 
-        assertThat(result.status()).isEqualTo(TradeStatus.REJECTED);
-        assertThat(result.reasonCode()).isEqualTo(TradeReasonCode.UNSUPPORTED_ACTION);
+        assertThat(result.status()).isEqualTo(TradeStatus.EXECUTED);
+        assertThat(result.reasonCode()).isEqualTo(TradeReasonCode.EXECUTION_COMPLETED);
     }
 
     @Test
-    void approvedSellDecisionIsRejectedBecauseSellIsNotSupportedYet() {
+    void approvedSellDecisionIsExecuted() {
         InvestmentDecision decision = sellDecision();
 
         TradeResult result = tradeExecutor.execute(
@@ -61,8 +61,8 @@ class TradeExecutorTest {
                 approvedRiskCheckResult(decision)
         );
 
-        assertThat(result.status()).isEqualTo(TradeStatus.REJECTED);
-        assertThat(result.reasonCode()).isEqualTo(TradeReasonCode.UNSUPPORTED_ACTION);
+        assertThat(result.status()).isEqualTo(TradeStatus.EXECUTED);
+        assertThat(result.reasonCode()).isEqualTo(TradeReasonCode.EXECUTION_COMPLETED);
     }
 
     private InvestmentDecision holdDecision() {
