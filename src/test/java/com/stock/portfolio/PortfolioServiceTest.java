@@ -53,4 +53,49 @@ class PortfolioServiceTest {
         assertThat(position.averagePriceKrw()).isEqualTo(106_666L);
         assertThat(position.marketValueKrw()).isEqualTo(1_600_000L);
     }
+
+    @Test
+    void applySellExistingPosition() {
+        portfolioService.applyBuy(
+                "TEST",
+                10L,
+                100_000L
+        );
+
+        PortfolioSnapshot result = portfolioService.applySell(
+                "TEST",
+                5L,
+                120_000L
+        );
+
+        assertThat(result.cashAmountKrw()).isEqualTo(9_600_000L);
+        assertThat(result.totalAssetAmountKrw()).isEqualTo(10_100_000L);
+        assertThat(result.positions()).hasSize(1);
+
+        PortfolioPosition position = result.positions().getFirst();
+
+        assertThat(position.symbol()).isEqualTo("TEST");
+        assertThat(position.quantity()).isEqualTo(5L);
+        assertThat(position.averagePriceKrw()).isEqualTo(100_000L);
+        assertThat(position.marketValueKrw()).isEqualTo(500_000L);
+    }
+
+    @Test
+    void applySellRemovesPositionWhenQuantityBecomesZero() {
+        portfolioService.applyBuy(
+                "TEST",
+                10L,
+                100_000L
+        );
+
+        PortfolioSnapshot result = portfolioService.applySell(
+                "TEST",
+                10L,
+                120_000L
+        );
+
+        assertThat(result.cashAmountKrw()).isEqualTo(10_200_000L);
+        assertThat(result.totalAssetAmountKrw()).isEqualTo(10_200_000L);
+        assertThat(result.positions()).isEmpty();
+    }
 }

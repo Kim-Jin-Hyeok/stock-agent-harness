@@ -61,6 +61,14 @@ class TradeExecutorTest {
 
     @Test
     void approvedSellDecisionIsExecuted() {
+        portfolioService.applyBuy(
+                "TEST",
+                15L,
+                50_000L
+        );
+
+        long buyingCashAmountKrw = 10_000_000L - portfolioService.getCurrentSnapshot().cashAmountKrw();
+
         InvestmentDecision decision = sellDecision();
 
         TradeResult result = tradeExecutor.execute(
@@ -70,6 +78,12 @@ class TradeExecutorTest {
 
         assertThat(result.status()).isEqualTo(TradeStatus.EXECUTED);
         assertThat(result.reasonCode()).isEqualTo(TradeReasonCode.EXECUTION_COMPLETED);
+
+        assertThat(portfolioService.getCurrentSnapshot().cashAmountKrw()).isEqualTo(10_000_000L - buyingCashAmountKrw + decision.estimatedOrderAmountKrw());
+
+        assertThat(portfolioService.getCurrentSnapshot().positions()).hasSize(1);
+        assertThat(portfolioService.getCurrentSnapshot().positions().getFirst().symbol()).isEqualTo("TEST");
+        assertThat(portfolioService.getCurrentSnapshot().positions().getFirst().quantity()).isEqualTo(5L);
     }
 
     private InvestmentDecision holdDecision() {

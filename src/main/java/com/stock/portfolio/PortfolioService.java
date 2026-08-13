@@ -49,6 +49,44 @@ public class PortfolioService {
         return currentSnapshot;
     }
 
+    public PortfolioSnapshot applySell(String symbol, long quantity, long priceKrw) {
+        long sellAmountKrw = priceKrw * quantity;
+        List<PortfolioPosition> updatedPositions = new ArrayList<>();
+
+        for (PortfolioPosition position : currentSnapshot.positions()) {
+
+            if (symbol.equals(position.symbol())) {
+                if (position.quantity() - quantity == 0) {
+                    continue;
+                }
+
+                long remainingQuantity = position.quantity() - quantity;
+
+                updatedPositions.add(
+                        new PortfolioPosition(
+                                position.symbol(),
+                                remainingQuantity,
+                                position.averagePriceKrw(),
+                                position.averagePriceKrw() * remainingQuantity
+                        )
+                );
+            } else {
+                updatedPositions.add(position);
+            }
+        }
+
+        long updatedCashAmountKrw = currentSnapshot.cashAmountKrw() + sellAmountKrw;
+        long updatedTotalAssetAmountKrw = updatedCashAmountKrw + totalMarketValueKrw(updatedPositions);
+
+        currentSnapshot = new PortfolioSnapshot(
+                updatedCashAmountKrw,
+                updatedTotalAssetAmountKrw,
+                List.copyOf(updatedPositions)
+        );
+
+        return currentSnapshot;
+    }
+
     private PortfolioPosition mergePosition(
             PortfolioPosition position,
             long quantity,
@@ -66,5 +104,11 @@ public class PortfolioService {
                 mergedAveragePriceKrw,
                 mergedMarketValueKrw
         );
+    }
+
+    private long totalMarketValueKrw(List<PortfolioPosition> positions) {
+        return positions.stream()
+                .mapToLong(PortfolioPosition::marketValueKrw)
+                .sum();
     }
 }

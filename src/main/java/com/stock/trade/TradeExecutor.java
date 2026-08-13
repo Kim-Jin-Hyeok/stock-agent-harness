@@ -60,6 +60,12 @@ public class TradeExecutor {
         }
 
         if (decision.action() == InvestmentAction.SELL) {
+            portfolioService.applySell(
+                    decision.symbol(),
+                    decision.quantity(),
+                    decision.expectedPriceKrw()
+            );
+
             return new TradeResult(
                     TradeStatus.EXECUTED,
                     decision.action(),
