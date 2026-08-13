@@ -6,12 +6,13 @@ import java.util.List;
 
 @Component
 public class PortfolioService {
+    private PortfolioSnapshot currentSnapshot = new PortfolioSnapshot(
+            10_000_000L,
+            10_000_000L,
+            List.of()
+    );
 
     public PortfolioSnapshot getCurrentSnapshot() {
-        return new PortfolioSnapshot(
-                10_000_000L,
-                10_000_000L,
-                List.of()
-        );
+        return currentSnapshot;
     }
 }
