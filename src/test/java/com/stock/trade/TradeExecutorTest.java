@@ -2,6 +2,7 @@ package com.stock.trade;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
+import com.stock.portfolio.PortfolioService;
 import com.stock.risk.RiskCheckResult;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskReasonCode;
@@ -11,7 +12,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class TradeExecutorTest {
 
-    private final TradeExecutor tradeExecutor = new TradeExecutor();
+    private final PortfolioService portfolioService = new PortfolioService();
+    private final TradeExecutor tradeExecutor = new TradeExecutor(portfolioService);
 
     @Test
     void riskDeniedDecisionIsRejected() {
@@ -50,6 +52,11 @@ class TradeExecutorTest {
 
         assertThat(result.status()).isEqualTo(TradeStatus.EXECUTED);
         assertThat(result.reasonCode()).isEqualTo(TradeReasonCode.EXECUTION_COMPLETED);
+
+        assertThat(portfolioService.getCurrentSnapshot().cashAmountKrw()).isEqualTo(10_000_000L - decision.estimatedOrderAmountKrw());
+
+        assertThat(portfolioService.getCurrentSnapshot().positions()).hasSize(1);
+        assertThat(portfolioService.getCurrentSnapshot().positions().getFirst().symbol()).isEqualTo("TEST");
     }
 
     @Test
@@ -103,7 +110,7 @@ class TradeExecutorTest {
                 decision.quantity(),
                 decision.expectedPriceKrw(),
                 decision.estimatedOrderAmountKrw(),
-                RiskReasonCode.HOLD_NO_ORDER_REQUIRED,
+                RiskReasonCode.RISK_APPROVED,
                 "Test risk approved."
         );
     }

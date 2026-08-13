@@ -49,6 +49,8 @@ public class InvestmentHarness {
 
             TradeResult tradeResult = tradeExecutor.execute(decision, riskCheckResult);
 
+            PortfolioSnapshot finalPortfolioSnapshot = portfolioService.getCurrentSnapshot();
+
             List<HarnessStepResult> steps = recordSteps(
                     context,
                     decision,
@@ -85,7 +87,7 @@ public class InvestmentHarness {
                     decision,
                     riskCheckResult,
                     tradeResult,
-                    context.portfolioSnapshot(),
+                    finalPortfolioSnapshot,
                     context.marketSnapshot()
             );
         } catch (Exception e) {

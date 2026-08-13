@@ -29,8 +29,8 @@ class InvestmentHarnessTest {
     );
 
     private final RiskGuard riskGuard = new RiskGuard(harnessProperties);
-    private final TradeExecutor tradeExecutor = new TradeExecutor();
     private final PortfolioService portfolioService = new PortfolioService();
+    private final TradeExecutor tradeExecutor = new TradeExecutor(portfolioService);
     private final MarketService marketService = new MarketService();
     private final InvestmentAgent investmentAgent = new InvestmentAgent();
 
@@ -131,6 +131,10 @@ class InvestmentHarnessTest {
                         && harnessStepResult.status().equals(HarnessStepStatus.COMPLETED)
                 );
         assertThat(hasCompletedExecuteTradeStep).isTrue();
+
+        boolean hasBuyingSymbol = result.portfolioSnapshot().positions().stream()
+                .anyMatch(position -> position.symbol().equals(result.decision().symbol()));
+        assertThat(hasBuyingSymbol).isTrue();
     }
 
     private static class BuyingInvestmentAgent extends InvestmentAgent {
