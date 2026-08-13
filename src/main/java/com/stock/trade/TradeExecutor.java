@@ -36,6 +36,32 @@ public class TradeExecutor {
             );
         }
 
+        if (decision.action() == InvestmentAction.BUY) {
+            return new TradeResult(
+                    TradeStatus.REJECTED,
+                    decision.action(),
+                    decision.symbol(),
+                    decision.quantity(),
+                    decision.expectedPriceKrw(),
+                    decision.estimatedOrderAmountKrw(),
+                    TradeReasonCode.UNSUPPORTED_ACTION,
+                    "BUY execution is not supported yet."
+            );
+        }
+
+        if (decision.action() == InvestmentAction.SELL) {
+            return new TradeResult(
+                    TradeStatus.REJECTED,
+                    decision.action(),
+                    decision.symbol(),
+                    decision.quantity(),
+                    decision.expectedPriceKrw(),
+                    decision.estimatedOrderAmountKrw(),
+                    TradeReasonCode.UNSUPPORTED_ACTION,
+                    "SELL execution is not supported yet."
+            );
+        }
+
         return new TradeResult(
                 TradeStatus.REJECTED,
                 decision.action(),
@@ -44,7 +70,7 @@ public class TradeExecutor {
                 decision.expectedPriceKrw(),
                 decision.estimatedOrderAmountKrw(),
                 TradeReasonCode.UNSUPPORTED_ACTION,
-                "BUY and SELL execution are not supported yet."
+                "Unsupported investment action."
         );
     }
 }
