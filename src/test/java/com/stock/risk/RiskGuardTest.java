@@ -140,14 +140,25 @@ class RiskGuardTest {
     }
 
     @Test
-    void validBuyDecisionIsDeniedBecauseBuyIsNotSupportedYet() {
+    void validBuyDecisionIsApproved() {
         RiskCheckResult result = riskGuard.validate(
                 buyDecision("TEST", 10L, 100_000L),
                 portfolioSnapshot
         );
 
-        assertThat(result.status()).isEqualTo(RiskCheckStatus.DENIED);
-        assertThat(result.reasonCode()).isEqualTo(RiskReasonCode.UNSUPPORTED_ACTION);
+        assertThat(result.status()).isEqualTo(RiskCheckStatus.APPROVED);
+        assertThat(result.reasonCode()).isEqualTo(RiskReasonCode.RISK_APPROVED);
+    }
+
+    @Test
+    void validSellDecisionIsApproved() {
+        RiskCheckResult result = riskGuard.validate(
+                sellDecision("TEST", 10L, 100_000L),
+                portfolioSnapshotWithPosition
+        );
+
+        assertThat(result.status()).isEqualTo(RiskCheckStatus.APPROVED);
+        assertThat(result.reasonCode()).isEqualTo(RiskReasonCode.RISK_APPROVED);
     }
 
     @Test

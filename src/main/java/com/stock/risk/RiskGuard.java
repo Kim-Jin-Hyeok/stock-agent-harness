@@ -166,14 +166,14 @@ public class RiskGuard {
         }
 
         return new RiskCheckResult(
-                RiskCheckStatus.DENIED,
+                RiskCheckStatus.APPROVED,
                 decision.action(),
                 decision.symbol(),
                 decision.quantity(),
                 decision.expectedPriceKrw(),
                 decision.estimatedOrderAmountKrw(),
-                RiskReasonCode.UNSUPPORTED_ACTION,
-                "BUY and SELL are not supported yet."
+                RiskReasonCode.RISK_APPROVED,
+                "Risk validation approved."
         );
     }
 }

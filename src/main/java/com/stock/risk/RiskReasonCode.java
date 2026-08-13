@@ -2,6 +2,7 @@ package com.stock.risk;
 
 public enum RiskReasonCode {
     HOLD_NO_ORDER_REQUIRED,
+    RISK_APPROVED,
     SYMBOL_REQUIRED,
     QUANTITY_REQUIRED,
     EXPECTED_PRICE_REQUIRED,
