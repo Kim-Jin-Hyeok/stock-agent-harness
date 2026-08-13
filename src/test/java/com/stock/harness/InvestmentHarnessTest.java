@@ -107,6 +107,45 @@ class InvestmentHarnessTest {
         assertThat(result.steps().getFirst().status()).isEqualTo(HarnessStepStatus.FAILED);
     }
 
+    @Test
+    void runCompletesWhenAgentDecidesBuy() {
+        InvestmentHarness successHarness = new InvestmentHarness(
+                riskGuard,
+                tradeExecutor,
+                portfolioService,
+                marketService,
+                new BuyingInvestmentAgent(),
+                harnessProperties
+        );
+
+        HarnessRunResult result = successHarness.run();
+
+        assertThat(result.status()).isEqualTo(HarnessRunStatus.COMPLETED);
+        assertThat(result.decision().action()).isEqualTo(InvestmentAction.BUY);
+        assertThat(result.riskCheckResult().status()).isEqualTo(RiskCheckStatus.APPROVED);
+        assertThat(result.tradeResult().status()).isEqualTo(TradeStatus.EXECUTED);
+
+        boolean hasCompletedExecuteTradeStep = result.steps().stream()
+                .anyMatch(harnessStepResult ->
+                        harnessStepResult.type().equals(HarnessStepType.EXECUTE_TRADE)
+                        && harnessStepResult.status().equals(HarnessStepStatus.COMPLETED)
+                );
+        assertThat(hasCompletedExecuteTradeStep).isTrue();
+    }
+
+    private static class BuyingInvestmentAgent extends InvestmentAgent {
+        @Override
+        public InvestmentDecision decide(HarnessRunContext context) {
+            return new InvestmentDecision(
+                    InvestmentAction.BUY,
+                    "TEST",
+                    10L,
+                    100_000L,
+                    "Test buy complete."
+            );
+        }
+    }
+
     private static class FailingInvestmentAgent extends InvestmentAgent {
         @Override
         public InvestmentDecision decide(HarnessRunContext context) {
