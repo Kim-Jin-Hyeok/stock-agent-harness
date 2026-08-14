@@ -24,7 +24,7 @@ class TradeHistoryServiceTest {
                 "BUY execution is complete."
         );
 
-        tradeHistoryService.record(result);
+        tradeHistoryService.record("abc", result);
 
         List<TradeRecord> records = tradeHistoryService.getRecords();
 
@@ -32,6 +32,7 @@ class TradeHistoryServiceTest {
 
         TradeRecord record = records.getFirst();
 
+        assertThat(record.runId()).isEqualTo("abc");
         assertThat(record.action()).isEqualTo(InvestmentAction.BUY);
         assertThat(record.symbol()).isEqualTo("TEST");
         assertThat(record.quantity()).isEqualTo(10L);

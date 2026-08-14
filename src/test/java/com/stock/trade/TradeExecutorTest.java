@@ -23,6 +23,7 @@ class TradeExecutorTest {
         InvestmentDecision decision = holdDecision();
 
         TradeResult result = tradeExecutor.execute(
+                "abc",
                 decision,
                 deniedRiskCheckResult(decision)
         );
@@ -36,6 +37,7 @@ class TradeExecutorTest {
         InvestmentDecision decision = holdDecision();
 
         TradeResult result = tradeExecutor.execute(
+                "abc",
                 decision,
                 approvedRiskCheckResult(decision)
         );
@@ -49,6 +51,7 @@ class TradeExecutorTest {
         InvestmentDecision decision = buyDecision();
 
         TradeResult result = tradeExecutor.execute(
+                "abc",
                 decision,
                 approvedRiskCheckResult(decision)
         );
@@ -78,6 +81,7 @@ class TradeExecutorTest {
         InvestmentDecision decision = sellDecision();
 
         TradeResult result = tradeExecutor.execute(
+                "abc",
                 decision,
                 approvedRiskCheckResult(decision)
         );
@@ -90,6 +94,8 @@ class TradeExecutorTest {
         assertThat(portfolioService.getCurrentSnapshot().positions()).hasSize(1);
         assertThat(portfolioService.getCurrentSnapshot().positions().getFirst().symbol()).isEqualTo("TEST");
         assertThat(portfolioService.getCurrentSnapshot().positions().getFirst().quantity()).isEqualTo(5L);
+
+        assertThat(tradeHistoryService.getRecords().getFirst().runId()).isEqualTo("abc");
     }
 
     private InvestmentDecision holdDecision() {

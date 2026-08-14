@@ -5,6 +5,7 @@ import com.stock.agent.InvestmentAction;
 import java.time.LocalDateTime;
 
 public record TradeRecord(
+        String runId,
         InvestmentAction action,
         String symbol,
         Long quantity,

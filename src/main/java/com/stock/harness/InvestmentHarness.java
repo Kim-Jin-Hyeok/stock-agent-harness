@@ -47,7 +47,7 @@ public class InvestmentHarness {
                     context.portfolioSnapshot()
             );
 
-            TradeResult tradeResult = tradeExecutor.execute(decision, riskCheckResult);
+            TradeResult tradeResult = tradeExecutor.execute(runId, decision, riskCheckResult);
 
             PortfolioSnapshot finalPortfolioSnapshot = portfolioService.getCurrentSnapshot();
 

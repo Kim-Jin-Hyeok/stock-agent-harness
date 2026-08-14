@@ -10,11 +10,12 @@ import java.util.List;
 public class TradeHistoryService {
     private final List<TradeRecord> records = new ArrayList<>();
 
-    public void record(TradeResult result) {
+    public void record(String runId, TradeResult result) {
         LocalDateTime executedAt = LocalDateTime.now();
 
         records.add(
                 new TradeRecord(
+                        runId,
                         result.action(),
                         result.symbol(),
                         result.quantity(),
