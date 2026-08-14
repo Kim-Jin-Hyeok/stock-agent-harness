@@ -2,6 +2,7 @@ package com.stock.harness.api;
 
 import com.stock.harness.HarnessRunHistoryService;
 import com.stock.harness.HarnessRunResult;
+import com.stock.harness.HarnessStateService;
 import com.stock.harness.InvestmentHarness;
 import com.stock.trade.TradeHistoryService;
 import com.stock.trade.TradeRecord;
@@ -19,6 +20,7 @@ public class HarnessController {
     private final InvestmentHarness investmentHarness;
     private final TradeHistoryService tradeHistoryService;
     private final HarnessRunHistoryService harnessRunHistoryService;
+    private final HarnessStateService harnessStateService;
 
     @PostMapping("/run")
     public HarnessRunResponse run() {
@@ -41,5 +43,10 @@ public class HarnessController {
                         HttpStatus.NOT_FOUND,
                         "Harness run not found. runId=" + runId
                 ));
+    }
+
+    @PostMapping("/reset")
+    public void reset() {
+        harnessStateService.reset();
     }
 }
