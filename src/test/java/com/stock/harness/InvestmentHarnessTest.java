@@ -40,6 +40,7 @@ class InvestmentHarnessTest {
             tradeHistoryService
     );
     private final MarketService marketService = new MarketService();
+    private final HarnessRunHistoryService harnessRunHistoryService = new HarnessRunHistoryService();
     private final InvestmentAgent investmentAgent = new InvestmentAgent();
 
     private final InvestmentHarness investmentHarness = new InvestmentHarness(
@@ -47,6 +48,7 @@ class InvestmentHarnessTest {
             tradeExecutor,
             portfolioService,
             marketService,
+            harnessRunHistoryService,
             investmentAgent,
             harnessProperties
     );
@@ -56,6 +58,7 @@ class InvestmentHarnessTest {
             tradeExecutor,
             portfolioService,
             marketService,
+            harnessRunHistoryService,
             investmentAgent,
             failHarnessProperties
     );
@@ -82,6 +85,8 @@ class InvestmentHarnessTest {
                 HarnessStepType.EXECUTE_TRADE,
                 HarnessStepType.CHECK_STEP_LIMIT
         );
+
+        assertThat(harnessRunHistoryService.getRunById(result.runId())).isPresent();
     }
 
     @Test
@@ -103,6 +108,7 @@ class InvestmentHarnessTest {
                 tradeExecutor,
                 portfolioService,
                 marketService,
+                harnessRunHistoryService,
                 new FailingInvestmentAgent(),
                 harnessProperties
         );
@@ -113,6 +119,9 @@ class InvestmentHarnessTest {
         assertThat(result.steps().size()).isEqualTo(1);
         assertThat(result.steps().getFirst().type()).isEqualTo(HarnessStepType.RUN_FAILED);
         assertThat(result.steps().getFirst().status()).isEqualTo(HarnessStepStatus.FAILED);
+
+        assertThat(harnessRunHistoryService.getRunById(result.runId())).isPresent();
+        assertThat(harnessRunHistoryService.getRunById(result.runId()).get().status()).isEqualTo(HarnessRunStatus.FAILED);
     }
 
     @Test
@@ -122,6 +131,7 @@ class InvestmentHarnessTest {
                 tradeExecutor,
                 portfolioService,
                 marketService,
+                harnessRunHistoryService,
                 new BuyingInvestmentAgent(),
                 harnessProperties
         );
@@ -164,6 +174,7 @@ class InvestmentHarnessTest {
                 sellTradeExecutor,
                 sellPortfolioService,
                 marketService,
+                harnessRunHistoryService,
                 new SellingInvestmentAgent(),
                 harnessProperties
         );

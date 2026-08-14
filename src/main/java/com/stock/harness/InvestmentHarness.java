@@ -28,6 +28,7 @@ public class InvestmentHarness {
     private final TradeExecutor tradeExecutor;
     private final PortfolioService portfolioService;
     private final MarketService marketService;
+    private final HarnessRunHistoryService harnessRunHistoryService;
     private final InvestmentAgent investmentAgent;
     private final HarnessProperties harnessProperties;
 
@@ -78,7 +79,7 @@ public class InvestmentHarness {
                     tradeResult.status()
             );
 
-            return HarnessRunResult.of(
+            HarnessRunResult result = HarnessRunResult.of(
                     context.runId(),
                     runStatus,
                     startedAt,
@@ -90,12 +91,20 @@ public class InvestmentHarness {
                     finalPortfolioSnapshot,
                     context.marketSnapshot()
             );
+
+            harnessRunHistoryService.record(result);
+
+            return result;
         } catch (Exception e) {
-            return createFailedResult(
+            HarnessRunResult result = createFailedResult(
                     runId,
                     startedAt,
                     e
             );
+
+            harnessRunHistoryService.record(result);
+
+            return result;
         }
     }
 
