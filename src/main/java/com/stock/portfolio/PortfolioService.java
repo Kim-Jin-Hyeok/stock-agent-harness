@@ -87,6 +87,16 @@ public class PortfolioService {
         return currentSnapshot;
     }
 
+    public PortfolioSnapshot reset() {
+        currentSnapshot = new PortfolioSnapshot(
+                10_000_000L,
+                10_000_000L,
+                List.of()
+        );
+
+        return currentSnapshot;
+    }
+
     private PortfolioPosition mergePosition(
             PortfolioPosition position,
             long quantity,

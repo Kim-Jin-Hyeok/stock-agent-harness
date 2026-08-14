@@ -4,6 +4,7 @@ import com.stock.portfolio.PortfolioService;
 import com.stock.portfolio.PortfolioSnapshot;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -16,5 +17,10 @@ public class PortfolioController {
     @GetMapping
     public PortfolioSnapshot getPortfolio() {
         return portfolioService.getCurrentSnapshot();
+    }
+
+    @PostMapping("/reset")
+    public void reset() {
+        portfolioService.reset();
     }
 }

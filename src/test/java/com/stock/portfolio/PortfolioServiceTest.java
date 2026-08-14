@@ -98,4 +98,19 @@ class PortfolioServiceTest {
         assertThat(result.totalAssetAmountKrw()).isEqualTo(10_200_000L);
         assertThat(result.positions()).isEmpty();
     }
+
+    @Test
+    void resetSnapshotWhenCalledReset() {
+        portfolioService.applyBuy(
+                "TEST",
+                10L,
+                100_000L
+        );
+
+        PortfolioSnapshot portfolioSnapshot = portfolioService.reset();
+
+        assertThat(portfolioSnapshot.cashAmountKrw()).isEqualTo(10_000_000L);
+        assertThat(portfolioSnapshot.totalAssetAmountKrw()).isEqualTo(10_000_000L);
+        assertThat(portfolioSnapshot.positions()).isEmpty();
+    }
 }

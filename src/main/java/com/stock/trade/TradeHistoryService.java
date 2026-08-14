@@ -38,4 +38,8 @@ public class TradeHistoryService {
                 .filter(record -> record.runId().equals(runId))
                 .toList();
     }
+
+    public void clear() {
+        records.clear();
+    }
 }

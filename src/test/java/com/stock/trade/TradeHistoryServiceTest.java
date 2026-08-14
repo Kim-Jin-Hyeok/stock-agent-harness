@@ -66,4 +66,28 @@ class TradeHistoryServiceTest {
         assertThat(records).hasSize(1);
         assertThat(records.getFirst().runId()).isEqualTo("run-1");
     }
+
+    @Test
+    void clearTradeHistoryWhenCalledClear() {
+        TradeHistoryService tradeHistoryService = new TradeHistoryService();
+
+        TradeResult result = new TradeResult(
+                TradeStatus.EXECUTED,
+                InvestmentAction.BUY,
+                "TEST",
+                10L,
+                100_000L,
+                1_000_000L,
+                TradeReasonCode.EXECUTION_COMPLETED,
+                "BUY execution is complete."
+        );
+
+        tradeHistoryService.record("abc", result);
+
+        tradeHistoryService.clear();
+
+        List<TradeRecord> records = tradeHistoryService.getRecords();
+
+        assertThat(records).isEmpty();
+    }
 }
