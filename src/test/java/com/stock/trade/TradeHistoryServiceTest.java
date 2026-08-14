@@ -42,4 +42,28 @@ class TradeHistoryServiceTest {
         assertThat(record.reasonCode()).isEqualTo(TradeReasonCode.EXECUTION_COMPLETED);
         assertThat(record.executedAt()).isNotNull();
     }
+
+    @Test
+    void getRecordsByRunIdReturnsOnlyMatchingRecords() {
+        TradeHistoryService tradeHistoryService = new TradeHistoryService();
+
+        TradeResult result = new TradeResult(
+                TradeStatus.EXECUTED,
+                InvestmentAction.BUY,
+                "TEST",
+                10L,
+                100_000L,
+                1_000_000L,
+                TradeReasonCode.EXECUTION_COMPLETED,
+                "BUY execution is complete."
+        );
+
+        tradeHistoryService.record("run-1", result);
+        tradeHistoryService.record("run-2", result);
+
+        List<TradeRecord> records = tradeHistoryService.getRecordsByRunId("run-1");
+
+        assertThat(records).hasSize(1);
+        assertThat(records.getFirst().runId()).isEqualTo("run-1");
+    }
 }

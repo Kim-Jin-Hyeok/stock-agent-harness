@@ -32,4 +32,10 @@ public class TradeHistoryService {
     public List<TradeRecord> getRecords() {
         return List.copyOf(records);
     }
+
+    public List<TradeRecord> getRecordsByRunId(String runId) {
+        return records.stream()
+                .filter(record -> record.runId().equals(runId))
+                .toList();
+    }
 }
