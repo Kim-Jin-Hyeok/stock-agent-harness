@@ -5,8 +5,8 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class PortfolioServiceTest {
-
-    private final PortfolioService portfolioService = new PortfolioService();
+    private final PortfolioSnapshotStore store = new PortfolioSnapshotStore();
+    private final PortfolioService portfolioService = new PortfolioService(store);
 
     @Test
     void applyBuyAddsNewPosition() {

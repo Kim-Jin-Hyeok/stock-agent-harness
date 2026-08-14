@@ -1,23 +1,23 @@
 package com.stock.portfolio;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Component
+@RequiredArgsConstructor
 public class PortfolioService {
-    private PortfolioSnapshot currentSnapshot = new PortfolioSnapshot(
-            10_000_000L,
-            10_000_000L,
-            List.of()
-    );
+    private final PortfolioSnapshotStore store;
 
     public PortfolioSnapshot getCurrentSnapshot() {
-        return currentSnapshot;
+        return store.getCurrentSnapshot();
     }
 
     public PortfolioSnapshot applyBuy(String symbol, long quantity, long priceKrw) {
+        PortfolioSnapshot currentSnapshot = store.getCurrentSnapshot();
+
         long buyAmountKrw = quantity * priceKrw;
         List<PortfolioPosition> updatedPositions = new ArrayList<>();
         boolean merged = false;
@@ -46,10 +46,14 @@ public class PortfolioService {
                 List.copyOf(updatedPositions)
         );
 
+        store.update(currentSnapshot);
+
         return currentSnapshot;
     }
 
     public PortfolioSnapshot applySell(String symbol, long quantity, long priceKrw) {
+        PortfolioSnapshot currentSnapshot = store.getCurrentSnapshot();
+
         long sellAmountKrw = priceKrw * quantity;
         List<PortfolioPosition> updatedPositions = new ArrayList<>();
 
@@ -84,17 +88,13 @@ public class PortfolioService {
                 List.copyOf(updatedPositions)
         );
 
+        store.update(currentSnapshot);
+
         return currentSnapshot;
     }
 
     public PortfolioSnapshot reset() {
-        currentSnapshot = new PortfolioSnapshot(
-                10_000_000L,
-                10_000_000L,
-                List.of()
-        );
-
-        return currentSnapshot;
+        return store.reset();
     }
 
     private PortfolioPosition mergePosition(

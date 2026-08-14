@@ -6,6 +6,7 @@ import com.stock.agent.InvestmentDecision;
 import com.stock.market.MarketService;
 import com.stock.portfolio.PortfolioPosition;
 import com.stock.portfolio.PortfolioService;
+import com.stock.portfolio.PortfolioSnapshotStore;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskGuard;
 import com.stock.trade.TradeExecutor;
@@ -31,7 +32,8 @@ class InvestmentHarnessTest {
     );
 
     private final RiskGuard riskGuard = new RiskGuard(harnessProperties);
-    private final PortfolioService portfolioService = new PortfolioService();
+    private final PortfolioSnapshotStore store = new PortfolioSnapshotStore();
+    private final PortfolioService portfolioService = new PortfolioService(store);
     private final TradeHistoryService tradeHistoryService = new TradeHistoryService();
     private final TradeExecutor tradeExecutor = new TradeExecutor(
             portfolioService,
@@ -145,7 +147,7 @@ class InvestmentHarnessTest {
 
     @Test
     void runCompletesWhenAgentDecidesSell() {
-        PortfolioService sellPortfolioService = new PortfolioService();
+        PortfolioService sellPortfolioService = new PortfolioService(store);
         sellPortfolioService.applyBuy(
                 "TEST",
                 10L,

@@ -3,6 +3,7 @@ package com.stock.trade;
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
 import com.stock.portfolio.PortfolioService;
+import com.stock.portfolio.PortfolioSnapshotStore;
 import com.stock.risk.RiskCheckResult;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskReasonCode;
@@ -11,8 +12,8 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class TradeExecutorTest {
-
-    private final PortfolioService portfolioService = new PortfolioService();
+    private final PortfolioSnapshotStore store = new PortfolioSnapshotStore();
+    private final PortfolioService portfolioService = new PortfolioService(store);
     private final TradeHistoryService tradeHistoryService = new TradeHistoryService();
     private final TradeExecutor tradeExecutor = new TradeExecutor(
             portfolioService, tradeHistoryService
