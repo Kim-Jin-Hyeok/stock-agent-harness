@@ -27,9 +27,7 @@ public class TradeExecutor {
                     "Risk check denied the decision."
             );
 
-            tradeHistoryService.record(runId, tradeResult);
-
-            return tradeResult;
+            return recordAndReturn(runId, tradeResult);
         }
 
         if (decision.action() == InvestmentAction.HOLD) {
@@ -44,9 +42,7 @@ public class TradeExecutor {
                     "HOLD decision does not create an order."
             );
 
-            tradeHistoryService.record(runId, tradeResult);
-
-            return tradeResult;
+            return recordAndReturn(runId, tradeResult);
         }
 
         if (decision.action() == InvestmentAction.BUY) {
@@ -67,9 +63,7 @@ public class TradeExecutor {
                     "BUY execution is complete."
             );
 
-            tradeHistoryService.record(runId, tradeResult);
-
-            return tradeResult;
+            return recordAndReturn(runId, tradeResult);
         }
 
         if (decision.action() == InvestmentAction.SELL) {
@@ -90,9 +84,7 @@ public class TradeExecutor {
                     "SELL execution is complete."
             );
 
-            tradeHistoryService.record(runId, tradeResult);
-
-            return tradeResult;
+            return recordAndReturn(runId, tradeResult);
         }
 
         TradeResult tradeResult = new TradeResult(
@@ -106,6 +98,10 @@ public class TradeExecutor {
                 "Unsupported investment action."
         );
 
+        return recordAndReturn(runId, tradeResult);
+    }
+
+    private TradeResult recordAndReturn(String runId, TradeResult tradeResult) {
         tradeHistoryService.record(runId, tradeResult);
 
         return tradeResult;
