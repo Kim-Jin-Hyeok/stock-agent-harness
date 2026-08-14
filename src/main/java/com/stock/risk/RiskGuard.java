@@ -6,9 +6,10 @@ import com.stock.harness.HarnessProperties;
 import com.stock.portfolio.PortfolioSnapshot;
 import org.springframework.stereotype.Component;
 
+import java.util.Optional;
+
 @Component
 public class RiskGuard {
-
     private final HarnessProperties harnessProperties;
 
     public RiskGuard(HarnessProperties harnessProperties) {
@@ -27,28 +28,10 @@ public class RiskGuard {
             );
         }
 
-        if (decision.symbol() == null || decision.symbol().isBlank()) {
-            return denied(
-                    decision,
-                    RiskReasonCode.SYMBOL_REQUIRED,
-                    "BUY and SELL decisions require a symbol."
-            );
-        }
+        Optional<RiskCheckResult> commonValidateResult = validateCommonOrderFields(decision);
 
-        if (decision.quantity() == null || decision.quantity() <= 0) {
-            return denied(
-                    decision,
-                    RiskReasonCode.QUANTITY_REQUIRED,
-                    "BUY and SELL decisions require a positive quantity."
-            );
-        }
-
-        if (decision.expectedPriceKrw() == null || decision.expectedPriceKrw() <= 0) {
-            return denied(
-                    decision,
-                    RiskReasonCode.EXPECTED_PRICE_REQUIRED,
-                    "BUY and SELL decisions require a positive expectedPriceKrw."
-            );
+        if (commonValidateResult.isPresent()) {
+            return commonValidateResult.get();
         }
 
         if (decision.action() == InvestmentAction.BUY) {
@@ -171,5 +154,33 @@ public class RiskGuard {
                 reasonCode,
                 reason
         );
+    }
+
+    private Optional<RiskCheckResult> validateCommonOrderFields(InvestmentDecision decision) {
+        if (decision.symbol() == null || decision.symbol().isBlank()) {
+            return Optional.of(denied(
+                    decision,
+                    RiskReasonCode.SYMBOL_REQUIRED,
+                    "BUY and SELL decisions require a symbol."
+            ));
+        }
+
+        if (decision.quantity() == null || decision.quantity() <= 0) {
+            return Optional.of(denied(
+                    decision,
+                    RiskReasonCode.QUANTITY_REQUIRED,
+                    "BUY and SELL decisions require a positive quantity."
+            ));
+        }
+
+        if (decision.expectedPriceKrw() == null || decision.expectedPriceKrw() <= 0) {
+            return Optional.of(denied(
+                    decision,
+                    RiskReasonCode.EXPECTED_PRICE_REQUIRED,
+                    "BUY and SELL decisions require a positive expectedPriceKrw."
+            ));
+        }
+
+        return Optional.empty();
     }
 }
