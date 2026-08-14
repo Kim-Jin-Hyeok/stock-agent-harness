@@ -4,7 +4,9 @@ import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentAgent;
 import com.stock.agent.InvestmentDecision;
 import com.stock.market.MarketService;
+import com.stock.portfolio.PortfolioPosition;
 import com.stock.portfolio.PortfolioService;
+import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskGuard;
 import com.stock.trade.TradeExecutor;
@@ -137,6 +139,39 @@ class InvestmentHarnessTest {
         assertThat(hasBuyingSymbol).isTrue();
     }
 
+    @Test
+    void runCompletesWhenAgentDecidesSell() {
+        PortfolioService sellPortfolioService = new PortfolioService();
+        sellPortfolioService.applyBuy(
+                "TEST",
+                10L,
+                100_000L
+        );
+
+        TradeExecutor sellTradeExecutor = new TradeExecutor(sellPortfolioService);
+
+        InvestmentHarness sellHarness = new InvestmentHarness(
+                riskGuard,
+                sellTradeExecutor,
+                sellPortfolioService,
+                marketService,
+                new SellingInvestmentAgent(),
+                harnessProperties
+        );
+
+        HarnessRunResult result = sellHarness.run();
+
+        assertThat(result.status()).isEqualTo(HarnessRunStatus.COMPLETED);
+        assertThat(result.decision().action()).isEqualTo(InvestmentAction.SELL);
+        assertThat(result.riskCheckResult().status()).isEqualTo(RiskCheckStatus.APPROVED);
+        assertThat(result.tradeResult().status()).isEqualTo(TradeStatus.EXECUTED);
+
+        PortfolioPosition position = result.portfolioSnapshot().positions().getFirst();
+
+        assertThat(position.symbol()).isEqualTo("TEST");
+        assertThat(position.quantity()).isEqualTo(5L);
+    }
+
     private static class BuyingInvestmentAgent extends InvestmentAgent {
         @Override
         public InvestmentDecision decide(HarnessRunContext context) {
@@ -146,6 +181,19 @@ class InvestmentHarnessTest {
                     10L,
                     100_000L,
                     "Test buy complete."
+            );
+        }
+    }
+
+    private static class SellingInvestmentAgent extends InvestmentAgent {
+        @Override
+        public InvestmentDecision decide(HarnessRunContext context) {
+            return new InvestmentDecision(
+                    InvestmentAction.SELL,
+                    "TEST",
+                    5L,
+                    110_000L,
+                    "Test sell complete."
             );
         }
     }
