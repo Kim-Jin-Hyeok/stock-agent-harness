@@ -13,7 +13,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 class TradeExecutorTest {
 
     private final PortfolioService portfolioService = new PortfolioService();
-    private final TradeExecutor tradeExecutor = new TradeExecutor(portfolioService);
+    private final TradeHistoryService tradeHistoryService = new TradeHistoryService();
+    private final TradeExecutor tradeExecutor = new TradeExecutor(
+            portfolioService, tradeHistoryService
+    );
 
     @Test
     void riskDeniedDecisionIsRejected() {
@@ -57,6 +60,9 @@ class TradeExecutorTest {
 
         assertThat(portfolioService.getCurrentSnapshot().positions()).hasSize(1);
         assertThat(portfolioService.getCurrentSnapshot().positions().getFirst().symbol()).isEqualTo("TEST");
+
+        assertThat(tradeHistoryService.getRecords()).hasSize(1);
+        assertThat(tradeHistoryService.getRecords().getFirst().status()).isEqualTo(TradeStatus.EXECUTED);
     }
 
     @Test

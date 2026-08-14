@@ -12,10 +12,11 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class TradeExecutor {
     private final PortfolioService portfolioService;
+    private final TradeHistoryService tradeHistoryService;
 
     public TradeResult execute(InvestmentDecision decision, RiskCheckResult riskCheckResult) {
         if (riskCheckResult.status() == RiskCheckStatus.DENIED) {
-            return new TradeResult(
+            TradeResult tradeResult = new TradeResult(
                     TradeStatus.REJECTED,
                     decision.action(),
                     decision.symbol(),
@@ -25,10 +26,14 @@ public class TradeExecutor {
                     TradeReasonCode.RISK_DENIED,
                     "Risk check denied the decision."
             );
+
+            tradeHistoryService.record(tradeResult);
+
+            return tradeResult;
         }
 
         if (decision.action() == InvestmentAction.HOLD) {
-            return new TradeResult(
+            TradeResult tradeResult = new TradeResult(
                     TradeStatus.SKIPPED,
                     decision.action(),
                     decision.symbol(),
@@ -38,6 +43,10 @@ public class TradeExecutor {
                     TradeReasonCode.HOLD_NO_ORDER,
                     "HOLD decision does not create an order."
             );
+
+            tradeHistoryService.record(tradeResult);
+
+            return tradeResult;
         }
 
         if (decision.action() == InvestmentAction.BUY) {
@@ -47,7 +56,7 @@ public class TradeExecutor {
                     decision.expectedPriceKrw()
             );
 
-            return new TradeResult(
+            TradeResult tradeResult = new TradeResult(
                     TradeStatus.EXECUTED,
                     decision.action(),
                     decision.symbol(),
@@ -57,6 +66,10 @@ public class TradeExecutor {
                     TradeReasonCode.EXECUTION_COMPLETED,
                     "BUY execution is complete."
             );
+
+            tradeHistoryService.record(tradeResult);
+
+            return tradeResult;
         }
 
         if (decision.action() == InvestmentAction.SELL) {
@@ -66,7 +79,7 @@ public class TradeExecutor {
                     decision.expectedPriceKrw()
             );
 
-            return new TradeResult(
+            TradeResult tradeResult = new TradeResult(
                     TradeStatus.EXECUTED,
                     decision.action(),
                     decision.symbol(),
@@ -76,9 +89,13 @@ public class TradeExecutor {
                     TradeReasonCode.EXECUTION_COMPLETED,
                     "SELL execution is complete."
             );
+
+            tradeHistoryService.record(tradeResult);
+
+            return tradeResult;
         }
 
-        return new TradeResult(
+        TradeResult tradeResult = new TradeResult(
                 TradeStatus.REJECTED,
                 decision.action(),
                 decision.symbol(),
@@ -88,5 +105,9 @@ public class TradeExecutor {
                 TradeReasonCode.UNSUPPORTED_ACTION,
                 "Unsupported investment action."
         );
+
+        tradeHistoryService.record(tradeResult);
+
+        return tradeResult;
     }
 }

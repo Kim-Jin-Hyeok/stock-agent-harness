@@ -10,6 +10,7 @@ import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskGuard;
 import com.stock.trade.TradeExecutor;
+import com.stock.trade.TradeHistoryService;
 import com.stock.trade.TradeStatus;
 import org.junit.jupiter.api.Test;
 
@@ -32,7 +33,11 @@ class InvestmentHarnessTest {
 
     private final RiskGuard riskGuard = new RiskGuard(harnessProperties);
     private final PortfolioService portfolioService = new PortfolioService();
-    private final TradeExecutor tradeExecutor = new TradeExecutor(portfolioService);
+    private final TradeHistoryService tradeHistoryService = new TradeHistoryService();
+    private final TradeExecutor tradeExecutor = new TradeExecutor(
+            portfolioService,
+            tradeHistoryService
+    );
     private final MarketService marketService = new MarketService();
     private final InvestmentAgent investmentAgent = new InvestmentAgent();
 
@@ -148,7 +153,10 @@ class InvestmentHarnessTest {
                 100_000L
         );
 
-        TradeExecutor sellTradeExecutor = new TradeExecutor(sellPortfolioService);
+        TradeExecutor sellTradeExecutor = new TradeExecutor(
+                sellPortfolioService,
+                tradeHistoryService
+        );
 
         InvestmentHarness sellHarness = new InvestmentHarness(
                 riskGuard,
