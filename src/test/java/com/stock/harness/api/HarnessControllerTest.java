@@ -30,8 +30,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -73,6 +72,22 @@ class HarnessControllerTest {
 
         verify(investmentHarness).run();
         verify(tradeHistoryService).getRecordsByRunId(runId);
+    }
+
+    @Test
+    void getRunsWithoutTradeRecords() throws Exception {
+        String runId = "run-1";
+
+        when(harnessRunHistoryService.getRuns())
+                .thenReturn(List.of(completedRun(runId)));
+
+        mockMvc.perform(get("/api/harness/runs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].runId").value(runId))
+                .andExpect(jsonPath("$[0].status").value("COMPLETED"));
+
+        verify(harnessRunHistoryService).getRuns();
+        verify(tradeHistoryService, never()).getRecordsByRunId(any());
     }
 
     @Test
