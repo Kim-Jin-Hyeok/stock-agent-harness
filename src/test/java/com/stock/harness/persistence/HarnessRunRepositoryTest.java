@@ -33,19 +33,19 @@ class HarnessRunRepositoryTest {
         assertThat(entity.get().getFinishedAt()).isEqualTo(finishedAt());
     }
 
+    @Test
+    void findByRunIdReturnsEmptyWhenRunDoesNotExist() {
+        // when
+        Optional<HarnessRunEntity> entity = harnessRunRepository.findByRunId("run-1");
+
+        // then
+        assertThat(entity.isEmpty()).isTrue();
+    }
+
     private HarnessRunEntity completedRunEntity(String runId) {
         return HarnessRunEntity.of(
                 runId,
                 HarnessRunStatus.COMPLETED,
-                startedAt(),
-                finishedAt()
-        );
-    }
-
-    private HarnessRunEntity failedRunEntity(String runId) {
-        return HarnessRunEntity.of(
-                runId,
-                HarnessRunStatus.FAILED,
                 startedAt(),
                 finishedAt()
         );
