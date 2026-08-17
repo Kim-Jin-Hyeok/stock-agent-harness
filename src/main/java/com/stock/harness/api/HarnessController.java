@@ -37,12 +37,19 @@ public class HarnessController {
     }
 
     @GetMapping("/runs/{runId}")
-    public HarnessRunResult getRun(@PathVariable String runId) {
-        return harnessRunHistoryService.getRunById(runId)
+    public HarnessRunResponse getRun(@PathVariable String runId) {
+        HarnessRunResult result = harnessRunHistoryService.getRunById(runId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "Harness run not found. runId=" + runId
                 ));
+
+        List<TradeRecord> tradeRecords = tradeHistoryService.getRecordsByRunId(runId);
+
+        return HarnessRunResponse.from(
+                result,
+                tradeRecords
+        );
     }
 
     @PostMapping("/reset")
