@@ -120,6 +120,14 @@ class HarnessControllerTest {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    void resetDelegatesToHarnessStateService() throws Exception {
+        mockMvc.perform(post("/api/harness/reset"))
+                .andExpect(status().isOk());
+
+        verify(harnessStateService).reset();
+    }
+
     private HarnessRunResult completedRun(String runId) {
         LocalDateTime startedAt = LocalDateTime.of(2026, 1, 1, 9, 0);
         LocalDateTime finishedAt = startedAt.plusSeconds(1);
