@@ -30,8 +30,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -52,6 +54,26 @@ class HarnessControllerTest {
 
     @MockitoBean
     private HarnessStateService harnessStateService;
+
+    @Test
+    void runReturnsHarnessRunResponseWithTradeRecords() throws Exception {
+        String runId = "run-id";
+
+        when(investmentHarness.run())
+                .thenReturn(completedRun(runId));
+        when(tradeHistoryService.getRecordsByRunId(runId))
+                .thenReturn(List.of(executedBuyTradeRecord(runId)));
+
+        mockMvc.perform(post("/api/harness/run"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.runId").value(runId))
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.tradeRecords[0].runId").value(runId))
+                .andExpect(jsonPath("$.tradeRecords[0].status").value("EXECUTED"));
+
+        verify(investmentHarness).run();
+        verify(tradeHistoryService).getRecordsByRunId(runId);
+    }
 
     @Test
     void getRunReturnsRunResultWithTradeRecords() throws Exception {
