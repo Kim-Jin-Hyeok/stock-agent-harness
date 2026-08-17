@@ -1,5 +1,6 @@
 package com.stock.harness.persistence;
 
+import com.stock.harness.HarnessRunResult;
 import com.stock.harness.HarnessRunStatus;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -37,5 +38,14 @@ public class HarnessRunEntity {
         entity.startedAt = startedAt;
         entity.finishedAt = finishedAt;
         return entity;
+    }
+
+    public static HarnessRunEntity from(HarnessRunResult result) {
+        return of(
+                result.runId(),
+                result.status(),
+                result.startedAt(),
+                result.finishedAt()
+        );
     }
 }

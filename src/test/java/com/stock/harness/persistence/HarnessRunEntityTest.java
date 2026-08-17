@@ -1,0 +1,125 @@
+package com.stock.harness.persistence;
+
+import com.stock.agent.InvestmentAction;
+import com.stock.agent.InvestmentDecision;
+import com.stock.harness.HarnessRunResult;
+import com.stock.harness.HarnessRunStatus;
+import com.stock.harness.HarnessStepResult;
+import com.stock.harness.HarnessStepStatus;
+import com.stock.harness.HarnessStepType;
+import com.stock.market.MarketSnapshot;
+import com.stock.portfolio.PortfolioSnapshot;
+import com.stock.risk.RiskCheckResult;
+import com.stock.risk.RiskCheckStatus;
+import com.stock.risk.RiskReasonCode;
+import com.stock.trade.TradeReasonCode;
+import com.stock.trade.TradeResult;
+import com.stock.trade.TradeStatus;
+import org.junit.jupiter.api.Test;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class HarnessRunEntityTest {
+
+    @Test
+    void fromCreatesEntityWithRunMetadata() {
+        // given
+        String runId = "run-1";
+        HarnessRunResult result = completedRunResult(runId);
+
+        // when
+        HarnessRunEntity entity = HarnessRunEntity.from(result);
+
+        // then
+        assertThat(entity.getRunId()).isEqualTo(result.runId());
+        assertThat(entity.getStatus()).isEqualTo(result.status());
+        assertThat(entity.getStartedAt()).isEqualTo(result.startedAt());
+        assertThat(entity.getFinishedAt()).isEqualTo(result.finishedAt());
+    }
+
+    private HarnessRunResult completedRunResult(String runId) {
+        return HarnessRunResult.of(
+                runId,
+                HarnessRunStatus.COMPLETED,
+                startedAt(),
+                finishedAt(),
+                List.of(completedStep()),
+                buyDecision(),
+                approvedRiskCheckResult(),
+                executedBuyTradeResult(),
+                portfolioSnapshot(),
+                marketSnapshot()
+        );
+    }
+
+    private HarnessStepResult completedStep() {
+        return new HarnessStepResult(
+                HarnessStepType.EXECUTE_TRADE,
+                HarnessStepStatus.COMPLETED,
+                "Trade execution completed."
+        );
+    }
+
+    private InvestmentDecision buyDecision() {
+        return new InvestmentDecision(
+                InvestmentAction.BUY,
+                "005930",
+                10L,
+                70_000L,
+                "Buy Samsung Electronics."
+        );
+    }
+
+    private RiskCheckResult approvedRiskCheckResult() {
+        return new RiskCheckResult(
+                RiskCheckStatus.APPROVED,
+                InvestmentAction.BUY,
+                "005930",
+                10L,
+                70_000L,
+                700_000L,
+                RiskReasonCode.RISK_APPROVED,
+                "Risk check approved."
+        );
+    }
+
+    private TradeResult executedBuyTradeResult() {
+        return new TradeResult(
+                TradeStatus.EXECUTED,
+                InvestmentAction.BUY,
+                "005930",
+                10L,
+                70_000L,
+                700_000L,
+                TradeReasonCode.EXECUTION_COMPLETED,
+                "BUY execution completed."
+        );
+    }
+
+    private PortfolioSnapshot portfolioSnapshot() {
+        return new PortfolioSnapshot(
+                9_300_000L,
+                10_000_000L,
+                List.of()
+        );
+    }
+
+    private MarketSnapshot marketSnapshot() {
+        return new MarketSnapshot(
+                "KR",
+                true,
+                "Korean market is open."
+        );
+    }
+
+    private LocalDateTime startedAt() {
+        return LocalDateTime.of(2026, 1, 1, 9, 0);
+    }
+
+    private LocalDateTime finishedAt() {
+        return startedAt().plusSeconds(1);
+    }
+}
