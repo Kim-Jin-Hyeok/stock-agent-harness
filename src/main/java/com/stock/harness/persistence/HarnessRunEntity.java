@@ -2,6 +2,7 @@ package com.stock.harness.persistence;
 
 import com.stock.harness.HarnessRunResult;
 import com.stock.harness.HarnessRunStatus;
+import com.stock.harness.HarnessRunSummary;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -46,6 +47,15 @@ public class HarnessRunEntity {
                 result.status(),
                 result.startedAt(),
                 result.finishedAt()
+        );
+    }
+
+    public HarnessRunSummary toSummary() {
+        return new HarnessRunSummary(
+                runId,
+                status,
+                startedAt,
+                finishedAt
         );
     }
 }

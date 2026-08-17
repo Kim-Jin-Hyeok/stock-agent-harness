@@ -2,11 +2,7 @@ package com.stock.harness.persistence;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
-import com.stock.harness.HarnessRunResult;
-import com.stock.harness.HarnessRunStatus;
-import com.stock.harness.HarnessStepResult;
-import com.stock.harness.HarnessStepStatus;
-import com.stock.harness.HarnessStepType;
+import com.stock.harness.*;
 import com.stock.market.MarketSnapshot;
 import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.risk.RiskCheckResult;
@@ -38,6 +34,23 @@ class HarnessRunEntityTest {
         assertThat(entity.getStatus()).isEqualTo(result.status());
         assertThat(entity.getStartedAt()).isEqualTo(result.startedAt());
         assertThat(entity.getFinishedAt()).isEqualTo(result.finishedAt());
+    }
+
+    @Test
+    void toSummaryCreatesRunSummaryWithRunMetadata() {
+        // given
+        String runId = "run-1";
+        HarnessRunResult result = completedRunResult(runId);
+        HarnessRunEntity entity = HarnessRunEntity.from(result);
+
+        // when
+        HarnessRunSummary summary = entity.toSummary();
+
+        // then
+        assertThat(summary.runId()).isEqualTo(entity.getRunId());
+        assertThat(summary.status()).isEqualTo(entity.getStatus());
+        assertThat(summary.startedAt()).isEqualTo(entity.getStartedAt());
+        assertThat(summary.finishedAt()).isEqualTo(entity.getFinishedAt());
     }
 
     private HarnessRunResult completedRunResult(String runId) {
