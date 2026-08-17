@@ -24,6 +24,17 @@ public class HarnessRunHistoryService {
                 .findFirst();
     }
 
+    public List<HarnessRunSummary> getRunSummaries() {
+        return runs.stream()
+                .map(result -> new HarnessRunSummary(
+                        result.runId(),
+                        result.status(),
+                        result.startedAt(),
+                        result.finishedAt()
+                ))
+                .toList();
+    }
+
     public void clear() {
         runs.clear();
     }

@@ -40,6 +40,20 @@ class HarnessRunHistoryServiceTest {
     }
 
     @Test
+    void getRunSummariesReturnsRunMetadata() {
+        harnessRunHistoryService.record(completedRun("run-1"));
+
+        List<HarnessRunSummary> summaries = harnessRunHistoryService.getRunSummaries();
+        assertThat(summaries).hasSize(1);
+
+        HarnessRunSummary summary = summaries.getFirst();
+        assertThat(summary.runId()).isEqualTo("run-1");
+        assertThat(summary.status()).isEqualTo(HarnessRunStatus.COMPLETED);
+        assertThat(summary.startedAt()).isEqualTo(startedAt());
+        assertThat(summary.finishedAt()).isEqualTo(finishedAt());
+    }
+
+    @Test
     void clearRemovesRunHistory() {
         harnessRunHistoryService.record(failedRun("run-1"));
 
@@ -49,14 +63,11 @@ class HarnessRunHistoryServiceTest {
     }
 
     private HarnessRunResult completedRun(String runId) {
-        LocalDateTime startedAt = LocalDateTime.now();
-        LocalDateTime finishedAt = startedAt.plusSeconds(1);
-
         return HarnessRunResult.of(
                 runId,
                 HarnessRunStatus.COMPLETED,
-                startedAt,
-                finishedAt,
+                startedAt(),
+                finishedAt(),
                 List.of(completedStep()),
                 null,
                 null,
@@ -67,15 +78,20 @@ class HarnessRunHistoryServiceTest {
     }
 
     private HarnessRunResult failedRun(String runId) {
-        LocalDateTime startedAt = LocalDateTime.now();
-        LocalDateTime finishedAt = startedAt.plusSeconds(1);
-
         return HarnessRunResult.failed(
                 runId,
-                startedAt,
-                finishedAt,
+                startedAt(),
+                finishedAt(),
                 List.of(failedStep())
         );
+    }
+
+    private LocalDateTime startedAt() {
+        return LocalDateTime.of(2026, 1, 1, 9, 0);
+    }
+
+    private LocalDateTime finishedAt() {
+        return startedAt().plusSeconds(1);
     }
 
     private HarnessStepResult completedStep() {
