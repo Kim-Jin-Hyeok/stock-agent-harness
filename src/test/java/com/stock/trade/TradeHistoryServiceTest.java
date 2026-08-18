@@ -1,15 +1,18 @@
 package com.stock.trade;
 
 import com.stock.agent.InvestmentAction;
+import com.stock.trade.persistence.TradeRecordEntity;
 import com.stock.trade.persistence.TradeRecordRepository;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class TradeHistoryServiceTest {
 
@@ -31,23 +34,27 @@ class TradeHistoryServiceTest {
 
         tradeHistoryService.record("abc", result);
 
+        verify(tradeRecordRepository).save(any());
+    }
+
+    @Test
+    void getRecordsReturnAllRecords() {
+        TradeRecordRepository tradeRecordRepository = mock(TradeRecordRepository.class);
+        TradeHistoryService tradeHistoryService = new TradeHistoryService(tradeRecordRepository);
+
+        when(tradeRecordRepository.findAllByOrderByExecutedAtDesc())
+                .thenReturn(List.of(
+                        executedBuyTradeRecordEntity("run-2", LocalDateTime.of(2026, 1, 1, 9, 10)),
+                        executedBuyTradeRecordEntity("run-1", LocalDateTime.of(2026, 1, 1, 9, 0))
+                ));
+
         List<TradeRecord> records = tradeHistoryService.getRecords();
 
-        assertThat(records).hasSize(1);
+        assertThat(records).hasSize(2);
+        assertThat(records.getFirst().runId()).isEqualTo("run-2");
+        assertThat(records.getLast().runId()).isEqualTo("run-1");
 
-        TradeRecord record = records.getFirst();
-
-        assertThat(record.runId()).isEqualTo("abc");
-        assertThat(record.action()).isEqualTo(InvestmentAction.BUY);
-        assertThat(record.symbol()).isEqualTo("TEST");
-        assertThat(record.quantity()).isEqualTo(10L);
-        assertThat(record.priceKrw()).isEqualTo(100_000L);
-        assertThat(record.orderAmountKrw()).isEqualTo(1_000_000L);
-        assertThat(record.status()).isEqualTo(TradeStatus.EXECUTED);
-        assertThat(record.reasonCode()).isEqualTo(TradeReasonCode.EXECUTION_COMPLETED);
-        assertThat(record.executedAt()).isNotNull();
-
-        verify(tradeRecordRepository).save(any());
+        verify(tradeRecordRepository).findAllByOrderByExecutedAtDesc();
     }
 
     @Test
@@ -55,24 +62,15 @@ class TradeHistoryServiceTest {
         TradeRecordRepository tradeRecordRepository = mock(TradeRecordRepository.class);
         TradeHistoryService tradeHistoryService = new TradeHistoryService(tradeRecordRepository);
 
-        TradeResult result = new TradeResult(
-                TradeStatus.EXECUTED,
-                InvestmentAction.BUY,
-                "TEST",
-                10L,
-                100_000L,
-                1_000_000L,
-                TradeReasonCode.EXECUTION_COMPLETED,
-                "BUY execution is complete."
-        );
-
-        tradeHistoryService.record("run-1", result);
-        tradeHistoryService.record("run-2", result);
+        when(tradeRecordRepository.findAllByRunIdOrderByExecutedAtDesc("run-1"))
+                .thenReturn(List.of(executedBuyTradeRecordEntity("run-1")));
 
         List<TradeRecord> records = tradeHistoryService.getRecordsByRunId("run-1");
 
         assertThat(records).hasSize(1);
         assertThat(records.getFirst().runId()).isEqualTo("run-1");
+
+        verify(tradeRecordRepository).findAllByRunIdOrderByExecutedAtDesc("run-1");
     }
 
     @Test
@@ -80,25 +78,38 @@ class TradeHistoryServiceTest {
         TradeRecordRepository tradeRecordRepository = mock(TradeRecordRepository.class);
         TradeHistoryService tradeHistoryService = new TradeHistoryService(tradeRecordRepository);
 
-        TradeResult result = new TradeResult(
-                TradeStatus.EXECUTED,
+        tradeHistoryService.clear();
+
+        verify(tradeRecordRepository).deleteAll();
+    }
+
+    private TradeRecordEntity executedBuyTradeRecordEntity(String runId, LocalDateTime executedAt) {
+        return TradeRecordEntity.of(
+                runId,
                 InvestmentAction.BUY,
                 "TEST",
                 10L,
                 100_000L,
                 1_000_000L,
+                TradeStatus.EXECUTED,
                 TradeReasonCode.EXECUTION_COMPLETED,
-                "BUY execution is complete."
+                "BUY execution is complete.",
+                executedAt
         );
+    }
 
-        tradeHistoryService.record("abc", result);
-
-        tradeHistoryService.clear();
-
-        List<TradeRecord> records = tradeHistoryService.getRecords();
-
-        assertThat(records).isEmpty();
-
-        verify(tradeRecordRepository).deleteAll();
+    private TradeRecordEntity executedBuyTradeRecordEntity(String runId) {
+        return TradeRecordEntity.of(
+                runId,
+                InvestmentAction.BUY,
+                "TEST",
+                10L,
+                100_000L,
+                1_000_000L,
+                TradeStatus.EXECUTED,
+                TradeReasonCode.EXECUTION_COMPLETED,
+                "BUY execution is complete.",
+                LocalDateTime.of(2026, 1, 1, 9, 0)
+        );
     }
 }

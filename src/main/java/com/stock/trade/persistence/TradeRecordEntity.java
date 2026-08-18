@@ -2,6 +2,7 @@ package com.stock.trade.persistence;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.trade.TradeReasonCode;
+import com.stock.trade.TradeRecord;
 import com.stock.trade.TradeResult;
 import com.stock.trade.TradeStatus;
 import jakarta.persistence.*;
@@ -66,6 +67,21 @@ public class TradeRecordEntity {
         entity.reason = reason;
         entity.executedAt = executedAt;
         return entity;
+    }
+
+    public TradeRecord toRecord() {
+        return new TradeRecord(
+                runId,
+                action,
+                symbol,
+                quantity,
+                priceKrw,
+                orderAmountKrw,
+                status,
+                reasonCode,
+                reason,
+                executedAt
+        );
     }
 
     public static TradeRecordEntity from(String runId, TradeResult result, LocalDateTime executedAt) {

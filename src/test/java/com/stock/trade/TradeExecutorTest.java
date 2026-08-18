@@ -11,12 +11,15 @@ import com.stock.trade.persistence.TradeRecordRepository;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 class TradeExecutorTest {
     private final PortfolioSnapshotStore store = new PortfolioSnapshotStore();
     private final PortfolioService portfolioService = new PortfolioService(store);
-    private final TradeHistoryService tradeHistoryService = new TradeHistoryService(mock(TradeRecordRepository.class));
+    private final TradeRecordRepository tradeRecordRepository = mock(TradeRecordRepository.class);
+    private final TradeHistoryService tradeHistoryService = new TradeHistoryService(tradeRecordRepository);
     private final TradeExecutor tradeExecutor = new TradeExecutor(
             portfolioService, tradeHistoryService
     );
@@ -67,8 +70,7 @@ class TradeExecutorTest {
         assertThat(portfolioService.getCurrentSnapshot().positions()).hasSize(1);
         assertThat(portfolioService.getCurrentSnapshot().positions().getFirst().symbol()).isEqualTo("TEST");
 
-        assertThat(tradeHistoryService.getRecords()).hasSize(1);
-        assertThat(tradeHistoryService.getRecords().getFirst().status()).isEqualTo(TradeStatus.EXECUTED);
+        verify(tradeRecordRepository).save(any());
     }
 
     @Test
@@ -98,7 +100,7 @@ class TradeExecutorTest {
         assertThat(portfolioService.getCurrentSnapshot().positions().getFirst().symbol()).isEqualTo("TEST");
         assertThat(portfolioService.getCurrentSnapshot().positions().getFirst().quantity()).isEqualTo(5L);
 
-        assertThat(tradeHistoryService.getRecords().getFirst().runId()).isEqualTo("abc");
+        verify(tradeRecordRepository).save(any());
     }
 
     private InvestmentDecision holdDecision() {
