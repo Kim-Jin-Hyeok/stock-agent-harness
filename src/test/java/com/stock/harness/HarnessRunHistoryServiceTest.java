@@ -69,6 +69,7 @@ class HarnessRunHistoryServiceTest {
         harnessRunHistoryService.clear();
 
         assertThat(harnessRunHistoryService.getRuns()).isEmpty();
+        verify(harnessRunRepository).deleteAll();
     }
 
     private HarnessRunResult completedRun(String runId) {

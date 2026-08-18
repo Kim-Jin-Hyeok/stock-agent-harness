@@ -44,5 +44,6 @@ public class HarnessRunHistoryService {
 
     public void clear() {
         runs.clear();
+        harnessRunRepository.deleteAll();
     }
 }
