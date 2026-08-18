@@ -1,5 +1,6 @@
 package com.stock.harness;
 
+import com.stock.harness.persistence.HarnessRunEntity;
 import com.stock.harness.persistence.HarnessRunRepository;
 import org.junit.jupiter.api.Test;
 
@@ -9,8 +10,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 class HarnessRunHistoryServiceTest {
     private final HarnessRunRepository harnessRunRepository = mock(HarnessRunRepository.class);
@@ -20,8 +20,7 @@ class HarnessRunHistoryServiceTest {
     void recordStoresCompleteRunResult() {
         harnessRunHistoryService.record(completedRun("run-1"));
 
-        assertThat(harnessRunHistoryService.getRuns()).hasSize(1);
-        assertThat(harnessRunHistoryService.getRuns().getFirst().runId()).isEqualTo("run-1");
+        assertThat(harnessRunHistoryService.getRunById("run-1")).isPresent();
 
         verify(harnessRunRepository).save(any());
     }
@@ -30,9 +29,10 @@ class HarnessRunHistoryServiceTest {
     void recordStoresFailRunResult() {
         harnessRunHistoryService.record(failedRun("run-1"));
 
-        assertThat(harnessRunHistoryService.getRuns()).hasSize(1);
-        assertThat(harnessRunHistoryService.getRuns().getFirst().runId()).isEqualTo("run-1");
-        assertThat(harnessRunHistoryService.getRuns().getFirst().status()).isEqualTo(HarnessRunStatus.FAILED);
+        Optional<HarnessRunResult> result = harnessRunHistoryService.getRunById("run-1");
+
+        assertThat(result).isPresent();
+        assertThat(result.get().status()).isEqualTo(HarnessRunStatus.FAILED);
 
         verify(harnessRunRepository).save(any());
     }
@@ -50,9 +50,11 @@ class HarnessRunHistoryServiceTest {
 
     @Test
     void getRunSummariesReturnsRunMetadata() {
-        harnessRunHistoryService.record(completedRun("run-1"));
+        when(harnessRunRepository.findAll())
+                .thenReturn(List.of(completedRunEntity("run-1")));
 
         List<HarnessRunSummary> summaries = harnessRunHistoryService.getRunSummaries();
+        verify(harnessRunRepository).findAll();
         assertThat(summaries).hasSize(1);
 
         HarnessRunSummary summary = summaries.getFirst();
@@ -68,7 +70,7 @@ class HarnessRunHistoryServiceTest {
 
         harnessRunHistoryService.clear();
 
-        assertThat(harnessRunHistoryService.getRuns()).isEmpty();
+        assertThat(harnessRunHistoryService.getRunById("run-1")).isEmpty();
         verify(harnessRunRepository).deleteAll();
     }
 
@@ -93,6 +95,15 @@ class HarnessRunHistoryServiceTest {
                 startedAt(),
                 finishedAt(),
                 List.of(failedStep())
+        );
+    }
+
+    private HarnessRunEntity completedRunEntity(String runId) {
+        return HarnessRunEntity.of(
+                runId,
+                HarnessRunStatus.COMPLETED,
+                startedAt(),
+                finishedAt()
         );
     }
 

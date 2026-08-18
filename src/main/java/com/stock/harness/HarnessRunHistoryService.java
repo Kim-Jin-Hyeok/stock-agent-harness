@@ -32,13 +32,8 @@ public class HarnessRunHistoryService {
     }
 
     public List<HarnessRunSummary> getRunSummaries() {
-        return runs.stream()
-                .map(result -> new HarnessRunSummary(
-                        result.runId(),
-                        result.status(),
-                        result.startedAt(),
-                        result.finishedAt()
-                ))
+        return harnessRunRepository.findAll().stream()
+                .map(HarnessRunEntity::toSummary)
                 .toList();
     }
 
