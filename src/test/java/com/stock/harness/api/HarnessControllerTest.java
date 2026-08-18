@@ -88,7 +88,6 @@ class HarnessControllerTest {
                 .andExpect(jsonPath("$[0].status").value("COMPLETED"));
 
         verify(harnessRunHistoryService).getRunSummaries();
-        verify(harnessRunHistoryService, never()).getRuns();
         verify(tradeHistoryService, never()).getRecordsByRunId(any());
     }
 

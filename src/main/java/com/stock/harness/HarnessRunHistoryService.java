@@ -21,10 +21,6 @@ public class HarnessRunHistoryService {
         harnessRunRepository.save(HarnessRunEntity.from(result));
     }
 
-    public List<HarnessRunSummary> getRuns() {
-        return getRunSummaries();
-    }
-
     public Optional<HarnessRunResult> getRunById(String runId) {
         return runs.stream()
                 .filter(run -> run.runId().equals(runId))

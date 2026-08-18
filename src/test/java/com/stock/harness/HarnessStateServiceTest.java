@@ -15,6 +15,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 
 class HarnessStateServiceTest {
@@ -48,7 +49,9 @@ class HarnessStateServiceTest {
 
         assertThat(portfolioService.getCurrentSnapshot().positions()).isEmpty();
         assertThat(tradeHistoryService.getRecords()).isEmpty();
-        assertThat(harnessRunHistoryService.getRuns()).isEmpty();
+        assertThat(harnessRunHistoryService.getRunById("run-1")).isEmpty();
+
+        verify(harnessRunRepository).deleteAll();
     }
 
     private TradeResult executedBuyTradeResult() {
