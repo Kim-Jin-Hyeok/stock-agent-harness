@@ -14,15 +14,15 @@ Harness Run 이력 저장의 목적은 Agent 실행을 운영 관점에서 다�
 - 전략별 실행 비교
 - Trade 이력과 Run 연결
 
-## Current State
+## Original State
 
-현재 Run 이력은 인메모리로 관리된다.
+초기 Run 이력은 인메모리로 관리되었다.
 
 ```text
 src/main/java/com/stock/harness/HarnessRunHistoryService.java
 ```
 
-현재 구조는 `List<HarnessRunResult>`에 실행 결과를 저장한다.
+초기 구조는 `List<HarnessRunResult>`에 실행 결과를 저장했다.
 
 ```text
 HarnessRunHistoryService
@@ -33,6 +33,38 @@ HarnessRunHistoryService
 ```
 
 이 구조는 초기 학습과 테스트에는 충분하지만, 애플리케이션 재시작 시 이력이 사라진다.
+
+## Current Transition State
+
+현재 `HarnessRunHistoryService`는 인메모리 상세 이력과 JPA 기반 요약 이력이 함께 존재하는 과도기 구조다.
+
+```text
+record(HarnessRunResult)
+-> 인메모리 runs에 HarnessRunResult 저장
+-> HarnessRunRepository에 HarnessRunEntity 저장
+
+getRunById(runId)
+-> 인메모리 runs에서 HarnessRunResult 조회
+
+getRuns()
+-> getRunSummaries() 위임
+
+getRunSummaries()
+-> HarnessRunRepository.findAll()
+-> HarnessRunEntity.toSummary()
+
+clear()
+-> 인메모리 runs 삭제
+-> HarnessRunRepository.deleteAll()
+```
+
+이 구조는 의도적인 중간 단계다.
+
+목록 조회는 DB에 저장한 메타데이터만으로 충분하므로 `HarnessRunSummary`를 사용한다.
+
+단건 상세 조회는 아직 `HarnessRunResult`를 반환한다. 현재 `HarnessRunEntity`에는 `steps`, `decision`, `riskCheckResult`, `tradeResult`, `portfolioSnapshot`, `marketSnapshot`이 없기 때문에 DB에서 완전한 상세 결과를 복원할 수 없다.
+
+따라서 단건 상세 조회를 JPA 기반으로 바꾸기 전에 별도 상세 저장 모델을 설계해야 한다.
 
 ## Design Decision
 
@@ -151,8 +183,19 @@ clear()
 
 ## Recommended Next Step
 
-다음 구현 단계는 `HarnessRunEntity`와 `HarnessRunRepository`를 추가하고, `HarnessRunHistoryService`의 테스트를 JPA 기반으로 전환할지 여부를 결정하는 것이다.
+다음 구현 단계는 단건 상세 조회를 어떻게 저장하고 복원할지 결정하는 것이다.
 
-단, 바로 전체 `HarnessRunResult`를 영속화하려고 하지 않는다.
+바로 전체 `HarnessRunResult`를 하나의 Entity로 영속화하지 않는다.
 
-첫 단계는 실행 메타데이터 저장만 검증한다.
+먼저 다음 중 어떤 방식이 현재 단계에 맞는지 판단한다.
+
+```text
+1. 단건 상세 조회는 당분간 인메모리 유지
+2. HarnessRunDetail 모델을 별도로 설계
+3. steps만 먼저 별도 테이블로 저장
+4. decision/risk/trade/portfolio/market snapshot을 JSON으로 저장
+```
+
+현재 추천은 1번이다.
+
+상세 저장 요구가 명확해지기 전까지는 목록 조회만 JPA 기반으로 운영하고, 단건 상세 조회는 인메모리 상세 결과를 유지한다.
