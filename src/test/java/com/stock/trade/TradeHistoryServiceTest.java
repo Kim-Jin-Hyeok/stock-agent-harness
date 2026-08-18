@@ -1,17 +1,22 @@
 package com.stock.trade;
 
 import com.stock.agent.InvestmentAction;
+import com.stock.trade.persistence.TradeRecordRepository;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 class TradeHistoryServiceTest {
 
     @Test
     void recordStoresTradeResultAsTradeRecord() {
-        TradeHistoryService tradeHistoryService = new TradeHistoryService();
+        TradeRecordRepository tradeRecordRepository = mock(TradeRecordRepository.class);
+        TradeHistoryService tradeHistoryService = new TradeHistoryService(tradeRecordRepository);
 
         TradeResult result = new TradeResult(
                 TradeStatus.EXECUTED,
@@ -41,11 +46,14 @@ class TradeHistoryServiceTest {
         assertThat(record.status()).isEqualTo(TradeStatus.EXECUTED);
         assertThat(record.reasonCode()).isEqualTo(TradeReasonCode.EXECUTION_COMPLETED);
         assertThat(record.executedAt()).isNotNull();
+
+        verify(tradeRecordRepository).save(any());
     }
 
     @Test
     void getRecordsByRunIdReturnsOnlyMatchingRecords() {
-        TradeHistoryService tradeHistoryService = new TradeHistoryService();
+        TradeRecordRepository tradeRecordRepository = mock(TradeRecordRepository.class);
+        TradeHistoryService tradeHistoryService = new TradeHistoryService(tradeRecordRepository);
 
         TradeResult result = new TradeResult(
                 TradeStatus.EXECUTED,
@@ -69,7 +77,8 @@ class TradeHistoryServiceTest {
 
     @Test
     void clearTradeHistoryWhenCalledClear() {
-        TradeHistoryService tradeHistoryService = new TradeHistoryService();
+        TradeRecordRepository tradeRecordRepository = mock(TradeRecordRepository.class);
+        TradeHistoryService tradeHistoryService = new TradeHistoryService(tradeRecordRepository);
 
         TradeResult result = new TradeResult(
                 TradeStatus.EXECUTED,
@@ -89,5 +98,7 @@ class TradeHistoryServiceTest {
         List<TradeRecord> records = tradeHistoryService.getRecords();
 
         assertThat(records).isEmpty();
+
+        verify(tradeRecordRepository).deleteAll();
     }
 }

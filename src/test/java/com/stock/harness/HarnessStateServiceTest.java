@@ -8,6 +8,7 @@ import com.stock.trade.TradeHistoryService;
 import com.stock.trade.TradeReasonCode;
 import com.stock.trade.TradeResult;
 import com.stock.trade.TradeStatus;
+import com.stock.trade.persistence.TradeRecordRepository;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -17,12 +18,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-
 class HarnessStateServiceTest {
     private final HarnessRunRepository harnessRunRepository = mock(HarnessRunRepository.class);
     private final PortfolioSnapshotStore portfolioSnapshotStore = new PortfolioSnapshotStore();
     private final PortfolioService portfolioService = new PortfolioService(portfolioSnapshotStore);
-    private final TradeHistoryService tradeHistoryService = new TradeHistoryService();
+    private final TradeHistoryService tradeHistoryService = new TradeHistoryService(mock(TradeRecordRepository.class));
     private final HarnessRunHistoryService harnessRunHistoryService = new HarnessRunHistoryService(harnessRunRepository);
     private final HarnessStateService harnessStateService = new HarnessStateService(
             portfolioService,

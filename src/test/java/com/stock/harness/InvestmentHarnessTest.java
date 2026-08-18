@@ -13,6 +13,7 @@ import com.stock.risk.RiskGuard;
 import com.stock.trade.TradeExecutor;
 import com.stock.trade.TradeHistoryService;
 import com.stock.trade.TradeStatus;
+import com.stock.trade.persistence.TradeRecordRepository;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -37,7 +38,7 @@ class InvestmentHarnessTest {
     private final RiskGuard riskGuard = new RiskGuard(harnessProperties);
     private final PortfolioSnapshotStore store = new PortfolioSnapshotStore();
     private final PortfolioService portfolioService = new PortfolioService(store);
-    private final TradeHistoryService tradeHistoryService = new TradeHistoryService();
+    private final TradeHistoryService tradeHistoryService = new TradeHistoryService(mock(TradeRecordRepository.class));
     private final TradeExecutor tradeExecutor = new TradeExecutor(
             portfolioService,
             tradeHistoryService

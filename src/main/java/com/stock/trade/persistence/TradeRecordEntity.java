@@ -2,6 +2,7 @@ package com.stock.trade.persistence;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.trade.TradeReasonCode;
+import com.stock.trade.TradeResult;
 import com.stock.trade.TradeStatus;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -65,5 +66,20 @@ public class TradeRecordEntity {
         entity.reason = reason;
         entity.executedAt = executedAt;
         return entity;
+    }
+
+    public static TradeRecordEntity from(String runId, TradeResult result, LocalDateTime executedAt) {
+        return TradeRecordEntity.of(
+                runId,
+                result.action(),
+                result.symbol(),
+                result.quantity(),
+                result.expectedPriceKrw(),
+                result.estimatedOrderAmountKrw(),
+                result.status(),
+                result.reasonCode(),
+                result.reason(),
+                executedAt
+        );
     }
 }

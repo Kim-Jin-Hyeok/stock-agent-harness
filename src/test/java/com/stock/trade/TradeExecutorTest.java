@@ -7,14 +7,16 @@ import com.stock.portfolio.PortfolioSnapshotStore;
 import com.stock.risk.RiskCheckResult;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskReasonCode;
+import com.stock.trade.persistence.TradeRecordRepository;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 class TradeExecutorTest {
     private final PortfolioSnapshotStore store = new PortfolioSnapshotStore();
     private final PortfolioService portfolioService = new PortfolioService(store);
-    private final TradeHistoryService tradeHistoryService = new TradeHistoryService();
+    private final TradeHistoryService tradeHistoryService = new TradeHistoryService(mock(TradeRecordRepository.class));
     private final TradeExecutor tradeExecutor = new TradeExecutor(
             portfolioService, tradeHistoryService
     );
