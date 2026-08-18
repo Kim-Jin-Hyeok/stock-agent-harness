@@ -50,11 +50,11 @@ class HarnessRunHistoryServiceTest {
 
     @Test
     void getRunSummariesReturnsRunMetadata() {
-        when(harnessRunRepository.findAll())
+        when(harnessRunRepository.findAllByOrderByStartedAtDesc())
                 .thenReturn(List.of(completedRunEntity("run-1")));
 
         List<HarnessRunSummary> summaries = harnessRunHistoryService.getRunSummaries();
-        verify(harnessRunRepository).findAll();
+        verify(harnessRunRepository).findAllByOrderByStartedAtDesc();
         assertThat(summaries).hasSize(1);
 
         HarnessRunSummary summary = summaries.getFirst();

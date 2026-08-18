@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,12 +43,37 @@ class HarnessRunRepositoryTest {
         assertThat(entity.isEmpty()).isTrue();
     }
 
+    @Test
+    void findAllByOrderByStartedAtDescReturnsLatestRunFirst() {
+        // given
+        String run1 = "run-1";
+        LocalDateTime run1StartedAt = LocalDateTime.of(2026, 1, 1, 9, 0);
+        harnessRunRepository.save(completedRunEntity(run1, run1StartedAt));
+
+        String run2 = "run-2";
+        LocalDateTime run2StartedAt = LocalDateTime.of(2026, 1, 1, 9, 10);
+        harnessRunRepository.save(completedRunEntity(run2, run2StartedAt));
+
+        List<HarnessRunEntity> entities = harnessRunRepository.findAllByOrderByStartedAtDesc();
+
+        assertThat(entities).hasSize(2);
+        assertThat(entities.getFirst().getRunId()).isEqualTo("run-2");
+        assertThat(entities.getLast().getRunId()).isEqualTo("run-1");
+    }
+
     private HarnessRunEntity completedRunEntity(String runId) {
+        return completedRunEntity(runId, startedAt());
+    }
+
+    private HarnessRunEntity completedRunEntity(
+            String runId,
+            LocalDateTime startedAt
+    ) {
         return HarnessRunEntity.of(
                 runId,
                 HarnessRunStatus.COMPLETED,
-                startedAt(),
-                finishedAt()
+                startedAt,
+                finishedAt(startedAt)
         );
     }
 
@@ -57,5 +83,9 @@ class HarnessRunRepositoryTest {
 
     private LocalDateTime finishedAt() {
         return startedAt().plusSeconds(1);
+    }
+
+    private LocalDateTime finishedAt(LocalDateTime startedAt) {
+        return startedAt.plusSeconds(1);
     }
 }

@@ -28,7 +28,7 @@ public class HarnessRunHistoryService {
     }
 
     public List<HarnessRunSummary> getRunSummaries() {
-        return harnessRunRepository.findAll().stream()
+        return harnessRunRepository.findAllByOrderByStartedAtDesc().stream()
                 .map(HarnessRunEntity::toSummary)
                 .toList();
     }
