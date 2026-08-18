@@ -1,9 +1,6 @@
 package com.stock.harness.api;
 
-import com.stock.harness.HarnessRunHistoryService;
-import com.stock.harness.HarnessRunResult;
-import com.stock.harness.HarnessStateService;
-import com.stock.harness.InvestmentHarness;
+import com.stock.harness.*;
 import com.stock.trade.TradeHistoryService;
 import com.stock.trade.TradeRecord;
 import lombok.RequiredArgsConstructor;
@@ -32,8 +29,8 @@ public class HarnessController {
     }
 
     @GetMapping("/runs")
-    public List<HarnessRunResult> getRuns() {
-        return harnessRunHistoryService.getRuns();
+    public List<HarnessRunSummary> getRuns() {
+        return harnessRunHistoryService.getRunSummaries();
     }
 
     @GetMapping("/runs/{runId}")

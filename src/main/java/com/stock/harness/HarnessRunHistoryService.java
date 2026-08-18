@@ -14,8 +14,8 @@ public class HarnessRunHistoryService {
         runs.add(result);
     }
 
-    public List<HarnessRunResult> getRuns() {
-        return List.copyOf(runs);
+    public List<HarnessRunSummary> getRuns() {
+        return getRunSummaries();
     }
 
     public Optional<HarnessRunResult> getRunById(String runId) {

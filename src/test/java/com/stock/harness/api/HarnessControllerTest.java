@@ -5,6 +5,7 @@ import com.stock.agent.InvestmentDecision;
 import com.stock.harness.HarnessRunHistoryService;
 import com.stock.harness.HarnessRunResult;
 import com.stock.harness.HarnessRunStatus;
+import com.stock.harness.HarnessRunSummary;
 import com.stock.harness.HarnessStateService;
 import com.stock.harness.HarnessStepResult;
 import com.stock.harness.HarnessStepStatus;
@@ -78,15 +79,16 @@ class HarnessControllerTest {
     void getRunsWithoutTradeRecords() throws Exception {
         String runId = "run-1";
 
-        when(harnessRunHistoryService.getRuns())
-                .thenReturn(List.of(completedRun(runId)));
+        when(harnessRunHistoryService.getRunSummaries())
+                .thenReturn(List.of(completedSummary(runId)));
 
         mockMvc.perform(get("/api/harness/runs"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].runId").value(runId))
                 .andExpect(jsonPath("$[0].status").value("COMPLETED"));
 
-        verify(harnessRunHistoryService).getRuns();
+        verify(harnessRunHistoryService).getRunSummaries();
+        verify(harnessRunHistoryService, never()).getRuns();
         verify(tradeHistoryService, never()).getRecordsByRunId(any());
     }
 
@@ -143,6 +145,18 @@ class HarnessControllerTest {
                 executedBuyTradeResult(),
                 portfolioSnapshot(),
                 marketSnapshot()
+        );
+    }
+
+    private HarnessRunSummary completedSummary(String runId) {
+        LocalDateTime startedAt = LocalDateTime.of(2026, 1, 1, 9, 0);
+        LocalDateTime finishedAt = startedAt.plusSeconds(1);
+
+        return new HarnessRunSummary(
+                runId,
+                HarnessRunStatus.COMPLETED,
+                startedAt,
+                finishedAt
         );
     }
 
