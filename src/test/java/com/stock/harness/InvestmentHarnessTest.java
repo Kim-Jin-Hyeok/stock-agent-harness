@@ -3,6 +3,7 @@ package com.stock.harness;
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentAgent;
 import com.stock.agent.InvestmentDecision;
+import com.stock.harness.persistence.HarnessRunRepository;
 import com.stock.market.MarketService;
 import com.stock.portfolio.PortfolioPosition;
 import com.stock.portfolio.PortfolioService;
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 class InvestmentHarnessTest {
 
@@ -31,6 +33,7 @@ class InvestmentHarnessTest {
             0.3
     );
 
+    private final HarnessRunRepository harnessRunRepository = mock(HarnessRunRepository.class);
     private final RiskGuard riskGuard = new RiskGuard(harnessProperties);
     private final PortfolioSnapshotStore store = new PortfolioSnapshotStore();
     private final PortfolioService portfolioService = new PortfolioService(store);
@@ -40,7 +43,7 @@ class InvestmentHarnessTest {
             tradeHistoryService
     );
     private final MarketService marketService = new MarketService();
-    private final HarnessRunHistoryService harnessRunHistoryService = new HarnessRunHistoryService();
+    private final HarnessRunHistoryService harnessRunHistoryService = new HarnessRunHistoryService(harnessRunRepository);
     private final InvestmentAgent investmentAgent = new InvestmentAgent();
 
     private final InvestmentHarness investmentHarness = new InvestmentHarness(

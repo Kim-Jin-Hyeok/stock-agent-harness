@@ -1,6 +1,7 @@
 package com.stock.harness;
 
 import com.stock.agent.InvestmentAction;
+import com.stock.harness.persistence.HarnessRunRepository;
 import com.stock.portfolio.PortfolioService;
 import com.stock.portfolio.PortfolioSnapshotStore;
 import com.stock.trade.TradeHistoryService;
@@ -13,13 +14,15 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 
 class HarnessStateServiceTest {
+    private final HarnessRunRepository harnessRunRepository = mock(HarnessRunRepository.class);
     private final PortfolioSnapshotStore portfolioSnapshotStore = new PortfolioSnapshotStore();
     private final PortfolioService portfolioService = new PortfolioService(portfolioSnapshotStore);
     private final TradeHistoryService tradeHistoryService = new TradeHistoryService();
-    private final HarnessRunHistoryService harnessRunHistoryService = new HarnessRunHistoryService();
+    private final HarnessRunHistoryService harnessRunHistoryService = new HarnessRunHistoryService(harnessRunRepository);
     private final HarnessStateService harnessStateService = new HarnessStateService(
             portfolioService,
             tradeHistoryService,

@@ -1,5 +1,8 @@
 package com.stock.harness;
 
+import com.stock.harness.persistence.HarnessRunEntity;
+import com.stock.harness.persistence.HarnessRunRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -7,11 +10,15 @@ import java.util.List;
 import java.util.Optional;
 
 @Service
+@RequiredArgsConstructor
 public class HarnessRunHistoryService {
+    private final HarnessRunRepository harnessRunRepository;
+
     private final List<HarnessRunResult> runs = new ArrayList<>();
 
     public void record(HarnessRunResult result) {
         runs.add(result);
+        harnessRunRepository.save(HarnessRunEntity.from(result));
     }
 
     public List<HarnessRunSummary> getRuns() {

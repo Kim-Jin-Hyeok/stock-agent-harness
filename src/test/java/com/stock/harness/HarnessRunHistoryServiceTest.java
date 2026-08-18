@@ -1,5 +1,6 @@
 package com.stock.harness;
 
+import com.stock.harness.persistence.HarnessRunRepository;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -7,9 +8,13 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 class HarnessRunHistoryServiceTest {
-    private final HarnessRunHistoryService harnessRunHistoryService = new HarnessRunHistoryService();
+    private final HarnessRunRepository harnessRunRepository = mock(HarnessRunRepository.class);
+    private final HarnessRunHistoryService harnessRunHistoryService = new HarnessRunHistoryService(harnessRunRepository);
 
     @Test
     void recordStoresCompleteRunResult() {
@@ -17,6 +22,8 @@ class HarnessRunHistoryServiceTest {
 
         assertThat(harnessRunHistoryService.getRuns()).hasSize(1);
         assertThat(harnessRunHistoryService.getRuns().getFirst().runId()).isEqualTo("run-1");
+
+        verify(harnessRunRepository).save(any());
     }
 
     @Test
@@ -26,6 +33,8 @@ class HarnessRunHistoryServiceTest {
         assertThat(harnessRunHistoryService.getRuns()).hasSize(1);
         assertThat(harnessRunHistoryService.getRuns().getFirst().runId()).isEqualTo("run-1");
         assertThat(harnessRunHistoryService.getRuns().getFirst().status()).isEqualTo(HarnessRunStatus.FAILED);
+
+        verify(harnessRunRepository).save(any());
     }
 
     @Test
