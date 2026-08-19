@@ -2,6 +2,7 @@ package com.stock.harness;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.harness.persistence.HarnessRunRepository;
+import com.stock.harness.persistence.HarnessStepRepository;
 import com.stock.portfolio.PortfolioService;
 import com.stock.portfolio.PortfolioSnapshotStore;
 import com.stock.trade.TradeHistoryService;
@@ -20,10 +21,14 @@ import static org.mockito.Mockito.verify;
 
 class HarnessStateServiceTest {
     private final HarnessRunRepository harnessRunRepository = mock(HarnessRunRepository.class);
+    private final HarnessStepRepository harnessStepRepository = mock(HarnessStepRepository.class);
     private final PortfolioSnapshotStore portfolioSnapshotStore = new PortfolioSnapshotStore();
     private final PortfolioService portfolioService = new PortfolioService(portfolioSnapshotStore);
     private final TradeHistoryService tradeHistoryService = new TradeHistoryService(mock(TradeRecordRepository.class));
-    private final HarnessRunHistoryService harnessRunHistoryService = new HarnessRunHistoryService(harnessRunRepository);
+    private final HarnessRunHistoryService harnessRunHistoryService = new HarnessRunHistoryService(
+            harnessRunRepository,
+            harnessStepRepository
+    );
     private final HarnessStateService harnessStateService = new HarnessStateService(
             portfolioService,
             tradeHistoryService,
@@ -52,6 +57,7 @@ class HarnessStateServiceTest {
         assertThat(harnessRunHistoryService.getRunById("run-1")).isEmpty();
 
         verify(harnessRunRepository).deleteAll();
+        verify(harnessStepRepository).deleteAll();
     }
 
     private TradeResult executedBuyTradeResult() {

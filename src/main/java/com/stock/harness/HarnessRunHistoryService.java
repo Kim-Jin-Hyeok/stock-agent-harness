@@ -2,23 +2,36 @@ package com.stock.harness;
 
 import com.stock.harness.persistence.HarnessRunEntity;
 import com.stock.harness.persistence.HarnessRunRepository;
+import com.stock.harness.persistence.HarnessStepEntity;
+import com.stock.harness.persistence.HarnessStepRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.IntStream;
 
 @Service
 @RequiredArgsConstructor
 public class HarnessRunHistoryService {
     private final HarnessRunRepository harnessRunRepository;
+    private final HarnessStepRepository harnessStepRepository;
 
     private final List<HarnessRunResult> runs = new ArrayList<>();
 
     public void record(HarnessRunResult result) {
         runs.add(result);
         harnessRunRepository.save(HarnessRunEntity.from(result));
+
+        List<HarnessStepEntity> stepEntities = IntStream.range(0, result.steps().size())
+                .mapToObj(index -> HarnessStepEntity.from(
+                        result.runId(),
+                        index + 1,
+                        result.steps().get(index)
+                ))
+                .toList();
+        harnessStepRepository.saveAll(stepEntities);
     }
 
     public Optional<HarnessRunResult> getRunById(String runId) {
@@ -36,5 +49,6 @@ public class HarnessRunHistoryService {
     public void clear() {
         runs.clear();
         harnessRunRepository.deleteAll();
+        harnessStepRepository.deleteAll();
     }
 }

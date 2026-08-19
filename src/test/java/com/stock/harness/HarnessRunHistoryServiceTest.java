@@ -2,6 +2,7 @@ package com.stock.harness;
 
 import com.stock.harness.persistence.HarnessRunEntity;
 import com.stock.harness.persistence.HarnessRunRepository;
+import com.stock.harness.persistence.HarnessStepRepository;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -14,7 +15,11 @@ import static org.mockito.Mockito.*;
 
 class HarnessRunHistoryServiceTest {
     private final HarnessRunRepository harnessRunRepository = mock(HarnessRunRepository.class);
-    private final HarnessRunHistoryService harnessRunHistoryService = new HarnessRunHistoryService(harnessRunRepository);
+    private final HarnessStepRepository harnessStepRepository = mock(HarnessStepRepository.class);
+    private final HarnessRunHistoryService harnessRunHistoryService = new HarnessRunHistoryService(
+            harnessRunRepository,
+            harnessStepRepository
+    );
 
     @Test
     void recordStoresCompleteRunResult() {
@@ -23,6 +28,7 @@ class HarnessRunHistoryServiceTest {
         assertThat(harnessRunHistoryService.getRunById("run-1")).isPresent();
 
         verify(harnessRunRepository).save(any());
+        verify(harnessStepRepository).saveAll(any());
     }
 
     @Test
@@ -35,6 +41,7 @@ class HarnessRunHistoryServiceTest {
         assertThat(result.get().status()).isEqualTo(HarnessRunStatus.FAILED);
 
         verify(harnessRunRepository).save(any());
+        verify(harnessStepRepository).saveAll(any());
     }
 
     @Test
@@ -72,6 +79,7 @@ class HarnessRunHistoryServiceTest {
 
         assertThat(harnessRunHistoryService.getRunById("run-1")).isEmpty();
         verify(harnessRunRepository).deleteAll();
+        verify(harnessStepRepository).deleteAll();
     }
 
     private HarnessRunResult completedRun(String runId) {

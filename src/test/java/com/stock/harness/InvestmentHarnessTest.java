@@ -4,6 +4,7 @@ import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentAgent;
 import com.stock.agent.InvestmentDecision;
 import com.stock.harness.persistence.HarnessRunRepository;
+import com.stock.harness.persistence.HarnessStepRepository;
 import com.stock.market.MarketService;
 import com.stock.portfolio.PortfolioPosition;
 import com.stock.portfolio.PortfolioService;
@@ -35,6 +36,7 @@ class InvestmentHarnessTest {
     );
 
     private final HarnessRunRepository harnessRunRepository = mock(HarnessRunRepository.class);
+    private final HarnessStepRepository harnessStepRepository = mock(HarnessStepRepository.class);
     private final RiskGuard riskGuard = new RiskGuard(harnessProperties);
     private final PortfolioSnapshotStore store = new PortfolioSnapshotStore();
     private final PortfolioService portfolioService = new PortfolioService(store);
@@ -44,7 +46,10 @@ class InvestmentHarnessTest {
             tradeHistoryService
     );
     private final MarketService marketService = new MarketService();
-    private final HarnessRunHistoryService harnessRunHistoryService = new HarnessRunHistoryService(harnessRunRepository);
+    private final HarnessRunHistoryService harnessRunHistoryService = new HarnessRunHistoryService(
+            harnessRunRepository,
+            harnessStepRepository
+    );
     private final InvestmentAgent investmentAgent = new InvestmentAgent();
 
     private final InvestmentHarness investmentHarness = new InvestmentHarness(
