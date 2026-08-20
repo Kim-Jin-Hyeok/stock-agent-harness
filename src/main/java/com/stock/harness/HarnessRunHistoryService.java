@@ -40,6 +40,12 @@ public class HarnessRunHistoryService {
                 .findFirst();
     }
 
+    public List<HarnessStepResult> getStepsByRunId(String runId) {
+        return harnessStepRepository.findAllByRunIdOrderByStepOrderAsc(runId).stream()
+                .map(HarnessStepEntity::toResult)
+                .toList();
+    }
+
     public List<HarnessRunSummary> getRunSummaries() {
         return harnessRunRepository.findAllByOrderByStartedAtDesc().stream()
                 .map(HarnessRunEntity::toSummary)

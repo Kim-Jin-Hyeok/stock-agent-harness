@@ -2,6 +2,7 @@ package com.stock.harness;
 
 import com.stock.harness.persistence.HarnessRunEntity;
 import com.stock.harness.persistence.HarnessRunRepository;
+import com.stock.harness.persistence.HarnessStepEntity;
 import com.stock.harness.persistence.HarnessStepRepository;
 import org.junit.jupiter.api.Test;
 
@@ -82,6 +83,22 @@ class HarnessRunHistoryServiceTest {
         verify(harnessStepRepository).deleteAll();
     }
 
+    @Test
+    void getStepsByRunIdReturnsStepResults() {
+        String runId = "run-1";
+        when(harnessStepRepository.findAllByRunIdOrderByStepOrderAsc(runId))
+                .thenReturn(List.of(completedStepEntity(runId, 1)));
+
+        List<HarnessStepResult> steps = harnessRunHistoryService.getStepsByRunId(runId);
+
+        assertThat(steps).hasSize(1);
+        assertThat(steps.getFirst().type()).isEqualTo(completedStep().type());
+        assertThat(steps.getFirst().status()).isEqualTo(completedStep().status());
+        assertThat(steps.getFirst().message()).isEqualTo(completedStep().message());
+
+        verify(harnessStepRepository).findAllByRunIdOrderByStepOrderAsc(runId);
+    }
+
     private HarnessRunResult completedRun(String runId) {
         return HarnessRunResult.of(
                 runId,
@@ -112,6 +129,16 @@ class HarnessRunHistoryServiceTest {
                 HarnessRunStatus.COMPLETED,
                 startedAt(),
                 finishedAt()
+        );
+    }
+
+    private HarnessStepEntity completedStepEntity(String runId, Integer stepOrder) {
+        return HarnessStepEntity.of(
+                runId,
+                stepOrder,
+                HarnessStepType.CHECK_STEP_LIMIT,
+                HarnessStepStatus.COMPLETED,
+                "Test completed step."
         );
     }
 

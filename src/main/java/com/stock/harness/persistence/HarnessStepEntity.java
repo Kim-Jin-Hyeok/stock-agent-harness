@@ -57,4 +57,12 @@ public class HarnessStepEntity {
                 result.message()
         );
     }
+
+    public HarnessStepResult toResult() {
+        return new HarnessStepResult(
+                type,
+                status,
+                message
+        );
+    }
 }
