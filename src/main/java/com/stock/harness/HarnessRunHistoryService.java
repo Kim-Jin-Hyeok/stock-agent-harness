@@ -56,6 +56,10 @@ public class HarnessRunHistoryService {
                 .toList();
     }
 
+    public Optional<HarnessRunEntity> findRunEntityById(String runId) {
+        return harnessRunRepository.findByRunId(runId);
+    }
+
     public void clear() {
         runs.clear();
         harnessRunRepository.deleteAll();

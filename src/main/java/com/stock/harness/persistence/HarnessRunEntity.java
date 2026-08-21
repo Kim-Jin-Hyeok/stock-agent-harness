@@ -1,14 +1,14 @@
 package com.stock.harness.persistence;
 
-import com.stock.harness.HarnessRunResult;
-import com.stock.harness.HarnessRunStatus;
-import com.stock.harness.HarnessRunSummary;
+import com.stock.harness.*;
+import com.stock.trade.TradeRecord;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Getter
@@ -56,6 +56,20 @@ public class HarnessRunEntity {
                 status,
                 startedAt,
                 finishedAt
+        );
+    }
+
+    public HarnessRunDetail toDetail(
+            List<HarnessStepResult> steps,
+            List<TradeRecord> tradeRecords
+    ) {
+        return new HarnessRunDetail(
+                runId,
+                status,
+                startedAt,
+                finishedAt,
+                steps,
+                tradeRecords
         );
     }
 }
