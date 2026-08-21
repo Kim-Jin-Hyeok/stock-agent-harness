@@ -2,96 +2,55 @@
 
 ## Purpose
 
-Harness Run 이력 저장의 목적은 Agent 실행을 운영 관점에서 다시 추적할 수 있게 하는 것이다.
+Harness Run 이력 저장의 목적은 Agent 실행을 운영 관점에서 다시 추적할 수 있게 만드는 것이다.
 
-초기 목표는 모든 실행 상세를 완전하게 영속화하는 것이 아니라, Harness Run이 언제 실행되었고 어떤 상태로 끝났는지 먼저 저장하는 것이다.
+초기 목표는 `HarnessRunResult` 전체를 완전하게 영속화하는 것이 아니다. 먼저 실행이 언제 발생했고, 어떤 상태로 끝났으며, 어떤 단계들을 거쳤는지 확인 가능한 최소 이력을 저장한다.
 
 이를 통해 이후 다음 기능으로 확장할 수 있다.
 
 - Run 목록 조회
-- Run 단건 조회
+- Run 단계 이력 조회
 - 실패 Run 분석
 - 전략별 실행 비교
 - Trade 이력과 Run 연결
 
-## Original State
+## Current State
 
-초기 Run 이력은 인메모리로 관리되었다.
-
-```text
-src/main/java/com/stock/harness/HarnessRunHistoryService.java
-```
-
-초기 구조는 `List<HarnessRunResult>`에 실행 결과를 저장했다.
+현재 Harness 이력은 메모리 상세 이력과 JPA 기반 저장 이력이 함께 존재하는 전환 단계다.
 
 ```text
-HarnessRunHistoryService
--> record(HarnessRunResult)
--> getRuns()
--> getRunById(runId)
--> clear()
-```
-
-이 구조는 초기 학습과 테스트에는 충분하지만, 애플리케이션 재시작 시 이력이 사라진다.
-
-## Current Transition State
-
-현재 `HarnessRunHistoryService`는 인메모리 상세 이력과 JPA 기반 요약 이력이 함께 존재하는 과도기 구조다.
-
-```text
-record(HarnessRunResult)
--> 인메모리 runs에 HarnessRunResult 저장
+HarnessRunHistoryService.record(HarnessRunResult)
+-> 메모리 runs에 HarnessRunResult 저장
 -> HarnessRunRepository에 HarnessRunEntity 저장
+-> HarnessStepRepository에 HarnessStepEntity 목록 저장
+```
+
+현재 조회 기준은 기능별로 다르다.
+
+```text
+getRunSummaries()
+-> DB 기준 HarnessRunSummary 목록 조회
 
 getRunById(runId)
--> 인메모리 runs에서 HarnessRunResult 조회
+-> 메모리 기준 HarnessRunResult 상세 조회
 
-getRuns()
--> getRunSummaries() 위임
-
-getRunSummaries()
--> HarnessRunRepository.findAll()
--> HarnessRunEntity.toSummary()
-
-clear()
--> 인메모리 runs 삭제
--> HarnessRunRepository.deleteAll()
+getStepsByRunId(runId)
+-> DB 기준 HarnessStepResult 목록 조회
 ```
 
-이 구조는 의도적인 중간 단계다.
+즉 Run 목록과 Step 이력은 DB 기준으로 이동했지만, Run 상세 전체는 아직 메모리 기준이다.
 
-목록 조회는 DB에 저장한 메타데이터만으로 충분하므로 `HarnessRunSummary`를 사용한다.
+## Persisted Models
 
-단건 상세 조회는 아직 `HarnessRunResult`를 반환한다. 현재 `HarnessRunEntity`에는 `steps`, `decision`, `riskCheckResult`, `tradeResult`, `portfolioSnapshot`, `marketSnapshot`이 없기 때문에 DB에서 완전한 상세 결과를 복원할 수 없다.
+### HarnessRunEntity
 
-따라서 단건 상세 조회를 JPA 기반으로 바꾸기 전에 별도 상세 저장 모델을 설계해야 한다.
-
-## Design Decision
-
-초기 JPA 전환에서는 `HarnessRunResult` 전체를 그대로 Entity로 옮기지 않는다.
-
-`HarnessRunResult`는 다음처럼 중첩된 실행 결과를 포함한다.
+패키지 경로:
 
 ```text
-runId
-status
-startedAt
-finishedAt
-steps
-decision
-riskCheckResult
-tradeResult
-portfolioSnapshot
-marketSnapshot
+src/main/java/com/stock/harness/persistence/HarnessRunEntity.java
 ```
 
-이 중 `steps`, `decision`, `riskCheckResult`, `tradeResult`, `portfolioSnapshot`, `marketSnapshot`은 구조가 깊고 변경 가능성이 높다.
-
-따라서 초기 저장 모델은 실행 메타데이터만 저장한다.
-
-## Initial Entity Scope
-
-초기 `HarnessRunEntity`는 다음 필드만 가진다.
+현재 저장 필드:
 
 ```text
 id
@@ -101,101 +60,180 @@ startedAt
 finishedAt
 ```
 
-추천 패키지 경로는 다음과 같다.
+이 Entity는 Run의 메타데이터만 저장한다. `decision`, `riskCheckResult`, `tradeResult`, `portfolioSnapshot`, `marketSnapshot`은 아직 저장하지 않는다.
+
+### HarnessStepEntity
+
+패키지 경로:
 
 ```text
-src/main/java/com/stock/harness/persistence/HarnessRunEntity.java
-src/main/java/com/stock/harness/persistence/HarnessRunRepository.java
+src/main/java/com/stock/harness/persistence/HarnessStepEntity.java
 ```
 
-## Deferred Fields
-
-다음 값들은 첫 JPA 전환 단계에서는 저장하지 않는다.
+현재 저장 필드:
 
 ```text
-steps
-decision
-riskCheckResult
-tradeResult
-portfolioSnapshot
-marketSnapshot
+id
+runId
+stepOrder
+type
+status
+message
 ```
 
-이 값들은 이후 필요성이 명확해졌을 때 별도 저장 전략을 선택한다.
-
-가능한 확장 방향은 다음과 같다.
-
-- `steps`: 별도 `HarnessStepEntity`로 분리
-- `tradeResult`: Trade 이력 저장 모델과 runId로 연결
-- `decision`, `riskCheckResult`: JSON 컬럼 또는 별도 테이블 검토
-- `portfolioSnapshot`, `marketSnapshot`: Run 당시 스냅샷 저장 요구가 생긴 뒤 설계
-
-## Relationship With Trade History
-
-Trade 이력은 Harness Run Entity 안에 포함하지 않는다.
-
-Trade 기록은 별도의 저장 모델로 관리하고, `runId`로 Harness Run과 연결한다.
+Step은 Run Entity 내부에 포함하지 않고 별도 테이블로 분리한다.
 
 이유는 다음과 같다.
 
-- 하나의 Run에서 여러 거래 기록이 생길 수 있다.
-- 거래 기록은 Run 이력과 다른 조회 축을 가진다.
-- `/api/trades?runId=...` API가 이미 별도 책임으로 존재한다.
+- 하나의 Run은 여러 Step을 가진다.
+- Step은 실행 순서가 중요하므로 `stepOrder`가 필요하다.
+- 실패 분석에서는 Run 전체보다 어느 Step에서 실패했는지가 더 중요하다.
+- 이후 Step별 소요 시간, Tool 호출, 재시도 정보 등을 붙이기 쉽다.
 
-따라서 초기 방향은 다음과 같다.
+### TradeRecordEntity
 
-```text
-HarnessRunEntity
--> runId
-
-TradeRecordEntity
--> runId
-```
-
-DB Foreign Key를 바로 강제할지는 나중에 결정한다.
-
-초기에는 문자열 `runId`로 느슨하게 연결해도 충분하다.
-
-## Service Direction
-
-초기 구현에서는 `HarnessRunHistoryService`의 외부 메서드 계약을 가능하면 유지한다.
+패키지 경로:
 
 ```text
-record(HarnessRunResult result)
-getRuns()
-getRunById(String runId)
-clear()
+src/main/java/com/stock/trade/persistence/TradeRecordEntity.java
 ```
 
-내부 저장소만 인메모리 `List`에서 JPA Repository로 교체하는 방향이 좋다.
+Trade 이력은 Harness Run Entity 안에 포함하지 않고 별도 저장 모델로 관리한다.
 
-이렇게 하면 Controller와 Harness 쪽 변경 범위를 줄일 수 있다.
+현재 연결 기준은 `runId` 문자열이다.
+
+```text
+HarnessRunEntity.runId
+TradeRecordEntity.runId
+HarnessStepEntity.runId
+```
+
+초기 단계에서는 DB Foreign Key를 강제하지 않는다. 지금은 실행 이력을 유연하게 쌓고 조회하는 것이 우선이다.
+
+## Current APIs
+
+### Run 실행
+
+```text
+POST /api/harness/run
+```
+
+새 Harness Run을 실행하고, 실행 결과와 해당 Run의 거래 이력을 함께 반환한다.
+
+### Run 목록 조회
+
+```text
+GET /api/harness/runs
+```
+
+DB에 저장된 `HarnessRunEntity`를 기준으로 `HarnessRunSummary` 목록을 반환한다.
+
+### Run 상세 조회
+
+```text
+GET /api/harness/runs/{runId}
+```
+
+현재는 메모리에 남아 있는 `HarnessRunResult`를 기준으로 상세 결과를 반환한다.
+
+주의할 점:
+
+- 애플리케이션을 재시작하면 메모리 상세 이력은 사라진다.
+- DB에는 Run 메타데이터와 Step/Trade 이력만 남는다.
+- 따라서 이 API는 아직 완전한 DB 기반 상세 조회가 아니다.
+
+### Run Step 조회
+
+```text
+GET /api/harness/runs/{runId}/steps
+```
+
+DB에 저장된 `HarnessStepEntity`를 기준으로 Step 목록을 반환한다.
+
+Run이 존재하지 않으면 `404 Not Found`를 반환한다.
+
+### Trade 이력 조회
+
+```text
+GET /api/trades
+GET /api/trades?runId={runId}
+```
+
+DB에 저장된 `TradeRecordEntity`를 기준으로 거래 이력을 반환한다.
+
+## Deferred Fields
+
+아직 DB에 저장하지 않는 값은 다음과 같다.
+
+```text
+HarnessRunResult.decision
+HarnessRunResult.riskCheckResult
+HarnessRunResult.tradeResult
+HarnessRunResult.portfolioSnapshot
+HarnessRunResult.marketSnapshot
+```
+
+이 값들은 구조가 깊고 변경 가능성이 높다. 따라서 초기에 모두 Entity 필드로 풀어 저장하지 않는다.
+
+향후 선택지는 다음과 같다.
+
+- JSON 컬럼으로 저장
+- 별도 Entity로 분리
+- 요약 정보만 컬럼으로 저장
+- 상세 조회 요구가 명확해질 때까지 저장 보류
+
+## Design Decisions
+
+### HarnessRunResult 전체를 바로 Entity로 저장하지 않는다
+
+`HarnessRunResult`는 실행 결과 전체를 담는 런타임 모델이다. 여기에는 판단 결과, 리스크 검증 결과, 거래 결과, 포트폴리오 스냅샷, 시장 스냅샷이 함께 들어 있다.
+
+이 객체를 그대로 영속화하면 초기에는 빠르지만, 이후 구조 변경과 조회 요구가 생길 때 관리가 어려워진다.
+
+현재는 메타데이터, Step, Trade처럼 저장 책임이 명확한 것부터 분리한다.
+
+### Step은 별도 저장 모델로 관리한다
+
+Step은 Harness Engineering 관점에서 핵심 관찰 데이터다.
+
+Agent가 어떤 판단을 했는지보다 먼저 확인해야 할 것은 Harness가 어떤 단계를 실행했고, 어디에서 멈췄는지다.
+
+따라서 Step은 별도 Entity로 분리하고, `runId`와 `stepOrder`로 조회한다.
+
+### Trade는 Run 안에 포함하지 않는다
+
+하나의 Run에서 여러 거래가 생길 수 있고, 거래 이력은 Run과 다른 조회 축을 가진다.
+
+따라서 Trade는 `TradeRecordEntity`로 분리하고 `runId`로 연결한다.
 
 ## Open Questions
 
-다음 질문은 이후 단계에서 다시 판단한다.
+다음 설계 단계에서 결정해야 할 질문은 다음과 같다.
 
-- `steps`를 별도 테이블로 저장할 것인가?
-- `decision`과 `riskCheckResult`는 JSON으로 저장할 것인가, 컬럼으로 펼칠 것인가?
-- Run 상세 조회에서 DB Entity를 그대로 반환할 것인가, 별도 Response DTO로 조립할 것인가?
-- Trade 이력 저장을 Harness Run 저장보다 먼저 할 것인가, 나중에 할 것인가?
-- `clear()`는 운영 API로 유지할 것인가, 개발용 기능으로 제한할 것인가?
+- Run 상세 조회를 위한 별도 모델 `HarnessRunDetail`을 만들 것인가?
+- `decision`과 `riskCheckResult`는 JSON으로 저장할 것인가, 별도 Entity로 분리할 것인가?
+- `portfolioSnapshot`과 `marketSnapshot`은 매 Run마다 저장할 가치가 있는가?
+- `/api/harness/runs/{runId}`를 DB 기반 조회로 전환할 것인가?
+- 개발용 `reset()` API를 운영에서도 유지할 것인가?
 
 ## Recommended Next Step
 
-다음 구현 단계는 단건 상세 조회를 어떻게 저장하고 복원할지 결정하는 것이다.
+다음 단계는 `HarnessRunDetail` 조회 모델을 설계하는 것이다.
 
-바로 전체 `HarnessRunResult`를 하나의 Entity로 영속화하지 않는다.
+바로 `HarnessRunResult` 전체를 DB에서 복원하려고 하기보다, 현재 DB에 존재하는 데이터만 조합하는 읽기 모델을 먼저 고려한다.
 
-먼저 다음 중 어떤 방식이 현재 단계에 맞는지 판단한다.
+예상 방향:
 
 ```text
-1. 단건 상세 조회는 당분간 인메모리 유지
-2. HarnessRunDetail 모델을 별도로 설계
-3. steps만 먼저 별도 테이블로 저장
-4. decision/risk/trade/portfolio/market snapshot을 JSON으로 저장
+HarnessRunDetail
+-> runId
+-> status
+-> startedAt
+-> finishedAt
+-> steps
+-> tradeRecords
 ```
 
-현재 추천은 1번이다.
+이 모델은 `decision`, `riskCheckResult`, `portfolioSnapshot`, `marketSnapshot`을 아직 포함하지 않아도 된다.
 
-상세 저장 요구가 명확해지기 전까지는 목록 조회만 JPA 기반으로 운영하고, 단건 상세 조회는 인메모리 상세 결과를 유지한다.
+목표는 "현재 DB에 저장된 Run 메타데이터, Step 이력, Trade 이력을 하나의 상세 조회 응답으로 조합할 수 있는가"를 먼저 확인하는 것이다.
