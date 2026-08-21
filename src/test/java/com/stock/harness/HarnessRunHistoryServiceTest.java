@@ -99,6 +99,32 @@ class HarnessRunHistoryServiceTest {
         verify(harnessStepRepository).findAllByRunIdOrderByStepOrderAsc(runId);
     }
 
+    @Test
+    void existsRunFoundRunId() {
+        String runId = "run-1";
+        when(harnessRunRepository.findByRunId(runId))
+                .thenReturn(Optional.of(completedRunEntity(runId)));
+
+        boolean result = harnessRunHistoryService.existsRun(runId);
+
+        assertThat(result).isTrue();
+
+        verify(harnessRunRepository).findByRunId(runId);
+    }
+
+    @Test
+    void existsRunNotFoundRunId() {
+        String runId = "missing-id";
+        when(harnessRunRepository.findByRunId(runId))
+                .thenReturn(Optional.empty());
+
+        boolean result = harnessRunHistoryService.existsRun(runId);
+
+        assertThat(result).isFalse();
+
+        verify(harnessRunRepository).findByRunId(runId);
+    }
+
     private HarnessRunResult completedRun(String runId) {
         return HarnessRunResult.of(
                 runId,

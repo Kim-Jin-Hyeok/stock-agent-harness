@@ -133,6 +133,8 @@ class HarnessControllerTest {
     void getStepsWithRunId() throws Exception {
         String runId = "run-1";
 
+        when(harnessRunHistoryService.existsRun(runId))
+                .thenReturn(true);
         when(harnessRunHistoryService.getStepsByRunId(runId))
                 .thenReturn(completedSteps());
 
@@ -142,7 +144,22 @@ class HarnessControllerTest {
                 .andExpect(jsonPath("$[0].status").value("COMPLETED"))
                 .andExpect(jsonPath("$[0].message").value("Trade execution completed."));
 
+        verify(harnessRunHistoryService).existsRun(runId);
         verify(harnessRunHistoryService).getStepsByRunId(runId);
+    }
+
+    @Test
+    void getStepsNotFoundRunId() throws Exception {
+        String runId = "run-1";
+
+        when(harnessRunHistoryService.existsRun(runId))
+                .thenReturn(false);
+
+        mockMvc.perform(get("/api/harness/runs/{runId}/steps", runId))
+                .andExpect(status().isNotFound());
+
+        verify(harnessRunHistoryService).existsRun(runId);
+        verify(harnessRunHistoryService, never()).getStepsByRunId(any());
     }
 
     private HarnessRunResult completedRun(String runId) {

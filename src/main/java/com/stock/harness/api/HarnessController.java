@@ -51,6 +51,13 @@ public class HarnessController {
 
     @GetMapping("/runs/{runId}/steps")
     public List<HarnessStepResult> getSteps(@PathVariable String runId) {
+        if (!harnessRunHistoryService.existsRun(runId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Harness run not found. runId=" + runId
+            );
+        }
+
         return harnessRunHistoryService.getStepsByRunId(runId);
     }
 

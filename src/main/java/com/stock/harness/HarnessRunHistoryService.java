@@ -46,6 +46,10 @@ public class HarnessRunHistoryService {
                 .toList();
     }
 
+    public boolean existsRun(String runId) {
+        return harnessRunRepository.findByRunId(runId).isPresent();
+    }
+
     public List<HarnessRunSummary> getRunSummaries() {
         return harnessRunRepository.findAllByOrderByStartedAtDesc().stream()
                 .map(HarnessRunEntity::toSummary)
