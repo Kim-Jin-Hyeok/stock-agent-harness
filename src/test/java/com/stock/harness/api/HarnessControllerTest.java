@@ -129,6 +129,22 @@ class HarnessControllerTest {
         verify(harnessStateService).reset();
     }
 
+    @Test
+    void getStepsWithRunId() throws Exception {
+        String runId = "run-1";
+
+        when(harnessRunHistoryService.getStepsByRunId(runId))
+                .thenReturn(completedSteps());
+
+        mockMvc.perform(get("/api/harness/runs/{runId}/steps", runId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].type").value("EXECUTE_TRADE"))
+                .andExpect(jsonPath("$[0].status").value("COMPLETED"))
+                .andExpect(jsonPath("$[0].message").value("Trade execution completed."));
+
+        verify(harnessRunHistoryService).getStepsByRunId(runId);
+    }
+
     private HarnessRunResult completedRun(String runId) {
         LocalDateTime startedAt = LocalDateTime.of(2026, 1, 1, 9, 0);
         LocalDateTime finishedAt = startedAt.plusSeconds(1);
@@ -165,6 +181,10 @@ class HarnessControllerTest {
                 HarnessStepStatus.COMPLETED,
                 "Trade execution completed."
         );
+    }
+
+    private List<HarnessStepResult> completedSteps() {
+        return List.of(completedStep());
     }
 
     private InvestmentDecision buyDecision() {
