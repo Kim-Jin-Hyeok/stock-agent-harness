@@ -36,9 +36,14 @@ getRunById(runId)
 
 getStepsByRunId(runId)
 -> DB 기준 HarnessStepResult 목록 조회
+
+GET /api/harness/runs/{runId}/detail
+-> DB에 저장된 Run 메타데이터, Step 이력, Trade 이력을 조합한 HarnessRunDetail 조회
 ```
 
-즉 Run 목록과 Step 이력은 DB 기준으로 이동했지만, Run 상세 전체는 아직 메모리 기준이다.
+즉 Run 목록, Step 이력, Trade 이력, 저장 데이터 기반 상세 조회는 DB 기준으로 이동했다.
+
+다만 `GET /api/harness/runs/{runId}`는 아직 메모리 기준 `HarnessRunResult`를 반환한다. 이 API는 방금 실행한 런타임 상세를 확인하는 용도에 가깝고, 저장된 이력 조회 기준은 `/detail` API가 담당한다.
 
 ## Persisted Models
 
@@ -110,6 +115,29 @@ HarnessStepEntity.runId
 
 초기 단계에서는 DB Foreign Key를 강제하지 않는다. 지금은 실행 이력을 유연하게 쌓고 조회하는 것이 우선이다.
 
+### HarnessRunDetail
+
+패키지 경로:
+
+```text
+src/main/java/com/stock/harness/HarnessRunDetail.java
+```
+
+`HarnessRunDetail`은 Entity가 아니라 저장된 데이터를 조합해서 반환하는 읽기 모델이다.
+
+현재 필드:
+
+```text
+runId
+status
+startedAt
+finishedAt
+steps
+tradeRecords
+```
+
+이 모델은 현재 DB에 저장된 데이터만 포함한다. 따라서 아직 저장하지 않는 `decision`, `riskCheckResult`, `tradeResult`, `portfolioSnapshot`, `marketSnapshot`은 포함하지 않는다.
+
 ## Current APIs
 
 ### Run 실행
@@ -141,6 +169,29 @@ GET /api/harness/runs/{runId}
 - 애플리케이션을 재시작하면 메모리 상세 이력은 사라진다.
 - DB에는 Run 메타데이터와 Step/Trade 이력만 남는다.
 - 따라서 이 API는 아직 완전한 DB 기반 상세 조회가 아니다.
+
+### 저장 이력 기반 Run 상세 조회
+
+```text
+GET /api/harness/runs/{runId}/detail
+```
+
+DB에 저장된 Run 메타데이터, Step 이력, Trade 이력을 조합해 `HarnessRunDetail`을 반환한다.
+
+현재 포함하는 값:
+
+```text
+runId
+status
+startedAt
+finishedAt
+steps
+tradeRecords
+```
+
+Run이 존재하지 않으면 `404 Not Found`를 반환한다.
+
+이 API는 애플리케이션 재시작 이후에도 DB에 남아 있는 데이터 기준으로 조회할 수 있는 상세 조회의 출발점이다.
 
 ### Run Step 조회
 
@@ -206,23 +257,32 @@ Agent가 어떤 판단을 했는지보다 먼저 확인해야 할 것은 Harness
 
 따라서 Trade는 `TradeRecordEntity`로 분리하고 `runId`로 연결한다.
 
+### HarnessRunResponse와 HarnessRunDetail을 분리한다
+
+`HarnessRunResponse`는 방금 실행한 런타임 결과를 표현한다.
+
+`HarnessRunDetail`은 DB에 저장된 이력 데이터를 조합해서 표현한다.
+
+두 모델을 분리하는 이유는 아직 `HarnessRunResult` 전체를 DB에서 복원하지 않기 때문이다. 런타임 결과와 저장 이력 조회 결과를 같은 모델로 표현하면 어떤 필드가 영속화된 값인지 구분하기 어렵다.
+
 ## Open Questions
 
 다음 설계 단계에서 결정해야 할 질문은 다음과 같다.
 
-- Run 상세 조회를 위한 별도 모델 `HarnessRunDetail`을 만들 것인가?
 - `decision`과 `riskCheckResult`는 JSON으로 저장할 것인가, 별도 Entity로 분리할 것인가?
 - `portfolioSnapshot`과 `marketSnapshot`은 매 Run마다 저장할 가치가 있는가?
-- `/api/harness/runs/{runId}`를 DB 기반 조회로 전환할 것인가?
+- `/api/harness/runs/{runId}`를 계속 메모리 런타임 상세 API로 유지할 것인가?
+- `/api/harness/runs/{runId}/detail`을 최종 상세 조회 API로 삼을 것인가?
+- `tradeResult`는 `TradeRecordEntity`와 별도로 저장할 필요가 있는가?
 - 개발용 `reset()` API를 운영에서도 유지할 것인가?
 
 ## Recommended Next Step
 
-다음 단계는 `HarnessRunDetail` 조회 모델을 설계하는 것이다.
+다음 단계는 `decision`과 `riskCheckResult` 저장 방식을 결정하는 것이다.
 
-바로 `HarnessRunResult` 전체를 DB에서 복원하려고 하기보다, 현재 DB에 존재하는 데이터만 조합하는 읽기 모델을 먼저 고려한다.
+이 두 값은 Agent 판단과 Harness 통제 결과를 나타내므로 실패 분석과 전략 비교에서 가치가 높다.
 
-예상 방향:
+현재 `HarnessRunDetail`은 다음 값까지만 포함한다.
 
 ```text
 HarnessRunDetail
@@ -234,6 +294,18 @@ HarnessRunDetail
 -> tradeRecords
 ```
 
-이 모델은 `decision`, `riskCheckResult`, `portfolioSnapshot`, `marketSnapshot`을 아직 포함하지 않아도 된다.
+다음 후보는 아래 값을 추가로 저장할지 결정하는 것이다.
 
-목표는 "현재 DB에 저장된 Run 메타데이터, Step 이력, Trade 이력을 하나의 상세 조회 응답으로 조합할 수 있는가"를 먼저 확인하는 것이다.
+```text
+decision
+riskCheckResult
+```
+
+가능한 방향은 두 가지다.
+
+```text
+1. JSON 컬럼으로 저장
+2. 별도 Entity로 분리
+```
+
+현재 단계에서는 JSON 컬럼 저장을 먼저 검토하는 것이 좋다. 두 값은 조회 조건으로 자주 검색하기보다, Run 상세에서 당시 판단 내용을 확인하는 목적이 강하기 때문이다.
