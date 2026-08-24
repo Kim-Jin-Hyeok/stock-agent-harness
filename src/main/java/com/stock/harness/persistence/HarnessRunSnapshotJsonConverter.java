@@ -34,6 +34,14 @@ public class HarnessRunSnapshotJsonConverter {
         }
     }
 
+    public String toMarketJson(HarnessMarketSnapshot snapshot) {
+        try {
+            return objectMapper.writeValueAsString(snapshot);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Failed to serialize market snapshot.", e);
+        }
+    }
+
     public HarnessDecisionSnapshot toDecisionSnapshot(String json) {
         try {
             return objectMapper.readValue(json, HarnessDecisionSnapshot.class);
@@ -55,6 +63,14 @@ public class HarnessRunSnapshotJsonConverter {
             return objectMapper.readValue(json, HarnessPortfolioSnapshot.class);
         } catch (JsonProcessingException e) {
             throw new IllegalArgumentException("Failed to deserialize portfolio snapshot json.", e);
+        }
+    }
+
+    public HarnessMarketSnapshot toMarketSnapshot(String json) {
+        try {
+            return objectMapper.readValue(json, HarnessMarketSnapshot.class);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Failed to deserialize market snapshot json.", e);
         }
     }
 }

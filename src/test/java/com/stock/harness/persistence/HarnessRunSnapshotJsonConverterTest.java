@@ -74,6 +74,19 @@ class HarnessRunSnapshotJsonConverterTest {
         assertThat(secondPosition.marketValueKrw()).isEqualTo(600_000L);
     }
 
+    @Test
+    void convertsMarketSnapshotToJsonAndBack() {
+        HarnessMarketSnapshot snapshot = marketSnapshot();
+
+        String json = converter.toMarketJson(snapshot);
+        HarnessMarketSnapshot restored = converter.toMarketSnapshot(json);
+
+        assertThat(restored).isEqualTo(snapshot);
+        assertThat(restored.market()).isEqualTo("KR");
+        assertThat(restored.marketOpen()).isTrue();
+        assertThat(restored.description()).isEqualTo("Korean market is open.");
+    }
+
     private HarnessDecisionSnapshot decisionSnapshot() {
         return new HarnessDecisionSnapshot(
                 InvestmentAction.BUY,
@@ -124,6 +137,14 @@ class HarnessRunSnapshotJsonConverterTest {
                 5L,
                 120_000L,
                 600_000L
+        );
+    }
+
+    private HarnessMarketSnapshot marketSnapshot() {
+        return new HarnessMarketSnapshot(
+                "KR",
+                true,
+                "Korean market is open."
         );
     }
 }
