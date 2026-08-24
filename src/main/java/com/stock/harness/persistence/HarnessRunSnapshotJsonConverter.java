@@ -26,6 +26,14 @@ public class HarnessRunSnapshotJsonConverter {
         }
     }
 
+    public String toPortfolioJson(HarnessPortfolioSnapshot snapshot) {
+        try {
+            return objectMapper.writeValueAsString(snapshot);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Failed to serialize portfolio snapshot.", e);
+        }
+    }
+
     public HarnessDecisionSnapshot toDecisionSnapshot(String json) {
         try {
             return objectMapper.readValue(json, HarnessDecisionSnapshot.class);
@@ -39,6 +47,14 @@ public class HarnessRunSnapshotJsonConverter {
             return objectMapper.readValue(json, HarnessRiskCheckSnapshot.class);
         } catch (JsonProcessingException e) {
             throw new IllegalArgumentException("Failed to deserialize risk check snapshot json.", e);
+        }
+    }
+
+    public HarnessPortfolioSnapshot toPortfolioSnapshot(String json) {
+        try {
+            return objectMapper.readValue(json, HarnessPortfolioSnapshot.class);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Failed to deserialize portfolio snapshot json.", e);
         }
     }
 }

@@ -6,6 +6,8 @@ import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskReasonCode;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class HarnessRunSnapshotJsonConverterTest {
@@ -47,6 +49,31 @@ class HarnessRunSnapshotJsonConverterTest {
         assertThat(restored.reason()).isEqualTo("Risk check approved.");
     }
 
+    @Test
+    void convertsPortfolioSnapshotToJsonAndBack() {
+        HarnessPortfolioSnapshot snapshot = portfolioSnapshot();
+
+        String json = converter.toPortfolioJson(snapshot);
+        HarnessPortfolioSnapshot restored = converter.toPortfolioSnapshot(json);
+
+        assertThat(restored).isEqualTo(snapshot);
+        assertThat(restored.cashAmountKrw()).isEqualTo(8_700_000L);
+        assertThat(restored.totalAssetAmountKrw()).isEqualTo(10_000_000L);
+        assertThat(restored.positions()).hasSize(2);
+
+        HarnessPortfolioPositionSnapshot firstPosition = restored.positions().getFirst();
+        assertThat(firstPosition.symbol()).isEqualTo("005930");
+        assertThat(firstPosition.quantity()).isEqualTo(10L);
+        assertThat(firstPosition.averagePriceKrw()).isEqualTo(70_000L);
+        assertThat(firstPosition.marketValueKrw()).isEqualTo(700_000L);
+
+        HarnessPortfolioPositionSnapshot secondPosition = restored.positions().getLast();
+        assertThat(secondPosition.symbol()).isEqualTo("000660");
+        assertThat(secondPosition.quantity()).isEqualTo(5L);
+        assertThat(secondPosition.averagePriceKrw()).isEqualTo(120_000L);
+        assertThat(secondPosition.marketValueKrw()).isEqualTo(600_000L);
+    }
+
     private HarnessDecisionSnapshot decisionSnapshot() {
         return new HarnessDecisionSnapshot(
                 InvestmentAction.BUY,
@@ -68,6 +95,35 @@ class HarnessRunSnapshotJsonConverterTest {
                 700_000L,
                 RiskReasonCode.RISK_APPROVED,
                 "Risk check approved."
+        );
+    }
+
+    private HarnessPortfolioSnapshot portfolioSnapshot() {
+        return new HarnessPortfolioSnapshot(
+                8_700_000L,
+                10_000_000L,
+                List.of(
+                        samsungPositionSnapshot(),
+                        skHynixPositionSnapshot()
+                )
+        );
+    }
+
+    private HarnessPortfolioPositionSnapshot samsungPositionSnapshot() {
+        return new HarnessPortfolioPositionSnapshot(
+                "005930",
+                10L,
+                70_000L,
+                700_000L
+        );
+    }
+
+    private HarnessPortfolioPositionSnapshot skHynixPositionSnapshot() {
+        return new HarnessPortfolioPositionSnapshot(
+                "000660",
+                5L,
+                120_000L,
+                600_000L
         );
     }
 }
