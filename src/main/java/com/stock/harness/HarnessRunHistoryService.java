@@ -40,11 +40,18 @@ public class HarnessRunHistoryService {
                         HarnessPortfolioSnapshot.from(result.portfolioSnapshot())
                 );
 
+        String marketSnapshotJson = result.marketSnapshot() == null
+                ? null
+                : harnessRunSnapshotJsonConverter.toMarketJson(
+                        HarnessMarketSnapshot.from(result.marketSnapshot())
+                );
+
         harnessRunRepository.save(HarnessRunEntity.from(
                 result,
                 decisionSnapshotJson,
                 riskCheckSnapshotJson,
-                portfolioSnapshotJson
+                portfolioSnapshotJson,
+                marketSnapshotJson
         ));
 
         List<HarnessStepEntity> stepEntities = IntStream.range(0, result.steps().size())
@@ -98,12 +105,14 @@ public class HarnessRunHistoryService {
         HarnessDecisionSnapshot decisionSnapshot = getDecisionSnapshot(entity);
         HarnessRiskCheckSnapshot riskCheckSnapshot = getRiskCheckSnapshot(entity);
         HarnessPortfolioSnapshot portfolioSnapshot = getPortfolioSnapshot(entity);
+        HarnessMarketSnapshot marketSnapshot = getMarketSnapshot(entity);
         List<HarnessStepResult> steps = getStepsByRunId(runId);
 
         HarnessRunDetail detail = entity.toDetail(
                 decisionSnapshot,
                 riskCheckSnapshot,
                 portfolioSnapshot,
+                marketSnapshot,
                 steps,
                 tradeRecords
         );
@@ -144,6 +153,16 @@ public class HarnessRunHistoryService {
 
         return harnessRunSnapshotJsonConverter.toPortfolioSnapshot(
                 entity.getPortfolioSnapshotJson()
+        );
+    }
+
+    private HarnessMarketSnapshot getMarketSnapshot(HarnessRunEntity entity) {
+        if (entity.getMarketSnapshotJson() == null) {
+            return null;
+        }
+
+        return harnessRunSnapshotJsonConverter.toMarketSnapshot(
+                entity.getMarketSnapshotJson()
         );
     }
 }

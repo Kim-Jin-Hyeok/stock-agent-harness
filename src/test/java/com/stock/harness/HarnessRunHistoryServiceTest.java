@@ -2,6 +2,7 @@ package com.stock.harness;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
+import com.stock.harness.persistence.HarnessMarketSnapshot;
 import com.stock.harness.persistence.HarnessPortfolioPositionSnapshot;
 import com.stock.harness.persistence.HarnessPortfolioSnapshot;
 import com.stock.harness.persistence.HarnessRunEntity;
@@ -9,6 +10,7 @@ import com.stock.harness.persistence.HarnessRunRepository;
 import com.stock.harness.persistence.HarnessRunSnapshotJsonConverter;
 import com.stock.harness.persistence.HarnessStepEntity;
 import com.stock.harness.persistence.HarnessStepRepository;
+import com.stock.market.MarketSnapshot;
 import com.stock.portfolio.PortfolioPosition;
 import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.risk.RiskCheckResult;
@@ -102,6 +104,27 @@ class HarnessRunHistoryServiceTest {
     }
 
     @Test
+    void recordStoresMarketSnapshotJson() {
+        HarnessRunResult result = completedBuyRunWithMarket("run-1");
+        when(harnessRunSnapshotJsonConverter.toDecisionJson(any()))
+                .thenReturn("{\"action\":\"BUY\"}");
+        when(harnessRunSnapshotJsonConverter.toRiskCheckJson(any()))
+                .thenReturn("{\"status\":\"APPROVED\"}");
+        when(harnessRunSnapshotJsonConverter.toMarketJson(any()))
+                .thenReturn(marketSnapshotJson());
+
+        harnessRunHistoryService.record(result);
+
+        ArgumentCaptor<HarnessRunEntity> captor = ArgumentCaptor.forClass(HarnessRunEntity.class);
+        verify(harnessRunRepository).save(captor.capture());
+
+        HarnessRunEntity savedEntity = captor.getValue();
+        assertThat(savedEntity.getMarketSnapshotJson()).isEqualTo(marketSnapshotJson());
+
+        verify(harnessRunSnapshotJsonConverter).toMarketJson(any());
+    }
+
+    @Test
     void getRunDetailReturnsPortfolioSnapshot() {
         String runId = "run-1";
         HarnessRunEntity entity = HarnessRunEntity.of(
@@ -111,7 +134,8 @@ class HarnessRunHistoryServiceTest {
                 finishedAt(),
                 null,
                 null,
-                portfolioSnapshotJson()
+                portfolioSnapshotJson(),
+                null
         );
         when(harnessRunRepository.findByRunId(runId))
                 .thenReturn(Optional.of(entity));
@@ -130,6 +154,39 @@ class HarnessRunHistoryServiceTest {
         assertThat(result.get().portfolioSnapshot().positions()).hasSize(2);
 
         verify(harnessRunSnapshotJsonConverter).toPortfolioSnapshot(portfolioSnapshotJson());
+    }
+
+    @Test
+    void getRunDetailReturnsMarketSnapshot() {
+        String runId = "run-1";
+        HarnessRunEntity entity = HarnessRunEntity.of(
+                runId,
+                HarnessRunStatus.COMPLETED,
+                startedAt(),
+                finishedAt(),
+                null,
+                null,
+                null,
+                marketSnapshotJson()
+        );
+        when(harnessRunRepository.findByRunId(runId))
+                .thenReturn(Optional.of(entity));
+        when(harnessStepRepository.findAllByRunIdOrderByStepOrderAsc(runId))
+                .thenReturn(List.of(completedStepEntity(runId, 1)));
+        when(harnessRunSnapshotJsonConverter.toMarketSnapshot(marketSnapshotJson()))
+                .thenReturn(harnessMarketSnapshot());
+
+        Optional<HarnessRunDetail> result = harnessRunHistoryService.getRunDetail(
+                runId,
+                List.of()
+        );
+
+        assertThat(result).isPresent();
+        assertThat(result.get().marketSnapshot()).isEqualTo(harnessMarketSnapshot());
+        assertThat(result.get().marketSnapshot().market()).isEqualTo("KR");
+        assertThat(result.get().marketSnapshot().marketOpen()).isTrue();
+
+        verify(harnessRunSnapshotJsonConverter).toMarketSnapshot(marketSnapshotJson());
     }
 
     @Test
@@ -244,6 +301,7 @@ class HarnessRunHistoryServiceTest {
                 finishedAt(),
                 null,
                 null,
+                null,
                 null
         );
     }
@@ -275,6 +333,21 @@ class HarnessRunHistoryServiceTest {
                 null,
                 portfolioSnapshot(),
                 null
+        );
+    }
+
+    private HarnessRunResult completedBuyRunWithMarket(String runId) {
+        return HarnessRunResult.of(
+                runId,
+                HarnessRunStatus.COMPLETED,
+                startedAt(),
+                finishedAt(),
+                List.of(completedStep()),
+                buyDecision(),
+                approvedRiskCheckResult(),
+                null,
+                null,
+                marketSnapshot()
         );
     }
 
@@ -334,6 +407,18 @@ class HarnessRunHistoryServiceTest {
         return "{\"cashAmountKrw\":8700000,\"totalAssetAmountKrw\":10000000}";
     }
 
+    private MarketSnapshot marketSnapshot() {
+        return new MarketSnapshot(
+                "KR",
+                true,
+                "Korean market is open."
+        );
+    }
+
+    private String marketSnapshotJson() {
+        return "{\"market\":\"KR\",\"marketOpen\":true,\"description\":\"Korean market is open.\"}";
+    }
+
     private HarnessPortfolioSnapshot harnessPortfolioSnapshot() {
         return new HarnessPortfolioSnapshot(
                 8_700_000L,
@@ -360,6 +445,14 @@ class HarnessRunHistoryServiceTest {
                 5L,
                 120_000L,
                 600_000L
+        );
+    }
+
+    private HarnessMarketSnapshot harnessMarketSnapshot() {
+        return new HarnessMarketSnapshot(
+                "KR",
+                true,
+                "Korean market is open."
         );
     }
 
