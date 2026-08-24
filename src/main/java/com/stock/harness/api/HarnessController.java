@@ -1,7 +1,6 @@
 package com.stock.harness.api;
 
 import com.stock.harness.*;
-import com.stock.harness.persistence.HarnessRunEntity;
 import com.stock.trade.TradeHistoryService;
 import com.stock.trade.TradeRecord;
 import lombok.RequiredArgsConstructor;
@@ -64,19 +63,13 @@ public class HarnessController {
 
     @GetMapping("/runs/{runId}/detail")
     public HarnessRunDetail getRunDetail(@PathVariable String runId) {
-        HarnessRunEntity entity = harnessRunHistoryService.findRunEntityById(runId)
+        List<TradeRecord> tradeRecords = tradeHistoryService.getRecordsByRunId(runId);
+
+        return harnessRunHistoryService.getRunDetail(runId, tradeRecords)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "Harness run not found. runId=" + runId
                 ));
-
-        List<HarnessStepResult> steps = harnessRunHistoryService.getStepsByRunId(runId);
-        List<TradeRecord> tradeRecords = tradeHistoryService.getRecordsByRunId(runId);
-
-        return entity.toDetail(
-                steps,
-                tradeRecords
-        );
     }
 
     @PostMapping("/reset")

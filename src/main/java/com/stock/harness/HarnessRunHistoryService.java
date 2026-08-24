@@ -7,6 +7,7 @@ import com.stock.harness.persistence.HarnessRunRepository;
 import com.stock.harness.persistence.HarnessRunSnapshotJsonConverter;
 import com.stock.harness.persistence.HarnessStepEntity;
 import com.stock.harness.persistence.HarnessStepRepository;
+import com.stock.trade.TradeRecord;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -81,9 +82,55 @@ public class HarnessRunHistoryService {
         return harnessRunRepository.findByRunId(runId);
     }
 
+    public Optional<HarnessRunDetail> getRunDetail(
+            String runId,
+            List<TradeRecord> tradeRecords
+    ) {
+        Optional<HarnessRunEntity> entityOptional = findRunEntityById(runId);
+
+        if (entityOptional.isEmpty()) {
+            return Optional.empty();
+        }
+
+        HarnessRunEntity entity = entityOptional.get();
+
+        HarnessDecisionSnapshot decisionSnapshot = getDecisionSnapshot(entity);
+        HarnessRiskCheckSnapshot riskCheckSnapshot = getRiskCheckSnapshot(entity);
+        List<HarnessStepResult> steps = getStepsByRunId(runId);
+
+        HarnessRunDetail detail = entity.toDetail(
+                decisionSnapshot,
+                riskCheckSnapshot,
+                steps,
+                tradeRecords
+        );
+
+        return Optional.of(detail);
+    }
+
     public void clear() {
         runs.clear();
         harnessRunRepository.deleteAll();
         harnessStepRepository.deleteAll();
+    }
+
+    private HarnessDecisionSnapshot getDecisionSnapshot(HarnessRunEntity entity) {
+        if (entity.getDecisionSnapshotJson() == null) {
+            return null;
+        }
+
+        return harnessRunSnapshotJsonConverter.toDecisionSnapshot(
+                entity.getDecisionSnapshotJson()
+        );
+    }
+
+    private HarnessRiskCheckSnapshot getRiskCheckSnapshot(HarnessRunEntity entity) {
+        if (entity.getRiskCheckSnapshotJson() == null) {
+            return null;
+        }
+
+        return harnessRunSnapshotJsonConverter.toRiskCheckSnapshot(
+                entity.getRiskCheckSnapshotJson()
+        );
     }
 }

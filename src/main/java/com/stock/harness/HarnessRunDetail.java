@@ -1,5 +1,7 @@
 package com.stock.harness;
 
+import com.stock.harness.persistence.HarnessDecisionSnapshot;
+import com.stock.harness.persistence.HarnessRiskCheckSnapshot;
 import com.stock.trade.TradeRecord;
 
 import java.time.LocalDateTime;
@@ -10,6 +12,8 @@ public record HarnessRunDetail(
         HarnessRunStatus status,
         LocalDateTime startedAt,
         LocalDateTime finishedAt,
+        HarnessDecisionSnapshot decisionSnapshot,
+        HarnessRiskCheckSnapshot riskCheckSnapshot,
         List<HarnessStepResult> steps,
         List<TradeRecord> tradeRecords
 ) {

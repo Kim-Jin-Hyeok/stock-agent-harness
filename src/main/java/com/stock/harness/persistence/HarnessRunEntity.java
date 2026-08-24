@@ -74,6 +74,8 @@ public class HarnessRunEntity {
     }
 
     public HarnessRunDetail toDetail(
+            HarnessDecisionSnapshot decisionSnapshot,
+            HarnessRiskCheckSnapshot riskCheckSnapshot,
             List<HarnessStepResult> steps,
             List<TradeRecord> tradeRecords
     ) {
@@ -82,6 +84,8 @@ public class HarnessRunEntity {
                 status,
                 startedAt,
                 finishedAt,
+                decisionSnapshot,
+                riskCheckSnapshot,
                 steps,
                 tradeRecords
         );

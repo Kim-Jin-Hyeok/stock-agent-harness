@@ -2,6 +2,7 @@ package com.stock.harness.api;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
+import com.stock.harness.HarnessRunDetail;
 import com.stock.harness.HarnessRunHistoryService;
 import com.stock.harness.HarnessRunResult;
 import com.stock.harness.HarnessRunStatus;
@@ -11,7 +12,8 @@ import com.stock.harness.HarnessStepResult;
 import com.stock.harness.HarnessStepStatus;
 import com.stock.harness.HarnessStepType;
 import com.stock.harness.InvestmentHarness;
-import com.stock.harness.persistence.HarnessRunEntity;
+import com.stock.harness.persistence.HarnessDecisionSnapshot;
+import com.stock.harness.persistence.HarnessRiskCheckSnapshot;
 import com.stock.market.MarketSnapshot;
 import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.risk.RiskCheckResult;
@@ -167,40 +169,42 @@ class HarnessControllerTest {
     void getRunDetailReturnsPersistedRunDetail() throws Exception {
         String runId = "run-1";
 
-        when(harnessRunHistoryService.findRunEntityById(runId))
-                .thenReturn(Optional.of(completedRunEntity(runId)));
-        when(harnessRunHistoryService.getStepsByRunId(runId))
-                .thenReturn(completedSteps());
-        when(tradeHistoryService.getRecordsByRunId(runId))
-                .thenReturn(List.of(executedBuyTradeRecord(runId)));
+        when(harnessRunHistoryService.getRunDetail(eq(runId), any()))
+                .thenReturn(Optional.of(completedRunDetail(runId)));
 
         mockMvc.perform(get("/api/harness/runs/{runId}/detail", runId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.runId").value(runId))
                 .andExpect(jsonPath("$.status").value(HarnessRunStatus.COMPLETED.name()))
+                .andExpect(jsonPath("$.decisionSnapshot.action").value("BUY"))
+                .andExpect(jsonPath("$.decisionSnapshot.symbol").value("005930"))
+                .andExpect(jsonPath("$.riskCheckSnapshot.status").value("APPROVED"))
+                .andExpect(jsonPath("$.riskCheckSnapshot.reasonCode").value("RISK_APPROVED"))
                 .andExpect(jsonPath("$.steps[0].type").value("EXECUTE_TRADE"))
                 .andExpect(jsonPath("$.steps[0].status").value("COMPLETED"))
                 .andExpect(jsonPath("$.tradeRecords[0].runId").value(runId))
                 .andExpect(jsonPath("$.tradeRecords[0].status").value("EXECUTED"));
 
-        verify(harnessRunHistoryService).findRunEntityById(runId);
-        verify(harnessRunHistoryService).getStepsByRunId(runId);
+        verify(harnessRunHistoryService).getRunDetail(eq(runId), any());
         verify(tradeHistoryService).getRecordsByRunId(runId);
+        verify(harnessRunHistoryService, never()).findRunEntityById(any());
+        verify(harnessRunHistoryService, never()).getStepsByRunId(any());
     }
 
     @Test
     void getRunDetailReturnsNotFoundWhenRunDoesNotExist() throws Exception {
         String runId = "missing-run";
 
-        when(harnessRunHistoryService.findRunEntityById(runId))
+        when(harnessRunHistoryService.getRunDetail(eq(runId), any()))
                 .thenReturn(Optional.empty());
 
         mockMvc.perform(get("/api/harness/runs/{runId}/detail", runId))
                 .andExpect(status().isNotFound());
 
-        verify(harnessRunHistoryService).findRunEntityById(runId);
+        verify(harnessRunHistoryService).getRunDetail(eq(runId), any());
+        verify(harnessRunHistoryService, never()).findRunEntityById(any());
         verify(harnessRunHistoryService, never()).getStepsByRunId(any());
-        verify(tradeHistoryService, never()).getRecordsByRunId(any());
+        verify(tradeHistoryService).getRecordsByRunId(runId);
     }
 
     private HarnessRunResult completedRun(String runId) {
@@ -233,18 +237,28 @@ class HarnessControllerTest {
         );
     }
 
-    private HarnessRunEntity completedRunEntity(String runId) {
+    private HarnessRunDetail completedRunDetail(String runId) {
         LocalDateTime startedAt = LocalDateTime.of(2026, 1, 1, 9, 0);
         LocalDateTime finishedAt = startedAt.plusSeconds(1);
 
-        return HarnessRunEntity.of(
+        return new HarnessRunDetail(
                 runId,
                 HarnessRunStatus.COMPLETED,
                 startedAt,
                 finishedAt,
-                null,
-                null
+                decisionSnapshot(),
+                riskCheckSnapshot(),
+                completedSteps(),
+                List.of(executedBuyTradeRecord(runId))
         );
+    }
+
+    private HarnessDecisionSnapshot decisionSnapshot() {
+        return HarnessDecisionSnapshot.from(buyDecision());
+    }
+
+    private HarnessRiskCheckSnapshot riskCheckSnapshot() {
+        return HarnessRiskCheckSnapshot.from(approvedRiskCheckResult());
     }
 
     private HarnessStepResult completedStep() {
