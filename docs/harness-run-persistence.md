@@ -4,12 +4,14 @@
 
 Harness Run 이력 저장의 목적은 Agent 실행을 운영 관점에서 다시 추적할 수 있게 만드는 것이다.
 
-초기 목표는 `HarnessRunResult` 전체를 완전하게 영속화하는 것이 아니다. 먼저 실행이 언제 발생했고, 어떤 상태로 끝났으며, 어떤 단계들을 거쳤는지 확인 가능한 최소 이력을 저장한다.
+초기 목표는 `HarnessRunResult` 전체를 완전하게 영속화하는 것이 아니다. 먼저 실행이 언제 발생했고, 어떤 상태로 끝났으며, 어떤 단계들을 거쳤고, Agent 판단과 Risk Guard 결과가 무엇이었는지 확인 가능한 이력을 저장한다.
 
 이를 통해 이후 다음 기능으로 확장할 수 있다.
 
 - Run 목록 조회
 - Run 단계 이력 조회
+- Agent 판단 내용 추적
+- Risk Guard 승인/거절 사유 추적
 - 실패 Run 분석
 - 전략별 실행 비교
 - Trade 이력과 Run 연결
@@ -25,6 +27,18 @@ HarnessRunHistoryService.record(HarnessRunResult)
 -> HarnessStepRepository에 HarnessStepEntity 목록 저장
 ```
 
+`HarnessRunEntity`는 Run 메타데이터와 함께 Agent 판단 스냅샷, Risk Guard 검증 스냅샷을 JSON 문자열로 저장한다.
+
+```text
+HarnessRunResult.decision
+-> HarnessDecisionSnapshot
+-> decisionSnapshotJson
+
+HarnessRunResult.riskCheckResult
+-> HarnessRiskCheckSnapshot
+-> riskCheckSnapshotJson
+```
+
 현재 조회 기준은 기능별로 다르다.
 
 ```text
@@ -38,7 +52,7 @@ getStepsByRunId(runId)
 -> DB 기준 HarnessStepResult 목록 조회
 
 GET /api/harness/runs/{runId}/detail
--> DB에 저장된 Run 메타데이터, Step 이력, Trade 이력을 조합한 HarnessRunDetail 조회
+-> DB에 저장된 Run 메타데이터, 판단 스냅샷, 리스크 스냅샷, Step 이력, Trade 이력을 조합한 HarnessRunDetail 조회
 ```
 
 즉 Run 목록, Step 이력, Trade 이력, 저장 데이터 기반 상세 조회는 DB 기준으로 이동했다.
@@ -63,9 +77,83 @@ runId
 status
 startedAt
 finishedAt
+decisionSnapshotJson
+riskCheckSnapshotJson
 ```
 
-이 Entity는 Run의 메타데이터만 저장한다. `decision`, `riskCheckResult`, `tradeResult`, `portfolioSnapshot`, `marketSnapshot`은 아직 저장하지 않는다.
+이 Entity는 Run 메타데이터와 Harness 관점에서 중요한 판단 스냅샷을 저장한다.
+
+`decisionSnapshotJson`은 Agent가 어떤 투자 판단을 했는지 저장한다.
+
+`riskCheckSnapshotJson`은 Harness/Risk Guard가 그 판단을 승인했는지, 거절했다면 어떤 reasonCode로 거절했는지 저장한다.
+
+이 두 값은 별도 Entity로 분리하지 않고 JSON 문자열로 저장한다. 현재 단계에서는 이 값들을 조건 검색하기보다 Run 상세에서 당시 판단 맥락을 확인하는 목적이 강하기 때문이다.
+
+### HarnessDecisionSnapshot
+
+패키지 경로:
+
+```text
+src/main/java/com/stock/harness/persistence/HarnessDecisionSnapshot.java
+```
+
+현재 필드:
+
+```text
+action
+symbol
+quantity
+expectedPriceKrw
+estimatedOrderAmountKrw
+reason
+```
+
+이 모델은 `InvestmentDecision` 전체를 그대로 저장하지 않고, 저장 이력 조회에 필요한 판단 요약만 담는다.
+
+### HarnessRiskCheckSnapshot
+
+패키지 경로:
+
+```text
+src/main/java/com/stock/harness/persistence/HarnessRiskCheckSnapshot.java
+```
+
+현재 필드:
+
+```text
+status
+action
+symbol
+quantity
+expectedPriceKrw
+estimatedOrderAmountKrw
+reasonCode
+reason
+```
+
+이 모델은 `RiskCheckResult` 전체를 그대로 저장하지 않고, Risk Guard 판단을 사후 분석하기 위한 요약 정보를 담는다.
+
+### HarnessRunSnapshotJsonConverter
+
+패키지 경로:
+
+```text
+src/main/java/com/stock/harness/persistence/HarnessRunSnapshotJsonConverter.java
+```
+
+역할:
+
+```text
+HarnessDecisionSnapshot -> JSON
+JSON -> HarnessDecisionSnapshot
+
+HarnessRiskCheckSnapshot -> JSON
+JSON -> HarnessRiskCheckSnapshot
+```
+
+Entity가 `ObjectMapper`나 converter를 직접 알지 않도록 변환 책임을 별도 컴포넌트로 둔다.
+
+저장할 때는 `HarnessRunHistoryService`가 snapshot 객체를 JSON으로 변환한다. 조회할 때도 `HarnessRunHistoryService`가 JSON을 snapshot 객체로 복원한다.
 
 ### HarnessStepEntity
 
@@ -132,11 +220,17 @@ runId
 status
 startedAt
 finishedAt
+decisionSnapshot
+riskCheckSnapshot
 steps
 tradeRecords
 ```
 
-이 모델은 현재 DB에 저장된 데이터만 포함한다. 따라서 아직 저장하지 않는 `decision`, `riskCheckResult`, `tradeResult`, `portfolioSnapshot`, `marketSnapshot`은 포함하지 않는다.
+`decisionSnapshot`과 `riskCheckSnapshot`은 DB에 저장된 JSON 문자열을 다시 객체로 복원한 값이다.
+
+`steps`는 `HarnessStepEntity` 목록에서 복원한 값이다.
+
+`tradeRecords`는 `TradeRecordEntity` 기준의 거래 이력 조회 결과다.
 
 ## Current APIs
 
@@ -147,6 +241,8 @@ POST /api/harness/run
 ```
 
 새 Harness Run을 실행하고, 실행 결과와 해당 Run의 거래 이력을 함께 반환한다.
+
+응답 모델은 `HarnessRunResponse`이며, 방금 실행한 런타임 결과를 표현한다.
 
 ### Run 목록 조회
 
@@ -167,7 +263,7 @@ GET /api/harness/runs/{runId}
 주의할 점:
 
 - 애플리케이션을 재시작하면 메모리 상세 이력은 사라진다.
-- DB에는 Run 메타데이터와 Step/Trade 이력만 남는다.
+- 저장 이력 기반 상세 조회는 `/api/harness/runs/{runId}/detail`이 담당한다.
 - 따라서 이 API는 아직 완전한 DB 기반 상세 조회가 아니다.
 
 ### 저장 이력 기반 Run 상세 조회
@@ -176,7 +272,7 @@ GET /api/harness/runs/{runId}
 GET /api/harness/runs/{runId}/detail
 ```
 
-DB에 저장된 Run 메타데이터, Step 이력, Trade 이력을 조합해 `HarnessRunDetail`을 반환한다.
+DB에 저장된 Run 메타데이터, 판단 스냅샷, 리스크 스냅샷, Step 이력, Trade 이력을 조합해 `HarnessRunDetail`을 반환한다.
 
 현재 포함하는 값:
 
@@ -185,6 +281,8 @@ runId
 status
 startedAt
 finishedAt
+decisionSnapshot
+riskCheckSnapshot
 steps
 tradeRecords
 ```
@@ -214,17 +312,19 @@ DB에 저장된 `TradeRecordEntity`를 기준으로 거래 이력을 반환한�
 
 ## Deferred Fields
 
-아직 DB에 저장하지 않는 값은 다음과 같다.
+아직 `HarnessRunEntity`에 직접 저장하지 않는 값은 다음과 같다.
 
 ```text
-HarnessRunResult.decision
-HarnessRunResult.riskCheckResult
 HarnessRunResult.tradeResult
 HarnessRunResult.portfolioSnapshot
 HarnessRunResult.marketSnapshot
 ```
 
-이 값들은 구조가 깊고 변경 가능성이 높다. 따라서 초기에 모두 Entity 필드로 풀어 저장하지 않는다.
+`decision`과 `riskCheckResult`는 더 이상 deferred field가 아니다. 현재는 각각 `HarnessDecisionSnapshot`, `HarnessRiskCheckSnapshot`으로 축약한 뒤 JSON 컬럼에 저장한다.
+
+`tradeResult`는 별도 저장 필요성을 아직 낮게 본다. 실제 거래 이력은 이미 `TradeRecordEntity`로 저장되기 때문이다.
+
+`portfolioSnapshot`과 `marketSnapshot`은 구조가 깊고 변경 가능성이 있다. 또한 매 Run마다 저장할 가치가 있는지 아직 명확하지 않다.
 
 향후 선택지는 다음과 같다.
 
@@ -241,7 +341,47 @@ HarnessRunResult.marketSnapshot
 
 이 객체를 그대로 영속화하면 초기에는 빠르지만, 이후 구조 변경과 조회 요구가 생길 때 관리가 어려워진다.
 
-현재는 메타데이터, Step, Trade처럼 저장 책임이 명확한 것부터 분리한다.
+현재는 메타데이터, Step, Trade, 판단 스냅샷처럼 저장 책임과 조회 목적이 설명 가능한 것부터 분리한다.
+
+### decision과 riskCheckResult는 Snapshot JSON으로 저장한다
+
+`decision`과 `riskCheckResult`는 Agent 판단과 Harness 통제 결과를 나타낸다.
+
+이 두 값은 실패 분석과 전략 비교에서 가치가 높다.
+
+하지만 현재 단계에서는 이 값들을 조건 검색하거나 통계 집계하는 요구보다, Run 상세에서 당시 판단 내용을 확인하는 요구가 더 강하다.
+
+따라서 별도 Entity로 분리하지 않고 다음 흐름으로 저장한다.
+
+```text
+InvestmentDecision
+-> HarnessDecisionSnapshot
+-> decisionSnapshotJson
+
+RiskCheckResult
+-> HarnessRiskCheckSnapshot
+-> riskCheckSnapshotJson
+```
+
+조회 시에는 반대 방향으로 복원한다.
+
+```text
+decisionSnapshotJson
+-> HarnessDecisionSnapshot
+
+riskCheckSnapshotJson
+-> HarnessRiskCheckSnapshot
+```
+
+### Entity는 JSON 파싱을 하지 않는다
+
+`HarnessRunEntity`는 JSON 문자열을 저장하지만, JSON 파싱 책임은 갖지 않는다.
+
+Entity가 `ObjectMapper`나 converter를 알게 되면 persistence 모델의 책임이 넓어진다.
+
+따라서 JSON 변환은 `HarnessRunSnapshotJsonConverter`가 담당하고, 이 converter는 `HarnessRunHistoryService`에서 사용한다.
+
+`HarnessRunEntity.toDetail(...)`은 이미 복원된 snapshot 객체, steps, tradeRecords를 받아 `HarnessRunDetail`을 생성한다.
 
 ### Step은 별도 저장 모델로 관리한다
 
@@ -257,6 +397,8 @@ Agent가 어떤 판단을 했는지보다 먼저 확인해야 할 것은 Harness
 
 따라서 Trade는 `TradeRecordEntity`로 분리하고 `runId`로 연결한다.
 
+`tradeResult`를 `HarnessRunEntity`에 중복 저장하지 않는 이유는 이미 실행 이력이 `TradeRecordEntity`에 기록되기 때문이다.
+
 ### HarnessRunResponse와 HarnessRunDetail을 분리한다
 
 `HarnessRunResponse`는 방금 실행한 런타임 결과를 표현한다.
@@ -269,43 +411,46 @@ Agent가 어떤 판단을 했는지보다 먼저 확인해야 할 것은 Harness
 
 다음 설계 단계에서 결정해야 할 질문은 다음과 같다.
 
-- `decision`과 `riskCheckResult`는 JSON으로 저장할 것인가, 별도 Entity로 분리할 것인가?
-- `portfolioSnapshot`과 `marketSnapshot`은 매 Run마다 저장할 가치가 있는가?
+- `portfolioSnapshot`은 매 Run마다 저장할 가치가 있는가?
+- `marketSnapshot`은 매 Run마다 저장할 가치가 있는가?
+- `portfolioSnapshot`과 `marketSnapshot`을 저장한다면 JSON 컬럼으로 둘 것인가, 별도 Entity로 분리할 것인가?
 - `/api/harness/runs/{runId}`를 계속 메모리 런타임 상세 API로 유지할 것인가?
 - `/api/harness/runs/{runId}/detail`을 최종 상세 조회 API로 삼을 것인가?
-- `tradeResult`는 `TradeRecordEntity`와 별도로 저장할 필요가 있는가?
 - 개발용 `reset()` API를 운영에서도 유지할 것인가?
 
 ## Recommended Next Step
 
-다음 단계는 `decision`과 `riskCheckResult` 저장 방식을 결정하는 것이다.
+다음 단계는 `portfolioSnapshot` 저장 여부를 결정하는 것이다.
 
-이 두 값은 Agent 판단과 Harness 통제 결과를 나타내므로 실패 분석과 전략 비교에서 가치가 높다.
+`portfolioSnapshot`은 Run 당시의 보유 현금, 총 평가금, 포지션 목록을 담는다.
 
-현재 `HarnessRunDetail`은 다음 값까지만 포함한다.
-
-```text
-HarnessRunDetail
--> runId
--> status
--> startedAt
--> finishedAt
--> steps
--> tradeRecords
-```
-
-다음 후보는 아래 값을 추가로 저장할지 결정하는 것이다.
+이 값은 다음 질문에 답할 때 필요하다.
 
 ```text
-decision
-riskCheckResult
+Agent가 어떤 포트폴리오 상태를 보고 판단했는가?
+거래 실행 후 포트폴리오가 어떻게 바뀌었는가?
+전략별 Run 결과를 나중에 비교할 수 있는가?
 ```
 
-가능한 방향은 두 가지다.
+다만 포지션 목록은 구조가 깊고, 이후 Broker API 연동 시 실제 계좌 조회 결과와 연결될 수 있다.
+
+따라서 바로 저장하기 전에 최소 설계 질문을 먼저 정해야 한다.
 
 ```text
-1. JSON 컬럼으로 저장
-2. 별도 Entity로 분리
+1. Run 상세 확인 목적이면 JSON 컬럼으로 충분한가?
+2. 포지션별 검색/집계가 필요하면 별도 Entity가 필요한가?
+3. 현재 단계에서 저장할 값은 전체 portfolioSnapshot인가, 요약값만인가?
 ```
 
-현재 단계에서는 JSON 컬럼 저장을 먼저 검토하는 것이 좋다. 두 값은 조회 조건으로 자주 검색하기보다, Run 상세에서 당시 판단 내용을 확인하는 목적이 강하기 때문이다.
+현재 단계에서는 `portfolioSnapshot` 전체를 바로 Entity로 분리하기보다, 먼저 JSON 저장 후보로 검토하는 것이 좋다.
+
+추천하는 다음 구현 단위는 다음과 같다.
+
+```text
+HarnessPortfolioSnapshot
+HarnessRunEntity.portfolioSnapshotJson
+HarnessRunSnapshotJsonConverter portfolio 변환 메서드
+HarnessRunDetail.portfolioSnapshot
+```
+
+단, 구현 전에 `PortfolioSnapshot`을 그대로 저장할지, 저장 전용 Snapshot 모델을 별도로 만들지 먼저 결정한다.
