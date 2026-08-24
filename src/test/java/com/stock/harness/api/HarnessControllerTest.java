@@ -13,6 +13,8 @@ import com.stock.harness.HarnessStepStatus;
 import com.stock.harness.HarnessStepType;
 import com.stock.harness.InvestmentHarness;
 import com.stock.harness.persistence.HarnessDecisionSnapshot;
+import com.stock.harness.persistence.HarnessPortfolioPositionSnapshot;
+import com.stock.harness.persistence.HarnessPortfolioSnapshot;
 import com.stock.harness.persistence.HarnessRiskCheckSnapshot;
 import com.stock.market.MarketSnapshot;
 import com.stock.portfolio.PortfolioSnapshot;
@@ -180,6 +182,10 @@ class HarnessControllerTest {
                 .andExpect(jsonPath("$.decisionSnapshot.symbol").value("005930"))
                 .andExpect(jsonPath("$.riskCheckSnapshot.status").value("APPROVED"))
                 .andExpect(jsonPath("$.riskCheckSnapshot.reasonCode").value("RISK_APPROVED"))
+                .andExpect(jsonPath("$.portfolioSnapshot.cashAmountKrw").value(9_300_000L))
+                .andExpect(jsonPath("$.portfolioSnapshot.totalAssetAmountKrw").value(10_000_000L))
+                .andExpect(jsonPath("$.portfolioSnapshot.positions[0].symbol").value("005930"))
+                .andExpect(jsonPath("$.portfolioSnapshot.positions[0].quantity").value(10L))
                 .andExpect(jsonPath("$.steps[0].type").value("EXECUTE_TRADE"))
                 .andExpect(jsonPath("$.steps[0].status").value("COMPLETED"))
                 .andExpect(jsonPath("$.tradeRecords[0].runId").value(runId))
@@ -248,6 +254,7 @@ class HarnessControllerTest {
                 finishedAt,
                 decisionSnapshot(),
                 riskCheckSnapshot(),
+                harnessPortfolioSnapshot(),
                 completedSteps(),
                 List.of(executedBuyTradeRecord(runId))
         );
@@ -259,6 +266,23 @@ class HarnessControllerTest {
 
     private HarnessRiskCheckSnapshot riskCheckSnapshot() {
         return HarnessRiskCheckSnapshot.from(approvedRiskCheckResult());
+    }
+
+    private HarnessPortfolioSnapshot harnessPortfolioSnapshot() {
+        return new HarnessPortfolioSnapshot(
+                9_300_000L,
+                10_000_000L,
+                List.of(samsungPositionSnapshot())
+        );
+    }
+
+    private HarnessPortfolioPositionSnapshot samsungPositionSnapshot() {
+        return new HarnessPortfolioPositionSnapshot(
+                "005930",
+                10L,
+                70_000L,
+                700_000L
+        );
     }
 
     private HarnessStepResult completedStep() {

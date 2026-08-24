@@ -2,11 +2,15 @@ package com.stock.harness;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
+import com.stock.harness.persistence.HarnessPortfolioPositionSnapshot;
+import com.stock.harness.persistence.HarnessPortfolioSnapshot;
 import com.stock.harness.persistence.HarnessRunEntity;
 import com.stock.harness.persistence.HarnessRunRepository;
 import com.stock.harness.persistence.HarnessRunSnapshotJsonConverter;
 import com.stock.harness.persistence.HarnessStepEntity;
 import com.stock.harness.persistence.HarnessStepRepository;
+import com.stock.portfolio.PortfolioPosition;
+import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.risk.RiskCheckResult;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskReasonCode;
@@ -74,6 +78,58 @@ class HarnessRunHistoryServiceTest {
 
         verify(harnessRunSnapshotJsonConverter).toDecisionJson(any());
         verify(harnessRunSnapshotJsonConverter).toRiskCheckJson(any());
+    }
+
+    @Test
+    void recordStoresPortfolioSnapshotJson() {
+        HarnessRunResult result = completedBuyRunWithPortfolio("run-1");
+        when(harnessRunSnapshotJsonConverter.toDecisionJson(any()))
+                .thenReturn("{\"action\":\"BUY\"}");
+        when(harnessRunSnapshotJsonConverter.toRiskCheckJson(any()))
+                .thenReturn("{\"status\":\"APPROVED\"}");
+        when(harnessRunSnapshotJsonConverter.toPortfolioJson(any()))
+                .thenReturn(portfolioSnapshotJson());
+
+        harnessRunHistoryService.record(result);
+
+        ArgumentCaptor<HarnessRunEntity> captor = ArgumentCaptor.forClass(HarnessRunEntity.class);
+        verify(harnessRunRepository).save(captor.capture());
+
+        HarnessRunEntity savedEntity = captor.getValue();
+        assertThat(savedEntity.getPortfolioSnapshotJson()).isEqualTo(portfolioSnapshotJson());
+
+        verify(harnessRunSnapshotJsonConverter).toPortfolioJson(any());
+    }
+
+    @Test
+    void getRunDetailReturnsPortfolioSnapshot() {
+        String runId = "run-1";
+        HarnessRunEntity entity = HarnessRunEntity.of(
+                runId,
+                HarnessRunStatus.COMPLETED,
+                startedAt(),
+                finishedAt(),
+                null,
+                null,
+                portfolioSnapshotJson()
+        );
+        when(harnessRunRepository.findByRunId(runId))
+                .thenReturn(Optional.of(entity));
+        when(harnessStepRepository.findAllByRunIdOrderByStepOrderAsc(runId))
+                .thenReturn(List.of(completedStepEntity(runId, 1)));
+        when(harnessRunSnapshotJsonConverter.toPortfolioSnapshot(portfolioSnapshotJson()))
+                .thenReturn(harnessPortfolioSnapshot());
+
+        Optional<HarnessRunDetail> result = harnessRunHistoryService.getRunDetail(
+                runId,
+                List.of()
+        );
+
+        assertThat(result).isPresent();
+        assertThat(result.get().portfolioSnapshot()).isEqualTo(harnessPortfolioSnapshot());
+        assertThat(result.get().portfolioSnapshot().positions()).hasSize(2);
+
+        verify(harnessRunSnapshotJsonConverter).toPortfolioSnapshot(portfolioSnapshotJson());
     }
 
     @Test
@@ -187,6 +243,7 @@ class HarnessRunHistoryServiceTest {
                 startedAt(),
                 finishedAt(),
                 null,
+                null,
                 null
         );
     }
@@ -202,6 +259,21 @@ class HarnessRunHistoryServiceTest {
                 approvedRiskCheckResult(),
                 null,
                 null,
+                null
+        );
+    }
+
+    private HarnessRunResult completedBuyRunWithPortfolio(String runId) {
+        return HarnessRunResult.of(
+                runId,
+                HarnessRunStatus.COMPLETED,
+                startedAt(),
+                finishedAt(),
+                List.of(completedStep()),
+                buyDecision(),
+                approvedRiskCheckResult(),
+                null,
+                portfolioSnapshot(),
                 null
         );
     }
@@ -226,6 +298,68 @@ class HarnessRunHistoryServiceTest {
                 700_000L,
                 RiskReasonCode.RISK_APPROVED,
                 "Risk check approved."
+        );
+    }
+
+    private PortfolioSnapshot portfolioSnapshot() {
+        return new PortfolioSnapshot(
+                8_700_000L,
+                10_000_000L,
+                List.of(
+                        samsungPosition(),
+                        skHynixPosition()
+                )
+        );
+    }
+
+    private PortfolioPosition samsungPosition() {
+        return new PortfolioPosition(
+                "005930",
+                10L,
+                70_000L,
+                700_000L
+        );
+    }
+
+    private PortfolioPosition skHynixPosition() {
+        return new PortfolioPosition(
+                "000660",
+                5L,
+                120_000L,
+                600_000L
+        );
+    }
+
+    private String portfolioSnapshotJson() {
+        return "{\"cashAmountKrw\":8700000,\"totalAssetAmountKrw\":10000000}";
+    }
+
+    private HarnessPortfolioSnapshot harnessPortfolioSnapshot() {
+        return new HarnessPortfolioSnapshot(
+                8_700_000L,
+                10_000_000L,
+                List.of(
+                        samsungPositionSnapshot(),
+                        skHynixPositionSnapshot()
+                )
+        );
+    }
+
+    private HarnessPortfolioPositionSnapshot samsungPositionSnapshot() {
+        return new HarnessPortfolioPositionSnapshot(
+                "005930",
+                10L,
+                70_000L,
+                700_000L
+        );
+    }
+
+    private HarnessPortfolioPositionSnapshot skHynixPositionSnapshot() {
+        return new HarnessPortfolioPositionSnapshot(
+                "000660",
+                5L,
+                120_000L,
+                600_000L
         );
     }
 

@@ -1,6 +1,7 @@
 package com.stock.harness;
 
 import com.stock.harness.persistence.HarnessDecisionSnapshot;
+import com.stock.harness.persistence.HarnessPortfolioSnapshot;
 import com.stock.harness.persistence.HarnessRiskCheckSnapshot;
 import com.stock.trade.TradeRecord;
 
@@ -14,6 +15,7 @@ public record HarnessRunDetail(
         LocalDateTime finishedAt,
         HarnessDecisionSnapshot decisionSnapshot,
         HarnessRiskCheckSnapshot riskCheckSnapshot,
+        HarnessPortfolioSnapshot portfolioSnapshot,
         List<HarnessStepResult> steps,
         List<TradeRecord> tradeRecords
 ) {

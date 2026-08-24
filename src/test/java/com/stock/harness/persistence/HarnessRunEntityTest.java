@@ -29,7 +29,8 @@ class HarnessRunEntityTest {
         HarnessRunEntity entity = HarnessRunEntity.from(
                 result,
                 decisionSnapshotJson(),
-                riskCheckSnapshotJson()
+                riskCheckSnapshotJson(),
+                portfolioSnapshotJson()
         );
 
         // then
@@ -48,12 +49,14 @@ class HarnessRunEntityTest {
         HarnessRunEntity entity = HarnessRunEntity.from(
                 result,
                 decisionSnapshotJson(),
-                riskCheckSnapshotJson()
+                riskCheckSnapshotJson(),
+                portfolioSnapshotJson()
         );
 
         // then
         assertThat(entity.getDecisionSnapshotJson()).isEqualTo(decisionSnapshotJson());
         assertThat(entity.getRiskCheckSnapshotJson()).isEqualTo(riskCheckSnapshotJson());
+        assertThat(entity.getPortfolioSnapshotJson()).isEqualTo(portfolioSnapshotJson());
     }
 
     @Test
@@ -64,7 +67,8 @@ class HarnessRunEntityTest {
         HarnessRunEntity entity = HarnessRunEntity.from(
                 result,
                 decisionSnapshotJson(),
-                riskCheckSnapshotJson()
+                riskCheckSnapshotJson(),
+                portfolioSnapshotJson()
         );
 
         // when
@@ -166,5 +170,9 @@ class HarnessRunEntityTest {
 
     private String riskCheckSnapshotJson() {
         return "{\"status\":\"APPROVED\"}";
+    }
+
+    private String portfolioSnapshotJson() {
+        return "{\"cashAmountKrw\":9300000,\"totalAssetAmountKrw\":10000000}";
     }
 }

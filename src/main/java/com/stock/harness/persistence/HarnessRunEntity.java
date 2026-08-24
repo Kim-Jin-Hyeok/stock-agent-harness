@@ -31,13 +31,16 @@ public class HarnessRunEntity {
 
     private String riskCheckSnapshotJson;
 
+    private String portfolioSnapshotJson;
+
     public static HarnessRunEntity of(
             String runId,
             HarnessRunStatus status,
             LocalDateTime startedAt,
             LocalDateTime finishedAt,
             String decisionSnapshotJson,
-            String riskCheckSnapshotJson
+            String riskCheckSnapshotJson,
+            String portfolioSnapshotJson
     ) {
         HarnessRunEntity entity = new HarnessRunEntity();
         entity.runId = runId;
@@ -46,13 +49,15 @@ public class HarnessRunEntity {
         entity.finishedAt = finishedAt;
         entity.decisionSnapshotJson = decisionSnapshotJson;
         entity.riskCheckSnapshotJson = riskCheckSnapshotJson;
+        entity.portfolioSnapshotJson = portfolioSnapshotJson;
         return entity;
     }
 
     public static HarnessRunEntity from(
             HarnessRunResult result,
             String decisionSnapshotJson,
-            String riskCheckSnapshotJson
+            String riskCheckSnapshotJson,
+            String portfolioSnapshotJson
     ) {
         return of(
                 result.runId(),
@@ -60,7 +65,8 @@ public class HarnessRunEntity {
                 result.startedAt(),
                 result.finishedAt(),
                 decisionSnapshotJson,
-                riskCheckSnapshotJson
+                riskCheckSnapshotJson,
+                portfolioSnapshotJson
         );
     }
 
@@ -76,6 +82,7 @@ public class HarnessRunEntity {
     public HarnessRunDetail toDetail(
             HarnessDecisionSnapshot decisionSnapshot,
             HarnessRiskCheckSnapshot riskCheckSnapshot,
+            HarnessPortfolioSnapshot portfolioSnapshot,
             List<HarnessStepResult> steps,
             List<TradeRecord> tradeRecords
     ) {
@@ -86,6 +93,7 @@ public class HarnessRunEntity {
                 finishedAt,
                 decisionSnapshot,
                 riskCheckSnapshot,
+                portfolioSnapshot,
                 steps,
                 tradeRecords
         );

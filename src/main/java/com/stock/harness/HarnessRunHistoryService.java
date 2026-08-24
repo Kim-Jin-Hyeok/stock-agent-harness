@@ -1,12 +1,6 @@
 package com.stock.harness;
 
-import com.stock.harness.persistence.HarnessDecisionSnapshot;
-import com.stock.harness.persistence.HarnessRiskCheckSnapshot;
-import com.stock.harness.persistence.HarnessRunEntity;
-import com.stock.harness.persistence.HarnessRunRepository;
-import com.stock.harness.persistence.HarnessRunSnapshotJsonConverter;
-import com.stock.harness.persistence.HarnessStepEntity;
-import com.stock.harness.persistence.HarnessStepRepository;
+import com.stock.harness.persistence.*;
 import com.stock.trade.TradeRecord;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -40,10 +34,17 @@ public class HarnessRunHistoryService {
                         HarnessRiskCheckSnapshot.from(result.riskCheckResult())
                 );
 
+        String portfolioSnapshotJson = result.portfolioSnapshot() == null
+                ? null
+                : harnessRunSnapshotJsonConverter.toPortfolioJson(
+                        HarnessPortfolioSnapshot.from(result.portfolioSnapshot())
+                );
+
         harnessRunRepository.save(HarnessRunEntity.from(
                 result,
                 decisionSnapshotJson,
-                riskCheckSnapshotJson
+                riskCheckSnapshotJson,
+                portfolioSnapshotJson
         ));
 
         List<HarnessStepEntity> stepEntities = IntStream.range(0, result.steps().size())
@@ -96,11 +97,13 @@ public class HarnessRunHistoryService {
 
         HarnessDecisionSnapshot decisionSnapshot = getDecisionSnapshot(entity);
         HarnessRiskCheckSnapshot riskCheckSnapshot = getRiskCheckSnapshot(entity);
+        HarnessPortfolioSnapshot portfolioSnapshot = getPortfolioSnapshot(entity);
         List<HarnessStepResult> steps = getStepsByRunId(runId);
 
         HarnessRunDetail detail = entity.toDetail(
                 decisionSnapshot,
                 riskCheckSnapshot,
+                portfolioSnapshot,
                 steps,
                 tradeRecords
         );
@@ -131,6 +134,16 @@ public class HarnessRunHistoryService {
 
         return harnessRunSnapshotJsonConverter.toRiskCheckSnapshot(
                 entity.getRiskCheckSnapshotJson()
+        );
+    }
+
+    private HarnessPortfolioSnapshot getPortfolioSnapshot(HarnessRunEntity entity) {
+        if (entity.getPortfolioSnapshotJson() == null) {
+            return null;
+        }
+
+        return harnessRunSnapshotJsonConverter.toPortfolioSnapshot(
+                entity.getPortfolioSnapshotJson()
         );
     }
 }
