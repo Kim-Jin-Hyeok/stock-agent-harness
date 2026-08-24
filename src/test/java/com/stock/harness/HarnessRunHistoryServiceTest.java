@@ -1,10 +1,17 @@
 package com.stock.harness;
 
+import com.stock.agent.InvestmentAction;
+import com.stock.agent.InvestmentDecision;
 import com.stock.harness.persistence.HarnessRunEntity;
 import com.stock.harness.persistence.HarnessRunRepository;
+import com.stock.harness.persistence.HarnessRunSnapshotJsonConverter;
 import com.stock.harness.persistence.HarnessStepEntity;
 import com.stock.harness.persistence.HarnessStepRepository;
+import com.stock.risk.RiskCheckResult;
+import com.stock.risk.RiskCheckStatus;
+import com.stock.risk.RiskReasonCode;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -15,9 +22,12 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 class HarnessRunHistoryServiceTest {
+    private final HarnessRunSnapshotJsonConverter harnessRunSnapshotJsonConverter =
+            mock(HarnessRunSnapshotJsonConverter.class);
     private final HarnessRunRepository harnessRunRepository = mock(HarnessRunRepository.class);
     private final HarnessStepRepository harnessStepRepository = mock(HarnessStepRepository.class);
     private final HarnessRunHistoryService harnessRunHistoryService = new HarnessRunHistoryService(
+            harnessRunSnapshotJsonConverter,
             harnessRunRepository,
             harnessStepRepository
     );
@@ -43,6 +53,27 @@ class HarnessRunHistoryServiceTest {
 
         verify(harnessRunRepository).save(any());
         verify(harnessStepRepository).saveAll(any());
+    }
+
+    @Test
+    void recordStoresDecisionAndRiskCheckSnapshotJson() {
+        HarnessRunResult result = completedBuyRun("run-1");
+        when(harnessRunSnapshotJsonConverter.toDecisionJson(any()))
+                .thenReturn("{\"action\":\"BUY\"}");
+        when(harnessRunSnapshotJsonConverter.toRiskCheckJson(any()))
+                .thenReturn("{\"status\":\"APPROVED\"}");
+
+        harnessRunHistoryService.record(result);
+
+        ArgumentCaptor<HarnessRunEntity> captor = ArgumentCaptor.forClass(HarnessRunEntity.class);
+        verify(harnessRunRepository).save(captor.capture());
+
+        HarnessRunEntity savedEntity = captor.getValue();
+        assertThat(savedEntity.getDecisionSnapshotJson()).isEqualTo("{\"action\":\"BUY\"}");
+        assertThat(savedEntity.getRiskCheckSnapshotJson()).isEqualTo("{\"status\":\"APPROVED\"}");
+
+        verify(harnessRunSnapshotJsonConverter).toDecisionJson(any());
+        verify(harnessRunSnapshotJsonConverter).toRiskCheckJson(any());
     }
 
     @Test
@@ -154,7 +185,47 @@ class HarnessRunHistoryServiceTest {
                 runId,
                 HarnessRunStatus.COMPLETED,
                 startedAt(),
-                finishedAt()
+                finishedAt(),
+                null,
+                null
+        );
+    }
+
+    private HarnessRunResult completedBuyRun(String runId) {
+        return HarnessRunResult.of(
+                runId,
+                HarnessRunStatus.COMPLETED,
+                startedAt(),
+                finishedAt(),
+                List.of(completedStep()),
+                buyDecision(),
+                approvedRiskCheckResult(),
+                null,
+                null,
+                null
+        );
+    }
+
+    private InvestmentDecision buyDecision() {
+        return new InvestmentDecision(
+                InvestmentAction.BUY,
+                "005930",
+                10L,
+                70_000L,
+                "Buy Samsung Electronics."
+        );
+    }
+
+    private RiskCheckResult approvedRiskCheckResult() {
+        return new RiskCheckResult(
+                RiskCheckStatus.APPROVED,
+                InvestmentAction.BUY,
+                "005930",
+                10L,
+                70_000L,
+                700_000L,
+                RiskReasonCode.RISK_APPROVED,
+                "Risk check approved."
         );
     }
 

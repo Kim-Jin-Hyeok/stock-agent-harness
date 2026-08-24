@@ -19,7 +19,6 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class HarnessRunEntityTest {
-
     @Test
     void fromCreatesEntityWithRunMetadata() {
         // given
@@ -27,7 +26,11 @@ class HarnessRunEntityTest {
         HarnessRunResult result = completedRunResult(runId);
 
         // when
-        HarnessRunEntity entity = HarnessRunEntity.from(result);
+        HarnessRunEntity entity = HarnessRunEntity.from(
+                result,
+                decisionSnapshotJson(),
+                riskCheckSnapshotJson()
+        );
 
         // then
         assertThat(entity.getRunId()).isEqualTo(result.runId());
@@ -37,11 +40,32 @@ class HarnessRunEntityTest {
     }
 
     @Test
+    void fromCreatesEntityWithSnapshotJson() {
+        // given
+        HarnessRunResult result = completedRunResult("run-1");
+
+        // when
+        HarnessRunEntity entity = HarnessRunEntity.from(
+                result,
+                decisionSnapshotJson(),
+                riskCheckSnapshotJson()
+        );
+
+        // then
+        assertThat(entity.getDecisionSnapshotJson()).isEqualTo(decisionSnapshotJson());
+        assertThat(entity.getRiskCheckSnapshotJson()).isEqualTo(riskCheckSnapshotJson());
+    }
+
+    @Test
     void toSummaryCreatesRunSummaryWithRunMetadata() {
         // given
         String runId = "run-1";
         HarnessRunResult result = completedRunResult(runId);
-        HarnessRunEntity entity = HarnessRunEntity.from(result);
+        HarnessRunEntity entity = HarnessRunEntity.from(
+                result,
+                decisionSnapshotJson(),
+                riskCheckSnapshotJson()
+        );
 
         // when
         HarnessRunSummary summary = entity.toSummary();
@@ -134,5 +158,13 @@ class HarnessRunEntityTest {
 
     private LocalDateTime finishedAt() {
         return startedAt().plusSeconds(1);
+    }
+
+    private String decisionSnapshotJson() {
+        return "{\"action\":\"BUY\"}";
+    }
+
+    private String riskCheckSnapshotJson() {
+        return "{\"status\":\"APPROVED\"}";
     }
 }

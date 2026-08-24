@@ -73,7 +73,9 @@ class HarnessRunRepositoryTest {
                 runId,
                 HarnessRunStatus.COMPLETED,
                 startedAt,
-                finishedAt(startedAt)
+                finishedAt(startedAt),
+                null,
+                null
         );
     }
 

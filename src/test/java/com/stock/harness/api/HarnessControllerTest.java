@@ -241,7 +241,9 @@ class HarnessControllerTest {
                 runId,
                 HarnessRunStatus.COMPLETED,
                 startedAt,
-                finishedAt
+                finishedAt,
+                null,
+                null
         );
     }
 

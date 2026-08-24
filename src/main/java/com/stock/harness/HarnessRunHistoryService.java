@@ -1,7 +1,10 @@
 package com.stock.harness;
 
+import com.stock.harness.persistence.HarnessDecisionSnapshot;
+import com.stock.harness.persistence.HarnessRiskCheckSnapshot;
 import com.stock.harness.persistence.HarnessRunEntity;
 import com.stock.harness.persistence.HarnessRunRepository;
+import com.stock.harness.persistence.HarnessRunSnapshotJsonConverter;
 import com.stock.harness.persistence.HarnessStepEntity;
 import com.stock.harness.persistence.HarnessStepRepository;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +18,7 @@ import java.util.stream.IntStream;
 @Service
 @RequiredArgsConstructor
 public class HarnessRunHistoryService {
+    private final HarnessRunSnapshotJsonConverter harnessRunSnapshotJsonConverter;
     private final HarnessRunRepository harnessRunRepository;
     private final HarnessStepRepository harnessStepRepository;
 
@@ -22,7 +26,24 @@ public class HarnessRunHistoryService {
 
     public void record(HarnessRunResult result) {
         runs.add(result);
-        harnessRunRepository.save(HarnessRunEntity.from(result));
+
+        String decisionSnapshotJson = result.decision() == null
+                ? null
+                : harnessRunSnapshotJsonConverter.toDecisionJson(
+                        HarnessDecisionSnapshot.from(result.decision())
+                );
+
+        String riskCheckSnapshotJson = result.riskCheckResult() == null
+                ? null
+                : harnessRunSnapshotJsonConverter.toRiskCheckJson(
+                        HarnessRiskCheckSnapshot.from(result.riskCheckResult())
+                );
+
+        harnessRunRepository.save(HarnessRunEntity.from(
+                result,
+                decisionSnapshotJson,
+                riskCheckSnapshotJson
+        ));
 
         List<HarnessStepEntity> stepEntities = IntStream.range(0, result.steps().size())
                 .mapToObj(index -> HarnessStepEntity.from(
