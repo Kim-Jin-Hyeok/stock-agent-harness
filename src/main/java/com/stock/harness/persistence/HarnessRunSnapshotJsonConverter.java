@@ -1,0 +1,44 @@
+package com.stock.harness.persistence;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
+
+@Component
+@RequiredArgsConstructor
+public class HarnessRunSnapshotJsonConverter {
+    private final ObjectMapper objectMapper;
+
+    public String toDecisionJson(HarnessDecisionSnapshot snapshot) {
+        try {
+            return objectMapper.writeValueAsString(snapshot);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Failed to serialize decision snapshot.", e);
+        }
+    }
+
+    public String toRiskCheckJson(HarnessRiskCheckSnapshot snapshot) {
+        try {
+            return objectMapper.writeValueAsString(snapshot);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Failed to serialize risk check snapshot.", e);
+        }
+    }
+
+    public HarnessDecisionSnapshot toDecisionSnapshot(String json) {
+        try {
+            return objectMapper.readValue(json, HarnessDecisionSnapshot.class);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Failed to deserialize decision snapshot json.", e);
+        }
+    }
+
+    public HarnessRiskCheckSnapshot toRiskCheckSnapshot(String json) {
+        try {
+            return objectMapper.readValue(json, HarnessRiskCheckSnapshot.class);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Failed to deserialize risk check snapshot json.", e);
+        }
+    }
+}
