@@ -30,7 +30,8 @@ class HarnessRunEntityTest {
                 result,
                 decisionSnapshotJson(),
                 riskCheckSnapshotJson(),
-                portfolioSnapshotJson()
+                portfolioSnapshotJson(),
+                marketSnapshotJson()
         );
 
         // then
@@ -50,13 +51,15 @@ class HarnessRunEntityTest {
                 result,
                 decisionSnapshotJson(),
                 riskCheckSnapshotJson(),
-                portfolioSnapshotJson()
+                portfolioSnapshotJson(),
+                marketSnapshotJson()
         );
 
         // then
         assertThat(entity.getDecisionSnapshotJson()).isEqualTo(decisionSnapshotJson());
         assertThat(entity.getRiskCheckSnapshotJson()).isEqualTo(riskCheckSnapshotJson());
         assertThat(entity.getPortfolioSnapshotJson()).isEqualTo(portfolioSnapshotJson());
+        assertThat(entity.getMarketSnapshotJson()).isEqualTo(marketSnapshotJson());
     }
 
     @Test
@@ -68,7 +71,8 @@ class HarnessRunEntityTest {
                 result,
                 decisionSnapshotJson(),
                 riskCheckSnapshotJson(),
-                portfolioSnapshotJson()
+                portfolioSnapshotJson(),
+                marketSnapshotJson()
         );
 
         // when
@@ -174,5 +178,9 @@ class HarnessRunEntityTest {
 
     private String portfolioSnapshotJson() {
         return "{\"cashAmountKrw\":9300000,\"totalAssetAmountKrw\":10000000}";
+    }
+
+    private String marketSnapshotJson() {
+        return "{\"market\":\"KR\",\"marketOpen\":true,\"description\":\"Korean market is open.\"}";
     }
 }

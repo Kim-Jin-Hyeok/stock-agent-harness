@@ -33,6 +33,8 @@ public class HarnessRunEntity {
 
     private String portfolioSnapshotJson;
 
+    private String marketSnapshotJson;
+
     public static HarnessRunEntity of(
             String runId,
             HarnessRunStatus status,
@@ -40,7 +42,8 @@ public class HarnessRunEntity {
             LocalDateTime finishedAt,
             String decisionSnapshotJson,
             String riskCheckSnapshotJson,
-            String portfolioSnapshotJson
+            String portfolioSnapshotJson,
+            String marketSnapshotJson
     ) {
         HarnessRunEntity entity = new HarnessRunEntity();
         entity.runId = runId;
@@ -50,6 +53,7 @@ public class HarnessRunEntity {
         entity.decisionSnapshotJson = decisionSnapshotJson;
         entity.riskCheckSnapshotJson = riskCheckSnapshotJson;
         entity.portfolioSnapshotJson = portfolioSnapshotJson;
+        entity.marketSnapshotJson = marketSnapshotJson;
         return entity;
     }
 
@@ -57,7 +61,8 @@ public class HarnessRunEntity {
             HarnessRunResult result,
             String decisionSnapshotJson,
             String riskCheckSnapshotJson,
-            String portfolioSnapshotJson
+            String portfolioSnapshotJson,
+            String marketSnapshotJson
     ) {
         return of(
                 result.runId(),
@@ -66,7 +71,8 @@ public class HarnessRunEntity {
                 result.finishedAt(),
                 decisionSnapshotJson,
                 riskCheckSnapshotJson,
-                portfolioSnapshotJson
+                portfolioSnapshotJson,
+                marketSnapshotJson
         );
     }
 
@@ -83,6 +89,7 @@ public class HarnessRunEntity {
             HarnessDecisionSnapshot decisionSnapshot,
             HarnessRiskCheckSnapshot riskCheckSnapshot,
             HarnessPortfolioSnapshot portfolioSnapshot,
+            HarnessMarketSnapshot marketSnapshot,
             List<HarnessStepResult> steps,
             List<TradeRecord> tradeRecords
     ) {
@@ -94,6 +101,7 @@ public class HarnessRunEntity {
                 decisionSnapshot,
                 riskCheckSnapshot,
                 portfolioSnapshot,
+                marketSnapshot,
                 steps,
                 tradeRecords
         );

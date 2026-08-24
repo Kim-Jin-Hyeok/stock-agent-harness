@@ -13,6 +13,7 @@ import com.stock.harness.HarnessStepStatus;
 import com.stock.harness.HarnessStepType;
 import com.stock.harness.InvestmentHarness;
 import com.stock.harness.persistence.HarnessDecisionSnapshot;
+import com.stock.harness.persistence.HarnessMarketSnapshot;
 import com.stock.harness.persistence.HarnessPortfolioPositionSnapshot;
 import com.stock.harness.persistence.HarnessPortfolioSnapshot;
 import com.stock.harness.persistence.HarnessRiskCheckSnapshot;
@@ -186,6 +187,9 @@ class HarnessControllerTest {
                 .andExpect(jsonPath("$.portfolioSnapshot.totalAssetAmountKrw").value(10_000_000L))
                 .andExpect(jsonPath("$.portfolioSnapshot.positions[0].symbol").value("005930"))
                 .andExpect(jsonPath("$.portfolioSnapshot.positions[0].quantity").value(10L))
+                .andExpect(jsonPath("$.marketSnapshot.market").value("KR"))
+                .andExpect(jsonPath("$.marketSnapshot.marketOpen").value(true))
+                .andExpect(jsonPath("$.marketSnapshot.description").value("Korean market is open."))
                 .andExpect(jsonPath("$.steps[0].type").value("EXECUTE_TRADE"))
                 .andExpect(jsonPath("$.steps[0].status").value("COMPLETED"))
                 .andExpect(jsonPath("$.tradeRecords[0].runId").value(runId))
@@ -255,6 +259,7 @@ class HarnessControllerTest {
                 decisionSnapshot(),
                 riskCheckSnapshot(),
                 harnessPortfolioSnapshot(),
+                harnessMarketSnapshot(),
                 completedSteps(),
                 List.of(executedBuyTradeRecord(runId))
         );
@@ -282,6 +287,14 @@ class HarnessControllerTest {
                 10L,
                 70_000L,
                 700_000L
+        );
+    }
+
+    private HarnessMarketSnapshot harnessMarketSnapshot() {
+        return new HarnessMarketSnapshot(
+                "KR",
+                true,
+                "Korean market is open."
         );
     }
 

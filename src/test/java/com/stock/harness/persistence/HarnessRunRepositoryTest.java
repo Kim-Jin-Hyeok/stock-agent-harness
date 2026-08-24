@@ -76,6 +76,7 @@ class HarnessRunRepositoryTest {
                 finishedAt(startedAt),
                 null,
                 null,
+                null,
                 null
         );
     }
