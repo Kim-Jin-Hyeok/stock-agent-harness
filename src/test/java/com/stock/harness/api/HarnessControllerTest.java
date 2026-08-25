@@ -98,11 +98,11 @@ class HarnessControllerTest {
     }
 
     @Test
-    void getRunReturnsRunResultWithTradeRecords() throws Exception {
+    void getRunReturnsPersistedRunDetail() throws Exception {
         String runId = "run-1";
 
-        when(harnessRunHistoryService.getRunById(runId))
-                .thenReturn(Optional.of(completedRun(runId)));
+        when(harnessRunHistoryService.getRunDetail(eq(runId), any()))
+                .thenReturn(Optional.of(completedRunDetail(runId)));
         when(tradeHistoryService.getRecordsByRunId(runId))
                 .thenReturn(List.of(executedBuyTradeRecord(runId)));
 
@@ -110,21 +110,31 @@ class HarnessControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.runId").value(runId))
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
-                .andExpect(jsonPath("$.decision.action").value("BUY"))
-                .andExpect(jsonPath("$.tradeRecords[0].runId").value(runId))
-                .andExpect(jsonPath("$.tradeRecords[0].status").value("EXECUTED"))
-                .andExpect(jsonPath("$.tradeRecords[0].reasonCode").value("EXECUTION_COMPLETED"));
+                .andExpect(jsonPath("$.decisionSnapshot.action").value("BUY"))
+                .andExpect(jsonPath("$.riskCheckSnapshot.status").value("APPROVED"))
+                .andExpect(jsonPath("$.portfolioSnapshot.cashAmountKrw").value(9_300_000L))
+                .andExpect(jsonPath("$.marketSnapshot.market").value("KR"))
+                .andExpect(jsonPath("$.steps[0].type").value("EXECUTE_TRADE"))
+                .andExpect(jsonPath("$.tradeRecords[0].status").value("EXECUTED"));
+
+        verify(harnessRunHistoryService).getRunDetail(eq(runId), any());
+        verify(tradeHistoryService).getRecordsByRunId(runId);
+        verify(harnessRunHistoryService, never()).getRunById(any());
     }
 
     @Test
     void getRunReturnsNotFoundWhenRunDoesNotExist() throws Exception {
         String runId = "missing-run";
 
-        when(harnessRunHistoryService.getRunById(runId))
+        when(harnessRunHistoryService.getRunDetail(eq(runId), any()))
                 .thenReturn(Optional.empty());
 
         mockMvc.perform(get("/api/harness/runs/{runId}", runId))
                 .andExpect(status().isNotFound());
+
+        verify(harnessRunHistoryService).getRunDetail(eq(runId), any());
+        verify(tradeHistoryService).getRecordsByRunId(runId);
+        verify(harnessRunHistoryService, never()).getRunById(any());
     }
 
     @Test
