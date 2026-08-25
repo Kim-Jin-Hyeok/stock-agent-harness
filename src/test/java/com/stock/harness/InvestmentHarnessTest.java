@@ -99,7 +99,7 @@ class InvestmentHarnessTest {
                 HarnessStepType.CHECK_STEP_LIMIT
         );
 
-        assertThat(harnessRunHistoryService.getRunById(result.runId())).isPresent();
+        assertThat(harnessRunHistoryService.getRuntimeRunById(result.runId())).isPresent();
     }
 
     @Test
@@ -133,8 +133,8 @@ class InvestmentHarnessTest {
         assertThat(result.steps().getFirst().type()).isEqualTo(HarnessStepType.RUN_FAILED);
         assertThat(result.steps().getFirst().status()).isEqualTo(HarnessStepStatus.FAILED);
 
-        assertThat(harnessRunHistoryService.getRunById(result.runId())).isPresent();
-        assertThat(harnessRunHistoryService.getRunById(result.runId()).get().status()).isEqualTo(HarnessRunStatus.FAILED);
+        assertThat(harnessRunHistoryService.getRuntimeRunById(result.runId())).isPresent();
+        assertThat(harnessRunHistoryService.getRuntimeRunById(result.runId()).get().status()).isEqualTo(HarnessRunStatus.FAILED);
     }
 
     @Test

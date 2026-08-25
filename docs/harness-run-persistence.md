@@ -53,7 +53,7 @@ HarnessRunResult.marketSnapshot
 getRunSummaries()
 -> DB 기반 HarnessRunSummary 목록 조회
 
-getRunById(runId)
+getRuntimeRunById(runId)
 -> 메모리 기반 HarnessRunResult 조회
 
 GET /api/harness/runs/{runId}
@@ -69,7 +69,7 @@ GET /api/harness/runs/{runId}/detail
 
 즉 Run 목록, Run 단건 상세, Step 이력, Trade 이력은 DB 기준으로 이동했다.
 
-다만 `HarnessRunHistoryService.getRunById(runId)`는 아직 메모리 기반 `HarnessRunResult` 조회 메서드로 남아 있다. 이 메서드는 현재 기본 단건 조회 API의 기준은 아니며, 테스트와 런타임 내부 확인 용도에 가깝다.
+다만 `HarnessRunHistoryService.getRuntimeRunById(runId)`는 아직 메모리 기반 `HarnessRunResult` 조회 메서드로 남아 있다. 이 메서드는 현재 기본 단건 조회 API의 기준은 아니며, 테스트와 런타임 내부 확인 용도에 가깝다.
 
 ## Persisted Models
 
@@ -459,7 +459,7 @@ Agent가 어떤 판단을 했는지보다 먼저 확인해야 할 것은 Harness
 
 다음 설계 단계에서 결정해야 할 질문은 다음과 같다.
 
-- `HarnessRunHistoryService.getRunById(runId)`를 계속 메모리 기반 런타임 조회 메서드로 유지할 것인가?
+- `HarnessRunHistoryService.getRuntimeRunById(runId)`를 계속 메모리 기반 런타임 조회 메서드로 유지할 것인가?
 - 유지한다면 이름을 `getRuntimeRunById`처럼 더 명확히 바꿀 것인가?
 - `/api/harness/runs/{runId}/detail` 호환 경로를 언제 제거할 것인가?
 - 개발용 `reset()` API를 운영에서도 유지할 것인가?
@@ -467,7 +467,7 @@ Agent가 어떤 판단을 했는지보다 먼저 확인해야 할 것은 Harness
 
 ## Recommended Next Step
 
-다음 단계는 메모리 기반 `getRunById`의 역할을 정리하는 것이다.
+다음 단계는 메모리 기반 `getRuntimeRunById`의 역할을 정리하는 것이다.
 
 현재 기본 단건 조회 API는 DB 기반 `HarnessRunDetail`로 이동했다.
 
@@ -482,7 +482,7 @@ GET /api/harness/runs/{runId}/detail
 하지만 서비스 내부에는 아직 메모리 기반 조회 메서드가 남아 있다.
 
 ```text
-HarnessRunHistoryService.getRunById(runId)
+HarnessRunHistoryService.getRuntimeRunById(runId)
 -> 메모리에 남아 있는 HarnessRunResult 조회
 ```
 

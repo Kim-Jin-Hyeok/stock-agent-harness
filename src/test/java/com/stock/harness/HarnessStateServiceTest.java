@@ -58,7 +58,7 @@ class HarnessStateServiceTest {
 
         assertThat(portfolioService.getCurrentSnapshot().positions()).isEmpty();
         assertThat(tradeHistoryService.getRecords()).isEmpty();
-        assertThat(harnessRunHistoryService.getRunById("run-1")).isEmpty();
+        assertThat(harnessRunHistoryService.getRuntimeRunById("run-1")).isEmpty();
 
         verify(harnessRunRepository).deleteAll();
         verify(harnessStepRepository).deleteAll();

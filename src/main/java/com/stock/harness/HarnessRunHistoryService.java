@@ -64,7 +64,7 @@ public class HarnessRunHistoryService {
         harnessStepRepository.saveAll(stepEntities);
     }
 
-    public Optional<HarnessRunResult> getRunById(String runId) {
+    public Optional<HarnessRunResult> getRuntimeRunById(String runId) {
         return runs.stream()
                 .filter(run -> run.runId().equals(runId))
                 .findFirst();

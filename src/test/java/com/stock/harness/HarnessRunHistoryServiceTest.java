@@ -42,7 +42,7 @@ class HarnessRunHistoryServiceTest {
     void recordStoresCompleteRunResult() {
         harnessRunHistoryService.record(completedRun("run-1"));
 
-        assertThat(harnessRunHistoryService.getRunById("run-1")).isPresent();
+        assertThat(harnessRunHistoryService.getRuntimeRunById("run-1")).isPresent();
 
         verify(harnessRunRepository).save(any());
         verify(harnessStepRepository).saveAll(any());
@@ -52,7 +52,7 @@ class HarnessRunHistoryServiceTest {
     void recordStoresFailRunResult() {
         harnessRunHistoryService.record(failedRun("run-1"));
 
-        Optional<HarnessRunResult> result = harnessRunHistoryService.getRunById("run-1");
+        Optional<HarnessRunResult> result = harnessRunHistoryService.getRuntimeRunById("run-1");
 
         assertThat(result).isPresent();
         assertThat(result.get().status()).isEqualTo(HarnessRunStatus.FAILED);
@@ -190,11 +190,11 @@ class HarnessRunHistoryServiceTest {
     }
 
     @Test
-    void getRunByIdReturnsMatchingRun() {
+    void getRunByIdReturnsMatchingRuntimeRun() {
         harnessRunHistoryService.record(completedRun("run-1"));
         harnessRunHistoryService.record(completedRun("run-2"));
 
-        Optional<HarnessRunResult> result = harnessRunHistoryService.getRunById("run-2");
+        Optional<HarnessRunResult> result = harnessRunHistoryService.getRuntimeRunById("run-2");
 
         assertThat(result.isPresent()).isTrue();
         assertThat(result.get().runId()).isEqualTo("run-2");
@@ -222,7 +222,7 @@ class HarnessRunHistoryServiceTest {
 
         harnessRunHistoryService.clear();
 
-        assertThat(harnessRunHistoryService.getRunById("run-1")).isEmpty();
+        assertThat(harnessRunHistoryService.getRuntimeRunById("run-1")).isEmpty();
         verify(harnessRunRepository).deleteAll();
         verify(harnessStepRepository).deleteAll();
     }
