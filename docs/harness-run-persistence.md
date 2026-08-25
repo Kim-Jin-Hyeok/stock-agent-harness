@@ -54,19 +54,22 @@ getRunSummaries()
 -> DB 기반 HarnessRunSummary 목록 조회
 
 getRunById(runId)
--> 메모리 기반 HarnessRunResult 상세 조회
+-> 메모리 기반 HarnessRunResult 조회
+
+GET /api/harness/runs/{runId}
+-> DB에 저장된 Run 메타데이터, 판단 스냅샷, 리스크 스냅샷,
+   포트폴리오 스냅샷, 시장 스냅샷, Step 이력, Trade 이력을 조합한 HarnessRunDetail 조회
 
 getStepsByRunId(runId)
 -> DB 기반 HarnessStepResult 목록 조회
 
 GET /api/harness/runs/{runId}/detail
--> DB에 저장된 Run 메타데이터, 판단 스냅샷, 리스크 스냅샷,
-   포트폴리오 스냅샷, 시장 스냅샷, Step 이력, Trade 이력을 조합한 HarnessRunDetail 조회
+-> 현재는 `/api/harness/runs/{runId}`와 같은 DB 기반 상세 조회를 제공하는 호환 경로
 ```
 
-즉 Run 목록, Step 이력, Trade 이력, 저장 데이터 기반 상세 조회는 DB 기준으로 이동했다.
+즉 Run 목록, Run 단건 상세, Step 이력, Trade 이력은 DB 기준으로 이동했다.
 
-다만 `GET /api/harness/runs/{runId}`는 아직 메모리 기반 `HarnessRunResult`를 반환한다. 이 API는 방금 실행한 결과를 확인하는 용도에 가깝고, 저장된 이력 조회 기준은 `/detail` API가 담당한다.
+다만 `HarnessRunHistoryService.getRunById(runId)`는 아직 메모리 기반 `HarnessRunResult` 조회 메서드로 남아 있다. 이 메서드는 현재 기본 단건 조회 API의 기준은 아니며, 테스트와 런타임 내부 확인 용도에 가깝다.
 
 ## Persisted Models
 
@@ -320,21 +323,21 @@ DB에 저장된 `HarnessRunEntity`를 기준으로 `HarnessRunSummary` 목록을
 GET /api/harness/runs/{runId}
 ```
 
-현재는 메모리에 남아 있는 `HarnessRunResult`를 기준으로 상세 결과를 반환한다.
+DB에 저장된 Run 메타데이터, 판단 스냅샷, 리스크 스냅샷, 포트폴리오 스냅샷, 시장 스냅샷, Step 이력, Trade 이력을 조합해 `HarnessRunDetail`을 반환한다.
 
 주의사항:
 
-- 애플리케이션을 재시작하면 메모리 상세 이력은 사라진다.
-- 저장 이력 기반 상세 조회는 `/api/harness/runs/{runId}/detail`이 담당한다.
-- 따라서 이 API는 아직 완전한 DB 기반 상세 조회가 아니다.
+- 이 API가 현재 Run 단건 상세 조회의 기본 경로다.
+- 응답 모델은 런타임 결과인 `HarnessRunResponse`가 아니라 저장 이력 조회 모델인 `HarnessRunDetail`이다.
+- Run이 존재하지 않으면 `404 Not Found`를 반환한다.
 
-### 저장 이력 기반 Run 상세 조회
+### Run 상세 조회 호환 경로
 
 ```text
 GET /api/harness/runs/{runId}/detail
 ```
 
-DB에 저장된 Run 메타데이터, 판단 스냅샷, 리스크 스냅샷, 포트폴리오 스냅샷, 시장 스냅샷, Step 이력, Trade 이력을 조합해 `HarnessRunDetail`을 반환한다.
+현재는 `GET /api/harness/runs/{runId}`와 같은 DB 기반 상세 조회를 제공한다.
 
 현재 포함하는 값:
 
@@ -353,7 +356,7 @@ tradeRecords
 
 Run이 존재하지 않으면 `404 Not Found`를 반환한다.
 
-이 API는 애플리케이션 재시작 이후에도 DB에 남아 있는 데이터를 기준으로 조회할 수 있는 상세 조회의 출발점이다.
+이 경로는 기존 `/detail` 기준 테스트와 사용 흐름을 바로 깨지 않기 위한 호환 경로에 가깝다. 장기적으로는 기본 단건 조회 경로인 `/api/harness/runs/{runId}`만 남길지 결정해야 한다.
 
 ### Run Step 조회
 
@@ -456,41 +459,45 @@ Agent가 어떤 판단을 했는지보다 먼저 확인해야 할 것은 Harness
 
 다음 설계 단계에서 결정해야 할 질문은 다음과 같다.
 
-- `/api/harness/runs/{runId}`를 계속 메모리 기반 런타임 상세 API로 유지할 것인가?
-- `/api/harness/runs/{runId}/detail`을 최종 상세 조회 API로 둘 것인가?
-- 두 상세 조회 API를 하나로 합칠 것인가, 아니면 용도를 명확히 나눌 것인가?
+- `HarnessRunHistoryService.getRunById(runId)`를 계속 메모리 기반 런타임 조회 메서드로 유지할 것인가?
+- 유지한다면 이름을 `getRuntimeRunById`처럼 더 명확히 바꿀 것인가?
+- `/api/harness/runs/{runId}/detail` 호환 경로를 언제 제거할 것인가?
 - 개발용 `reset()` API를 운영에서도 유지할 것인가?
 - Snapshot JSON 값 중 나중에 검색이나 집계가 필요한 필드는 별도 컬럼 또는 Entity로 분리할 것인가?
 
 ## Recommended Next Step
 
-다음 단계는 Run 상세 조회 API의 기준을 정리하는 것이다.
+다음 단계는 메모리 기반 `getRunById`의 역할을 정리하는 것이다.
 
-현재는 상세 조회가 두 갈래다.
+현재 기본 단건 조회 API는 DB 기반 `HarnessRunDetail`로 이동했다.
 
 ```text
 GET /api/harness/runs/{runId}
--> 메모리 기반 HarnessRunResult
+-> DB 기반 HarnessRunDetail
 
 GET /api/harness/runs/{runId}/detail
--> DB 기반 HarnessRunDetail
+-> DB 기반 HarnessRunDetail 호환 경로
 ```
 
-이 상태는 학습 단계에서는 괜찮지만, 사용자가 API를 사용할 때는 혼란이 생길 수 있다.
-
-다음 작업에서는 먼저 설계 판단을 해야 한다.
+하지만 서비스 내부에는 아직 메모리 기반 조회 메서드가 남아 있다.
 
 ```text
-1. 방금 실행한 결과와 과거 저장 이력 조회를 같은 API로 볼 것인가?
-2. 런타임 모델인 HarnessRunResult를 외부 API에 계속 노출할 것인가?
-3. 저장 이력 조회 모델인 HarnessRunDetail을 표준 상세 응답으로 삼을 것인가?
+HarnessRunHistoryService.getRunById(runId)
+-> 메모리에 남아 있는 HarnessRunResult 조회
 ```
 
-현재 추천 방향은 `/api/harness/runs/{runId}/detail`을 DB 기반 표준 상세 조회로 보고, 기존 `/api/harness/runs/{runId}`는 당장 제거하지 않고 역할을 축소해서 남겨두는 것이다.
+다음 작업에서는 이 메서드의 의도를 먼저 결정해야 한다.
+
+```text
+1. 테스트와 내부 확인을 위해 계속 유지할 것인가?
+2. 유지한다면 이름을 getRuntimeRunById처럼 명확히 바꿀 것인가?
+3. 필요 없다면 메모리 runs 저장 자체를 줄일 수 있는가?
+```
+
+현재 추천 방향은 바로 삭제하지 않고, 먼저 이름을 명확히 바꾸는 것이다.
 
 이유는 다음과 같다.
 
-- DB 기반 상세 조회는 애플리케이션 재시작 이후에도 동작한다.
-- 현재 저장 스냅샷이 이미 상세 조회에 필요한 맥락을 대부분 담고 있다.
-- 기존 API를 바로 제거하면 테스트와 사용 흐름 변경 폭이 커진다.
-- 다음 단계에서 API 이름과 응답 모델을 천천히 정리할 수 있다.
+- `HarnessRunResult`는 방금 실행한 런타임 결과를 확인할 때 아직 의미가 있다.
+- 갑자기 삭제하면 `InvestmentHarnessTest`, `HarnessRunHistoryServiceTest`, `HarnessStateServiceTest`의 의도가 한 번에 흔들린다.
+- 이름을 먼저 바꾸면 DB 기반 상세 조회와 런타임 메모리 조회의 책임 차이가 코드에서 드러난다.
