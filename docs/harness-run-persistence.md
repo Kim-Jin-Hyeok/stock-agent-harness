@@ -62,9 +62,6 @@ GET /api/harness/runs/{runId}
 
 getStepsByRunId(runId)
 -> DB 기반 HarnessStepResult 목록 조회
-
-GET /api/harness/runs/{runId}/detail
--> 현재는 `/api/harness/runs/{runId}`와 같은 DB 기반 상세 조회를 제공하는 호환 경로
 ```
 
 즉 Run 목록, Run 단건 상세, Step 이력, Trade 이력은 DB 기준으로 이동했다.
@@ -331,14 +328,6 @@ DB에 저장된 Run 메타데이터, 판단 스냅샷, 리스크 스냅샷, 포�
 - 응답 모델은 런타임 결과인 `HarnessRunResponse`가 아니라 저장 이력 조회 모델인 `HarnessRunDetail`이다.
 - Run이 존재하지 않으면 `404 Not Found`를 반환한다.
 
-### Run 상세 조회 호환 경로
-
-```text
-GET /api/harness/runs/{runId}/detail
-```
-
-현재는 `GET /api/harness/runs/{runId}`와 같은 DB 기반 상세 조회를 제공한다.
-
 현재 포함하는 값:
 
 ```text
@@ -355,8 +344,6 @@ tradeRecords
 ```
 
 Run이 존재하지 않으면 `404 Not Found`를 반환한다.
-
-이 경로는 기존 `/detail` 기준 테스트와 사용 흐름을 바로 깨지 않기 위한 호환 경로에 가깝다. 장기적으로는 기본 단건 조회 경로인 `/api/harness/runs/{runId}`만 남길지 결정해야 한다.
 
 ### Run Step 조회
 
@@ -460,8 +447,7 @@ Agent가 어떤 판단을 했는지보다 먼저 확인해야 할 것은 Harness
 다음 설계 단계에서 결정해야 할 질문은 다음과 같다.
 
 - `HarnessRunHistoryService.getRuntimeRunById(runId)`를 계속 메모리 기반 런타임 조회 메서드로 유지할 것인가?
-- 유지한다면 이름을 `getRuntimeRunById`처럼 더 명확히 바꿀 것인가?
-- `/api/harness/runs/{runId}/detail` 호환 경로를 언제 제거할 것인가?
+- 유지한다면 어떤 테스트와 내부 흐름에서만 사용할 것인가?
 - 개발용 `reset()` API를 운영에서도 유지할 것인가?
 - Snapshot JSON 값 중 나중에 검색이나 집계가 필요한 필드는 별도 컬럼 또는 Entity로 분리할 것인가?
 
@@ -474,9 +460,6 @@ Agent가 어떤 판단을 했는지보다 먼저 확인해야 할 것은 Harness
 ```text
 GET /api/harness/runs/{runId}
 -> DB 기반 HarnessRunDetail
-
-GET /api/harness/runs/{runId}/detail
--> DB 기반 HarnessRunDetail 호환 경로
 ```
 
 하지만 서비스 내부에는 아직 메모리 기반 조회 메서드가 남아 있다.
@@ -490,14 +473,14 @@ HarnessRunHistoryService.getRuntimeRunById(runId)
 
 ```text
 1. 테스트와 내부 확인을 위해 계속 유지할 것인가?
-2. 유지한다면 이름을 getRuntimeRunById처럼 명확히 바꿀 것인가?
+2. 유지한다면 어떤 테스트에서 런타임 결과 보관을 검증할 것인가?
 3. 필요 없다면 메모리 runs 저장 자체를 줄일 수 있는가?
 ```
 
-현재 추천 방향은 바로 삭제하지 않고, 먼저 이름을 명확히 바꾸는 것이다.
+현재 추천 방향은 바로 삭제하지 않고, 메모리 기반 런타임 조회가 필요한 테스트 범위를 먼저 확인하는 것이다.
 
 이유는 다음과 같다.
 
 - `HarnessRunResult`는 방금 실행한 런타임 결과를 확인할 때 아직 의미가 있다.
 - 갑자기 삭제하면 `InvestmentHarnessTest`, `HarnessRunHistoryServiceTest`, `HarnessStateServiceTest`의 의도가 한 번에 흔들린다.
-- 이름을 먼저 바꾸면 DB 기반 상세 조회와 런타임 메모리 조회의 책임 차이가 코드에서 드러난다.
+- 테스트 범위를 먼저 보면 메모리 저장을 유지할지 제거할지 더 구체적으로 판단할 수 있다.

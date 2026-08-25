@@ -56,11 +56,6 @@ public class HarnessController {
         return harnessRunHistoryService.getStepsByRunId(runId);
     }
 
-    @GetMapping("/runs/{runId}/detail")
-    public HarnessRunDetail getRunDetail(@PathVariable String runId) {
-        return getRun(runId);
-    }
-
     @PostMapping("/reset")
     public void reset() {
         harnessStateService.reset();
