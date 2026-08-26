@@ -3,6 +3,7 @@ package com.stock.harness;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class HarnessStepRecorder {
@@ -22,6 +23,41 @@ public class HarnessStepRecorder {
                     type,
                     HarnessStepStatus.COMPLETED,
                     successMessage,
+                    startedAt,
+                    finishedAt
+            ));
+
+            return result;
+        } catch (RuntimeException e) {
+            LocalDateTime finishedAt = LocalDateTime.now();
+
+            steps.add(new HarnessStepResult(
+                    type,
+                    HarnessStepStatus.FAILED,
+                    e.getMessage(),
+                    startedAt,
+                    finishedAt
+            ));
+
+            throw e;
+        }
+    }
+
+    public <T> T record(
+            HarnessStepType type,
+            Supplier<T> action,
+            Function<T, String> successMessageResolver
+    ) {
+        LocalDateTime startedAt = LocalDateTime.now();
+
+        try {
+            T result = action.get();
+            LocalDateTime finishedAt = LocalDateTime.now();
+
+            steps.add(new HarnessStepResult(
+                    type,
+                    HarnessStepStatus.COMPLETED,
+                    successMessageResolver.apply(result),
                     startedAt,
                     finishedAt
             ));

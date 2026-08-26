@@ -470,24 +470,23 @@ HarnessStepResult
 -> finishedAt
 ```
 
-현재 `LOAD_PORTFOLIO`, `LOAD_MARKET` Step은 `HarnessStepRecorder`가 실제 상태 조회 작업을 감싸며 `startedAt`, `finishedAt`을 기록한다.
+현재 `LOAD_PORTFOLIO`, `LOAD_MARKET`, `RUN_INVESTMENT_AGENT` Step은 `HarnessStepRecorder`가 실제 작업을 감싸며 `startedAt`, `finishedAt`을 기록한다.
 
 나머지 Step은 아직 결과를 보고 기록하는 방식이다. 이 경우 `HarnessStepRecorder`가 Step 기록 시점에 `recordedAt`을 한 번 생성하고, 그 값을 `startedAt`, `finishedAt`에 동일하게 넣는다.
 
 다음 작업에서는 이 방식을 다른 Step까지 확장할지 판단하는 것이 좋다.
 
 ```text
-1. RUN_INVESTMENT_AGENT도 Recorder가 감쌀 것인가?
-2. VALIDATE_DECISION도 Recorder가 감쌀 것인가?
-3. EXECUTE_TRADE도 Recorder가 감쌀 것인가?
-4. 실패 메시지와 성공 메시지를 Recorder API에서 어떻게 받을 것인가?
+1. VALIDATE_DECISION도 Recorder가 감쌀 것인가?
+2. EXECUTE_TRADE도 Recorder가 감쌀 것인가?
+3. 실패 메시지와 성공 메시지를 Recorder API에서 어떻게 받을 것인가?
 ```
 
-현재 추천 방향은 바로 모든 Step을 한 번에 바꾸기보다, `RUN_INVESTMENT_AGENT` 하나를 다음 후보로 잡는 것이다.
+현재 추천 방향은 바로 남은 Step을 모두 바꾸기보다, `VALIDATE_DECISION` 하나를 다음 후보로 잡는 것이다.
 
 이유는 다음과 같다.
 
-- `LOAD_PORTFOLIO`, `LOAD_MARKET`에서 실행 블록 계측 방식이 먼저 검증됐다.
-- Agent 판단 Step은 Harness가 관찰해야 하는 핵심 단계이므로 다음 적용 대상으로 적절하다.
-- Risk Guard와 Trade 실행까지 한 번에 바꾸면 실패 처리와 메시지 설계 변경 폭이 커진다.
+- 상태 조회와 Agent 판단 Step에서 실행 블록 계측 방식이 먼저 검증됐다.
+- Risk Guard 검증은 Agent 판단 다음에 Harness가 직접 통제하는 핵심 단계다.
+- Trade 실행까지 한 번에 바꾸면 주문 실행 실패 처리와 메시지 설계 변경 폭이 커진다.
 - 이후 Tool 호출, Broker API 호출, Retry 정책을 붙일 때 이 구조가 필요해진다.

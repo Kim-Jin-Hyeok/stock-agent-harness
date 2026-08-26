@@ -58,7 +58,11 @@ public class InvestmentHarness {
                     marketSnapshot
             );
 
-            InvestmentDecision decision = investmentAgent.decide(context);
+            InvestmentDecision decision = stepRecorder.record(
+                    HarnessStepType.RUN_INVESTMENT_AGENT,
+                    () -> investmentAgent.decide(context),
+                    InvestmentDecision::reason
+            );
 
             RiskCheckResult riskCheckResult = riskGuard.validate(
                     decision,
@@ -72,7 +76,6 @@ public class InvestmentHarness {
             List<HarnessStepResult> steps = recordSteps(
                     stepRecorder,
                     context,
-                    decision,
                     riskCheckResult,
                     tradeResult
             );
@@ -143,12 +146,9 @@ public class InvestmentHarness {
     private List<HarnessStepResult> recordSteps(
             HarnessStepRecorder stepRecorder,
             HarnessRunContext context,
-            InvestmentDecision decision,
             RiskCheckResult riskCheckResult,
             TradeResult tradeResult
     ) {
-        stepRecorder.completed(HarnessStepType.RUN_INVESTMENT_AGENT, decision.reason());
-
         if (riskCheckResult.status() == RiskCheckStatus.APPROVED) {
             stepRecorder.completed(HarnessStepType.VALIDATE_DECISION, riskCheckResult.reason());
         } else {

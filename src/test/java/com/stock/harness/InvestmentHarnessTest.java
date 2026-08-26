@@ -143,8 +143,17 @@ class InvestmentHarnessTest {
                 .containsExactly(
                         HarnessStepType.LOAD_PORTFOLIO,
                         HarnessStepType.LOAD_MARKET,
+                        HarnessStepType.RUN_INVESTMENT_AGENT,
                         HarnessStepType.RUN_FAILED
                 );
+        HarnessStepResult agentStep = result.steps().get(2);
+
+        assertThat(agentStep.status()).isEqualTo(HarnessStepStatus.FAILED);
+        assertThat(agentStep.message()).isEqualTo("Test agent failure");
+        assertThat(agentStep.startedAt()).isNotNull();
+        assertThat(agentStep.finishedAt()).isNotNull();
+        assertThat(agentStep.startedAt()).isBeforeOrEqualTo(agentStep.finishedAt());
+
         assertThat(result.steps().getLast().status()).isEqualTo(HarnessStepStatus.FAILED);
     }
 
