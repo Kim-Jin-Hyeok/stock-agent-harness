@@ -16,8 +16,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -64,9 +64,13 @@ public class InvestmentHarness {
                     InvestmentDecision::reason
             );
 
-            RiskCheckResult riskCheckResult = riskGuard.validate(
-                    decision,
-                    context.portfolioSnapshot()
+            RiskCheckResult riskCheckResult = stepRecorder.record(
+                    HarnessStepType.VALIDATE_DECISION,
+                    () -> riskGuard.validate(decision, context.portfolioSnapshot()),
+                    result -> result.status() == RiskCheckStatus.APPROVED
+                            ? HarnessStepStatus.COMPLETED
+                            : HarnessStepStatus.FAILED,
+                    RiskCheckResult::reason
             );
 
             TradeResult tradeResult = tradeExecutor.execute(runId, decision, riskCheckResult);
@@ -76,7 +80,6 @@ public class InvestmentHarness {
             List<HarnessStepResult> steps = recordSteps(
                     stepRecorder,
                     context,
-                    riskCheckResult,
                     tradeResult
             );
 
@@ -146,15 +149,8 @@ public class InvestmentHarness {
     private List<HarnessStepResult> recordSteps(
             HarnessStepRecorder stepRecorder,
             HarnessRunContext context,
-            RiskCheckResult riskCheckResult,
             TradeResult tradeResult
     ) {
-        if (riskCheckResult.status() == RiskCheckStatus.APPROVED) {
-            stepRecorder.completed(HarnessStepType.VALIDATE_DECISION, riskCheckResult.reason());
-        } else {
-            stepRecorder.failed(HarnessStepType.VALIDATE_DECISION, riskCheckResult.reason());
-        }
-
         if (tradeResult.status() == TradeStatus.REJECTED) {
             stepRecorder.failed(HarnessStepType.EXECUTE_TRADE, tradeResult.reason());
         } else {

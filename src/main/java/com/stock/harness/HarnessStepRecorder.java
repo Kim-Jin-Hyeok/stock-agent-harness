@@ -78,6 +78,42 @@ public class HarnessStepRecorder {
         }
     }
 
+    public <T> T record(
+            HarnessStepType type,
+            Supplier<T> action,
+            Function<T, HarnessStepStatus> statusResolver,
+            Function<T, String> messageResolver
+    ) {
+        LocalDateTime startedAt = LocalDateTime.now();
+
+        try {
+            T result = action.get();
+            LocalDateTime finishedAt = LocalDateTime.now();
+
+            steps.add(new HarnessStepResult(
+                    type,
+                    statusResolver.apply(result),
+                    messageResolver.apply(result),
+                    startedAt,
+                    finishedAt
+            ));
+
+            return result;
+        } catch (RuntimeException e) {
+            LocalDateTime finishedAt = LocalDateTime.now();
+
+            steps.add(new HarnessStepResult(
+                    type,
+                    HarnessStepStatus.FAILED,
+                    e.getMessage(),
+                    startedAt,
+                    finishedAt
+            ));
+
+            throw e;
+        }
+    }
+
     private final List<HarnessStepResult> steps = new ArrayList<>();
 
     public void completed(HarnessStepType type, String message) {

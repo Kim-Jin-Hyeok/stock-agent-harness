@@ -109,6 +109,15 @@ class InvestmentHarnessTest {
         assertThat(loadMarketStep.startedAt()).isNotNull();
         assertThat(loadMarketStep.finishedAt()).isNotNull();
         assertThat(loadMarketStep.startedAt()).isBeforeOrEqualTo(loadMarketStep.finishedAt());
+
+        HarnessStepResult validateDecisionStep = result.steps().get(3);
+
+        assertThat(validateDecisionStep.type()).isEqualTo(HarnessStepType.VALIDATE_DECISION);
+        assertThat(validateDecisionStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
+        assertThat(validateDecisionStep.message()).isEqualTo("HOLD decision does not require order risk validation.");
+        assertThat(validateDecisionStep.startedAt()).isNotNull();
+        assertThat(validateDecisionStep.finishedAt()).isNotNull();
+        assertThat(validateDecisionStep.startedAt()).isBeforeOrEqualTo(validateDecisionStep.finishedAt());
     }
 
     @Test
@@ -189,6 +198,33 @@ class InvestmentHarnessTest {
     }
 
     @Test
+    void runFailsWhenRiskGuardDeniesDecision() {
+        InvestmentHarness deniedHarness = new InvestmentHarness(
+                riskGuard,
+                tradeExecutor,
+                portfolioService,
+                marketService,
+                harnessRunHistoryService,
+                new OverLimitBuyingInvestmentAgent(),
+                harnessProperties
+        );
+
+        HarnessRunResult result = deniedHarness.run();
+
+        assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
+        assertThat(result.riskCheckResult().status()).isEqualTo(RiskCheckStatus.DENIED);
+
+        HarnessStepResult validateDecisionStep = result.steps().get(3);
+
+        assertThat(validateDecisionStep.type()).isEqualTo(HarnessStepType.VALIDATE_DECISION);
+        assertThat(validateDecisionStep.status()).isEqualTo(HarnessStepStatus.FAILED);
+        assertThat(validateDecisionStep.message()).contains("Order amount exceeds max order ratio.");
+        assertThat(validateDecisionStep.startedAt()).isNotNull();
+        assertThat(validateDecisionStep.finishedAt()).isNotNull();
+        assertThat(validateDecisionStep.startedAt()).isBeforeOrEqualTo(validateDecisionStep.finishedAt());
+    }
+
+    @Test
     void runCompletesWhenAgentDecidesSell() {
         PortfolioService sellPortfolioService = new PortfolioService(store);
         sellPortfolioService.applyBuy(
@@ -234,6 +270,19 @@ class InvestmentHarnessTest {
                     10L,
                     100_000L,
                     "Test buy complete."
+            );
+        }
+    }
+
+    private static class OverLimitBuyingInvestmentAgent extends InvestmentAgent {
+        @Override
+        public InvestmentDecision decide(HarnessRunContext context) {
+            return new InvestmentDecision(
+                    InvestmentAction.BUY,
+                    "TEST",
+                    20L,
+                    100_000L,
+                    "Test buy exceeds max order ratio."
             );
         }
     }
