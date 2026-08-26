@@ -139,6 +139,7 @@ class InvestmentHarnessTest {
 
         assertThat(lastStep.type()).isEqualTo(HarnessStepType.CHECK_STEP_LIMIT);
         assertThat(lastStep.status()).isEqualTo(HarnessStepStatus.FAILED);
+        assertThat(lastStep.message()).isEqualTo("Executable steps: 5, final steps: 6, max steps: 4");
     }
 
     @Test

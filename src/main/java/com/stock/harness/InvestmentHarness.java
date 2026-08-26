@@ -156,17 +156,7 @@ public class InvestmentHarness {
             HarnessStepRecorder stepRecorder,
             HarnessRunContext context
     ) {
-        boolean stepLimitExceeded = stepRecorder.size() > context.maxSteps();
-        String stepLimitMessage = "Executable steps: "
-                + stepRecorder.size()
-                + ", max steps: "
-                + context.maxSteps();
-
-        if (stepLimitExceeded) {
-            stepRecorder.failed(HarnessStepType.CHECK_STEP_LIMIT, stepLimitMessage);
-        } else {
-            stepRecorder.completed(HarnessStepType.CHECK_STEP_LIMIT, stepLimitMessage);
-        }
+        recordStepLimitCheck(stepRecorder, context);
 
         return stepRecorder.steps();
     }
@@ -211,5 +201,27 @@ public class InvestmentHarness {
                 finishedAt,
                 steps
         );
+    }
+
+    private void recordStepLimitCheck(
+            HarnessStepRecorder stepRecorder,
+            HarnessRunContext context
+    ) {
+        int executableStepCount = stepRecorder.size();
+        int finalStepCount = executableStepCount + 1;
+        boolean stepLimitExceeded = finalStepCount > context.maxSteps();
+
+        String stepLimitMessage = "Executable steps: "
+                + executableStepCount
+                + ", final steps: "
+                + finalStepCount
+                + ", max steps: "
+                + context.maxSteps();
+
+        if (stepLimitExceeded) {
+            stepRecorder.failed(HarnessStepType.CHECK_STEP_LIMIT, stepLimitMessage);
+        } else {
+            stepRecorder.completed(HarnessStepType.CHECK_STEP_LIMIT, stepLimitMessage);
+        }
     }
 }
