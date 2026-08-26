@@ -228,6 +228,8 @@ stepOrder
 type
 status
 message
+startedAt
+finishedAt
 ```
 
 Step은 Run Entity 안에 포함하지 않고 별도 테이블로 분리한다.
@@ -237,6 +239,7 @@ Step은 Run Entity 안에 포함하지 않고 별도 테이블로 분리한다.
 - 하나의 Run은 여러 Step을 가진다.
 - Step은 실행 순서가 중요하므로 `stepOrder`가 필요하다.
 - 실패 분석에서는 Run 전체보다 어느 Step에서 실패했는지가 더 중요하다.
+- `startedAt`, `finishedAt`은 Step이 기록된 시점을 저장한다. 현재는 실제 실행 구간 측정이 아니라 기록 시각을 양쪽에 동일하게 넣는 점진적 구조다.
 - 이후 Step별 소요 시간, Tool 호출, 재시도 정보 등을 붙이기 쉽다.
 
 ### TradeRecordEntity
@@ -447,7 +450,7 @@ Agent가 어떤 판단을 했는지보다 먼저 확인해야 할 것은 Harness
 
 ## Recommended Next Step
 
-다음 단계는 Harness Step 저장 모델을 확장할지 결정하는 것이다.
+다음 단계는 `HarnessStepRecorder`가 실제 실행 블록을 감싸도록 개선할지 결정하는 것이다.
 
 현재 기본 단건 조회 API는 DB 기반 `HarnessRunDetail`로 이동했고, 메모리 기반 Run 이력 보관은 제거됐다.
 
@@ -463,20 +466,24 @@ HarnessStepResult
 -> type
 -> status
 -> message
+-> startedAt
+-> finishedAt
 ```
 
-다음 작업에서는 Step에 시간 정보를 추가할지 판단하는 것이 좋다.
+현재 Step은 시간 정보를 갖지만, 아직 실제 작업 실행 구간을 측정하지는 않는다. `HarnessStepRecorder`가 Step 기록 시점에 `recordedAt`을 한 번 생성하고, 그 값을 `startedAt`, `finishedAt`에 동일하게 넣는다.
+
+다음 작업에서는 Step Recorder가 실제 실행 블록을 감싸게 할지 판단하는 것이 좋다.
 
 ```text
-1. 각 Step이 언제 시작됐는지 저장할 것인가?
-2. 각 Step이 언제 끝났는지 저장할 것인가?
-3. 지금은 finishedAt만으로 충분한가, 아니면 durationMillis까지 둘 것인가?
+1. Step 기록만 할 것인가, 실제 작업 실행도 감쌀 것인가?
+2. 실행 블록을 감싼다면 성공/실패 기록을 Recorder가 자동으로 남길 것인가?
+3. checked exception과 return value가 있는 작업은 어떻게 다룰 것인가?
 ```
 
-현재 추천 방향은 먼저 `startedAt`, `finishedAt`을 Step 저장 모델에 추가하는 것이다.
+현재 추천 방향은 바로 모든 Step을 감싸기보다, 먼저 작은 Step 하나에 적용할 수 있는 Recorder API를 설계하는 것이다.
 
 이유는 다음과 같다.
 
-- 실패 Run을 분석할 때 어느 Step에서 멈췄는지뿐 아니라 언제 멈췄는지도 중요하다.
-- 이후 Tool 호출, Broker API 호출, Retry 정책을 붙일 때 Step 단위 시간 정보가 필요해진다.
-- `durationMillis`는 `startedAt`, `finishedAt`으로 계산 가능하므로 현재 단계에서는 저장하지 않아도 된다.
+- 현재 시간 필드는 저장되지만 `durationMillis`는 대부분 0에 가깝다.
+- 진짜 소요 시간을 보려면 Recorder가 실제 작업 시작 전과 종료 후를 감싸야 한다.
+- 이후 Tool 호출, Broker API 호출, Retry 정책을 붙일 때 이 구조가 필요해진다.

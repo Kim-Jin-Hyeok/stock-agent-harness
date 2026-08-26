@@ -8,6 +8,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -28,12 +30,18 @@ public class HarnessStepEntity {
 
     private String message;
 
+    private LocalDateTime startedAt;
+
+    private LocalDateTime finishedAt;
+
     public static HarnessStepEntity of(
             String runId,
             Integer stepOrder,
             HarnessStepType type,
             HarnessStepStatus status,
-            String message
+            String message,
+            LocalDateTime startedAt,
+            LocalDateTime finishedAt
     ) {
         HarnessStepEntity entity = new HarnessStepEntity();
         entity.runId = runId;
@@ -41,6 +49,8 @@ public class HarnessStepEntity {
         entity.type = type;
         entity.status = status;
         entity.message = message;
+        entity.startedAt = startedAt;
+        entity.finishedAt = finishedAt;
 
         return entity;
     }
@@ -48,13 +58,16 @@ public class HarnessStepEntity {
     public static HarnessStepEntity from(
             String runId,
             Integer stepOrder,
-            HarnessStepResult result) {
+            HarnessStepResult result
+    ) {
         return of(
                 runId,
                 stepOrder,
                 result.type(),
                 result.status(),
-                result.message()
+                result.message(),
+                result.startedAt(),
+                result.finishedAt()
         );
     }
 
@@ -62,7 +75,9 @@ public class HarnessStepEntity {
         return new HarnessStepResult(
                 type,
                 status,
-                message
+                message,
+                startedAt,
+                finishedAt
         );
     }
 }

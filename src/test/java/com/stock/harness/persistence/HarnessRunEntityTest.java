@@ -101,10 +101,14 @@ class HarnessRunEntityTest {
     }
 
     private HarnessStepResult completedStep() {
+        LocalDateTime recordedAt = LocalDateTime.now();
+
         return new HarnessStepResult(
                 HarnessStepType.EXECUTE_TRADE,
                 HarnessStepStatus.COMPLETED,
-                "Trade execution completed."
+                "Trade execution completed.",
+                recordedAt,
+                recordedAt
         );
     }
 

@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -180,11 +181,15 @@ public class InvestmentHarness {
                 ? e.getMessage()
                 : e.getClass().getSimpleName();
 
+        LocalDateTime recordedAt = LocalDateTime.now();
+
         List<HarnessStepResult> steps = List.of(
                 new HarnessStepResult(
                         HarnessStepType.RUN_FAILED,
                         HarnessStepStatus.FAILED,
-                        failureMessage
+                        failureMessage,
+                        recordedAt,
+                        recordedAt
                 )
         );
 

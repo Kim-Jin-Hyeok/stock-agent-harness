@@ -412,12 +412,16 @@ class HarnessRunHistoryServiceTest {
     }
 
     private HarnessStepEntity completedStepEntity(String runId, Integer stepOrder) {
+        LocalDateTime recordedAt = LocalDateTime.now();
+
         return HarnessStepEntity.of(
                 runId,
                 stepOrder,
                 HarnessStepType.CHECK_STEP_LIMIT,
                 HarnessStepStatus.COMPLETED,
-                "Test completed step."
+                "Test completed step.",
+                recordedAt,
+                recordedAt
         );
     }
 
@@ -430,18 +434,26 @@ class HarnessRunHistoryServiceTest {
     }
 
     private HarnessStepResult completedStep() {
+        LocalDateTime recordedAt = LocalDateTime.now();
+
         return new HarnessStepResult(
                 HarnessStepType.CHECK_STEP_LIMIT,
                 HarnessStepStatus.COMPLETED,
-                "Test completed step."
+                "Test completed step.",
+                recordedAt,
+                recordedAt
         );
     }
 
     private HarnessStepResult failedStep() {
+        LocalDateTime recordedAt = LocalDateTime.now();
+
         return new HarnessStepResult(
                 HarnessStepType.RUN_FAILED,
                 HarnessStepStatus.FAILED,
-                "Test failed step."
+                "Test failed step.",
+                recordedAt,
+                recordedAt
         );
     }
 }

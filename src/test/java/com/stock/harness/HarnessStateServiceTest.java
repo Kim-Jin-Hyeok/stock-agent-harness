@@ -95,10 +95,14 @@ class HarnessStateServiceTest {
     }
 
     private HarnessStepResult completedStep() {
+        LocalDateTime recordedAt = LocalDateTime.now();
+
         return new HarnessStepResult(
                 HarnessStepType.CHECK_STEP_LIMIT,
                 HarnessStepStatus.COMPLETED,
-                "Test completed step."
+                "Test completed step.",
+                recordedAt,
+                recordedAt
         );
     }
 }
