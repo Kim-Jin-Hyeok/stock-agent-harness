@@ -470,23 +470,23 @@ HarnessStepResult
 -> finishedAt
 ```
 
-현재 `LOAD_PORTFOLIO`, `LOAD_MARKET`, `RUN_INVESTMENT_AGENT`, `VALIDATE_DECISION` Step은 `HarnessStepRecorder`가 실제 작업을 감싸며 `startedAt`, `finishedAt`을 기록한다.
+현재 `LOAD_PORTFOLIO`, `LOAD_MARKET`, `RUN_INVESTMENT_AGENT`, `VALIDATE_DECISION`, `EXECUTE_TRADE` Step은 `HarnessStepRecorder`가 실제 작업을 감싸며 `startedAt`, `finishedAt`을 기록한다.
 
 나머지 Step은 아직 결과를 보고 기록하는 방식이다. 이 경우 `HarnessStepRecorder`가 Step 기록 시점에 `recordedAt`을 한 번 생성하고, 그 값을 `startedAt`, `finishedAt`에 동일하게 넣는다.
 
 다음 작업에서는 이 방식을 다른 Step까지 확장할지 판단하는 것이 좋다.
 
 ```text
-1. EXECUTE_TRADE도 Recorder가 감쌀 것인가?
-2. TradeResult가 REJECTED이면 예외가 아니어도 Step을 FAILED로 볼 것인가?
-3. 주문 실행 실패 메시지와 성공 메시지를 Recorder API에서 어떻게 받을 것인가?
+1. CHECK_STEP_LIMIT도 Recorder가 감쌀 대상인가?
+2. Step limit 판정은 실행 블록 계측보다 별도 helper가 더 적절한가?
+3. Step limit 검사 시점이 현재 순서에서 맞는가?
 ```
 
-현재 추천 방향은 바로 남은 Step을 모두 바꾸기보다, `EXECUTE_TRADE` 하나를 다음 후보로 잡는 것이다.
+현재 추천 방향은 `CHECK_STEP_LIMIT`를 무리하게 실행 블록으로 감싸기보다, Step limit 판정 책임을 더 명확히 분리할지 검토하는 것이다.
 
 이유는 다음과 같다.
 
-- 상태 조회, Agent 판단, Risk Guard 검증에서 실행 블록 계측 방식이 먼저 검증됐다.
-- Trade 실행은 실제 주문 또는 Broker API 호출로 이어질 가능성이 있어 실행 시간 관찰 가치가 크다.
-- TradeResult가 `REJECTED`일 때 예외 없이 실패 Step으로 남겨야 하므로, 현재 `VALIDATE_DECISION`에서 사용한 status resolver 구조를 재사용할 수 있다.
+- 상태 조회, Agent 판단, Risk Guard 검증, 거래 실행에서 실행 블록 계측 방식이 먼저 검증됐다.
+- `CHECK_STEP_LIMIT`는 외부 작업 실행이라기보다 Harness 내부 판정에 가깝다.
+- 따라서 같은 Recorder API로 감싸기보다, Step limit 계산과 Step 기록의 책임을 분리하는 것이 더 자연스러울 수 있다.
 - 이후 Tool 호출, Broker API 호출, Retry 정책을 붙일 때 이 구조가 필요해진다.

@@ -118,6 +118,15 @@ class InvestmentHarnessTest {
         assertThat(validateDecisionStep.startedAt()).isNotNull();
         assertThat(validateDecisionStep.finishedAt()).isNotNull();
         assertThat(validateDecisionStep.startedAt()).isBeforeOrEqualTo(validateDecisionStep.finishedAt());
+
+        HarnessStepResult executeTradeStep = result.steps().get(4);
+
+        assertThat(executeTradeStep.type()).isEqualTo(HarnessStepType.EXECUTE_TRADE);
+        assertThat(executeTradeStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
+        assertThat(executeTradeStep.message()).isEqualTo("HOLD decision does not create an order.");
+        assertThat(executeTradeStep.startedAt()).isNotNull();
+        assertThat(executeTradeStep.finishedAt()).isNotNull();
+        assertThat(executeTradeStep.startedAt()).isBeforeOrEqualTo(executeTradeStep.finishedAt());
     }
 
     @Test
@@ -192,6 +201,14 @@ class InvestmentHarnessTest {
                 );
         assertThat(hasCompletedExecuteTradeStep).isTrue();
 
+        HarnessStepResult executeTradeStep = result.steps().get(4);
+
+        assertThat(executeTradeStep.type()).isEqualTo(HarnessStepType.EXECUTE_TRADE);
+        assertThat(executeTradeStep.message()).isEqualTo("BUY execution is complete.");
+        assertThat(executeTradeStep.startedAt()).isNotNull();
+        assertThat(executeTradeStep.finishedAt()).isNotNull();
+        assertThat(executeTradeStep.startedAt()).isBeforeOrEqualTo(executeTradeStep.finishedAt());
+
         boolean hasBuyingSymbol = result.portfolioSnapshot().positions().stream()
                 .anyMatch(position -> position.symbol().equals(result.decision().symbol()));
         assertThat(hasBuyingSymbol).isTrue();
@@ -222,6 +239,15 @@ class InvestmentHarnessTest {
         assertThat(validateDecisionStep.startedAt()).isNotNull();
         assertThat(validateDecisionStep.finishedAt()).isNotNull();
         assertThat(validateDecisionStep.startedAt()).isBeforeOrEqualTo(validateDecisionStep.finishedAt());
+
+        HarnessStepResult executeTradeStep = result.steps().get(4);
+
+        assertThat(executeTradeStep.type()).isEqualTo(HarnessStepType.EXECUTE_TRADE);
+        assertThat(executeTradeStep.status()).isEqualTo(HarnessStepStatus.FAILED);
+        assertThat(executeTradeStep.message()).isEqualTo("Risk check denied the decision.");
+        assertThat(executeTradeStep.startedAt()).isNotNull();
+        assertThat(executeTradeStep.finishedAt()).isNotNull();
+        assertThat(executeTradeStep.startedAt()).isBeforeOrEqualTo(executeTradeStep.finishedAt());
     }
 
     @Test
