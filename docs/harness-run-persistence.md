@@ -450,7 +450,7 @@ Agent가 어떤 판단을 했는지보다 먼저 확인해야 할 것은 Harness
 
 ## Recommended Next Step
 
-다음 단계는 `HarnessStepRecorder`가 실제 실행 블록을 감싸도록 개선할지 결정하는 것이다.
+다음 단계는 `HarnessStepRecorder`의 실행 블록 계측 범위를 넓힐지 결정하는 것이다.
 
 현재 기본 단건 조회 API는 DB 기반 `HarnessRunDetail`로 이동했고, 메모리 기반 Run 이력 보관은 제거됐다.
 
@@ -470,20 +470,24 @@ HarnessStepResult
 -> finishedAt
 ```
 
-현재 Step은 시간 정보를 갖지만, 아직 실제 작업 실행 구간을 측정하지는 않는다. `HarnessStepRecorder`가 Step 기록 시점에 `recordedAt`을 한 번 생성하고, 그 값을 `startedAt`, `finishedAt`에 동일하게 넣는다.
+현재 `LOAD_PORTFOLIO`, `LOAD_MARKET` Step은 `HarnessStepRecorder`가 실제 상태 조회 작업을 감싸며 `startedAt`, `finishedAt`을 기록한다.
 
-다음 작업에서는 Step Recorder가 실제 실행 블록을 감싸게 할지 판단하는 것이 좋다.
+나머지 Step은 아직 결과를 보고 기록하는 방식이다. 이 경우 `HarnessStepRecorder`가 Step 기록 시점에 `recordedAt`을 한 번 생성하고, 그 값을 `startedAt`, `finishedAt`에 동일하게 넣는다.
+
+다음 작업에서는 이 방식을 다른 Step까지 확장할지 판단하는 것이 좋다.
 
 ```text
-1. Step 기록만 할 것인가, 실제 작업 실행도 감쌀 것인가?
-2. 실행 블록을 감싼다면 성공/실패 기록을 Recorder가 자동으로 남길 것인가?
-3. checked exception과 return value가 있는 작업은 어떻게 다룰 것인가?
+1. RUN_INVESTMENT_AGENT도 Recorder가 감쌀 것인가?
+2. VALIDATE_DECISION도 Recorder가 감쌀 것인가?
+3. EXECUTE_TRADE도 Recorder가 감쌀 것인가?
+4. 실패 메시지와 성공 메시지를 Recorder API에서 어떻게 받을 것인가?
 ```
 
-현재 추천 방향은 바로 모든 Step을 감싸기보다, 먼저 작은 Step 하나에 적용할 수 있는 Recorder API를 설계하는 것이다.
+현재 추천 방향은 바로 모든 Step을 한 번에 바꾸기보다, `RUN_INVESTMENT_AGENT` 하나를 다음 후보로 잡는 것이다.
 
 이유는 다음과 같다.
 
-- 현재 시간 필드는 저장되지만 `durationMillis`는 대부분 0에 가깝다.
-- 진짜 소요 시간을 보려면 Recorder가 실제 작업 시작 전과 종료 후를 감싸야 한다.
+- `LOAD_PORTFOLIO`, `LOAD_MARKET`에서 실행 블록 계측 방식이 먼저 검증됐다.
+- Agent 판단 Step은 Harness가 관찰해야 하는 핵심 단계이므로 다음 적용 대상으로 적절하다.
+- Risk Guard와 Trade 실행까지 한 번에 바꾸면 실패 처리와 메시지 설계 변경 폭이 커진다.
 - 이후 Tool 호출, Broker API 호출, Retry 정책을 붙일 때 이 구조가 필요해진다.

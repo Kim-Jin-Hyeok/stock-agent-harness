@@ -98,6 +98,17 @@ class InvestmentHarnessTest {
                 HarnessStepType.EXECUTE_TRADE,
                 HarnessStepType.CHECK_STEP_LIMIT
         );
+
+        HarnessStepResult loadPortfolioStep = result.steps().get(0);
+        HarnessStepResult loadMarketStep = result.steps().get(1);
+
+        assertThat(loadPortfolioStep.startedAt()).isNotNull();
+        assertThat(loadPortfolioStep.finishedAt()).isNotNull();
+        assertThat(loadPortfolioStep.startedAt()).isBeforeOrEqualTo(loadPortfolioStep.finishedAt());
+
+        assertThat(loadMarketStep.startedAt()).isNotNull();
+        assertThat(loadMarketStep.finishedAt()).isNotNull();
+        assertThat(loadMarketStep.startedAt()).isBeforeOrEqualTo(loadMarketStep.finishedAt());
     }
 
     @Test
@@ -127,9 +138,14 @@ class InvestmentHarnessTest {
         HarnessRunResult result = failingHarness.run();
 
         assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
-        assertThat(result.steps().size()).isEqualTo(1);
-        assertThat(result.steps().getFirst().type()).isEqualTo(HarnessStepType.RUN_FAILED);
-        assertThat(result.steps().getFirst().status()).isEqualTo(HarnessStepStatus.FAILED);
+        assertThat(result.steps())
+                .extracting(HarnessStepResult::type)
+                .containsExactly(
+                        HarnessStepType.LOAD_PORTFOLIO,
+                        HarnessStepType.LOAD_MARKET,
+                        HarnessStepType.RUN_FAILED
+                );
+        assertThat(result.steps().getLast().status()).isEqualTo(HarnessStepStatus.FAILED);
     }
 
     @Test

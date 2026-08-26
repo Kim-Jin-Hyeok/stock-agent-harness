@@ -16,7 +16,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDate;
+import java.util.ArrayList;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -38,9 +38,25 @@ public class InvestmentHarness {
         log.info("Investment Harness started.");
 
         String runId = UUID.randomUUID().toString();
+        HarnessStepRecorder stepRecorder = new HarnessStepRecorder();
 
         try {
-            HarnessRunContext context = createContext(runId);
+            PortfolioSnapshot portfolioSnapshot = stepRecorder.record(
+                    HarnessStepType.LOAD_PORTFOLIO,
+                    portfolioService::getCurrentSnapshot,
+                    "Portfolio loading complete."
+            );
+            MarketSnapshot marketSnapshot = stepRecorder.record(
+                    HarnessStepType.LOAD_MARKET,
+                    marketService::getCurrentSnapshot,
+                    "Market loading complete."
+            );
+
+            HarnessRunContext context = createContext(
+                    runId,
+                    portfolioSnapshot,
+                    marketSnapshot
+            );
 
             InvestmentDecision decision = investmentAgent.decide(context);
 
@@ -54,6 +70,7 @@ public class InvestmentHarness {
             PortfolioSnapshot finalPortfolioSnapshot = portfolioService.getCurrentSnapshot();
 
             List<HarnessStepResult> steps = recordSteps(
+                    stepRecorder,
                     context,
                     decision,
                     riskCheckResult,
@@ -100,7 +117,8 @@ public class InvestmentHarness {
             HarnessRunResult result = createFailedResult(
                     runId,
                     startedAt,
-                    e
+                    e,
+                    stepRecorder.steps()
             );
 
             harnessRunHistoryService.record(result);
@@ -109,10 +127,11 @@ public class InvestmentHarness {
         }
     }
 
-    private HarnessRunContext createContext(String runId) {
-        PortfolioSnapshot portfolioSnapshot = portfolioService.getCurrentSnapshot();
-        MarketSnapshot marketSnapshot = marketService.getCurrentSnapshot();
-
+    private HarnessRunContext createContext(
+            String runId,
+            PortfolioSnapshot portfolioSnapshot,
+            MarketSnapshot marketSnapshot
+    ) {
         return new HarnessRunContext(
                 runId,
                 harnessProperties.maxSteps(),
@@ -122,14 +141,12 @@ public class InvestmentHarness {
     }
 
     private List<HarnessStepResult> recordSteps(
+            HarnessStepRecorder stepRecorder,
             HarnessRunContext context,
             InvestmentDecision decision,
             RiskCheckResult riskCheckResult,
             TradeResult tradeResult
     ) {
-        HarnessStepRecorder stepRecorder = new HarnessStepRecorder();
-        stepRecorder.completed(HarnessStepType.LOAD_PORTFOLIO, "Portfolio loading complete.");
-        stepRecorder.completed(HarnessStepType.LOAD_MARKET, "Market loading complete.");
         stepRecorder.completed(HarnessStepType.RUN_INVESTMENT_AGENT, decision.reason());
 
         if (riskCheckResult.status() == RiskCheckStatus.APPROVED) {
@@ -171,7 +188,8 @@ public class InvestmentHarness {
     private HarnessRunResult createFailedResult(
             String runId,
             LocalDateTime startedAt,
-            Exception e
+            Exception e,
+            List<HarnessStepResult> recordedSteps
     ) {
         LocalDateTime finishedAt = LocalDateTime.now();
 
@@ -183,15 +201,14 @@ public class InvestmentHarness {
 
         LocalDateTime recordedAt = LocalDateTime.now();
 
-        List<HarnessStepResult> steps = List.of(
-                new HarnessStepResult(
-                        HarnessStepType.RUN_FAILED,
-                        HarnessStepStatus.FAILED,
-                        failureMessage,
-                        recordedAt,
-                        recordedAt
-                )
-        );
+        List<HarnessStepResult> steps = new ArrayList<>(recordedSteps);
+        steps.add(new HarnessStepResult(
+                HarnessStepType.RUN_FAILED,
+                HarnessStepStatus.FAILED,
+                failureMessage,
+                recordedAt,
+                recordedAt
+        ));
 
         return HarnessRunResult.failed(
                 runId,
