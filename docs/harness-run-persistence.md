@@ -18,11 +18,10 @@ Harness Run 이력 저장의 목적은 Agent 실행을 운영 관점에서 다�
 
 ## Current State
 
-현재 Harness 이력은 메모리 상세 이력과 JPA 기반 저장 이력이 함께 존재하는 전환 단계다.
+현재 Harness 이력은 JPA 기반 저장 이력을 기준으로 관리한다.
 
 ```text
 HarnessRunHistoryService.record(HarnessRunResult)
--> 메모리 runs에 HarnessRunResult 저장
 -> HarnessRunRepository에 HarnessRunEntity 저장
 -> HarnessStepRepository에 HarnessStepEntity 목록 저장
 ```
@@ -53,9 +52,6 @@ HarnessRunResult.marketSnapshot
 getRunSummaries()
 -> DB 기반 HarnessRunSummary 목록 조회
 
-getRuntimeRunById(runId)
--> 메모리 기반 HarnessRunResult 조회
-
 GET /api/harness/runs/{runId}
 -> DB에 저장된 Run 메타데이터, 판단 스냅샷, 리스크 스냅샷,
    포트폴리오 스냅샷, 시장 스냅샷, Step 이력, Trade 이력을 조합한 HarnessRunDetail 조회
@@ -66,7 +62,7 @@ getStepsByRunId(runId)
 
 즉 Run 목록, Run 단건 상세, Step 이력, Trade 이력은 DB 기준으로 이동했다.
 
-다만 `HarnessRunHistoryService.getRuntimeRunById(runId)`는 아직 메모리 기반 `HarnessRunResult` 조회 메서드로 남아 있다. 이 메서드는 현재 기본 단건 조회 API의 기준은 아니며, 테스트와 런타임 내부 확인 용도에 가깝다.
+`HarnessRunResult`는 `POST /api/harness/run`으로 방금 실행한 결과를 응답할 때 사용한다. 저장된 Run 이력 조회의 기준은 `HarnessRunDetail`이다.
 
 ## Persisted Models
 
@@ -446,41 +442,41 @@ Agent가 어떤 판단을 했는지보다 먼저 확인해야 할 것은 Harness
 
 다음 설계 단계에서 결정해야 할 질문은 다음과 같다.
 
-- `HarnessRunHistoryService.getRuntimeRunById(runId)`를 계속 메모리 기반 런타임 조회 메서드로 유지할 것인가?
-- 유지한다면 어떤 테스트와 내부 흐름에서만 사용할 것인가?
 - 개발용 `reset()` API를 운영에서도 유지할 것인가?
 - Snapshot JSON 값 중 나중에 검색이나 집계가 필요한 필드는 별도 컬럼 또는 Entity로 분리할 것인가?
 
 ## Recommended Next Step
 
-다음 단계는 메모리 기반 `getRuntimeRunById`의 역할을 정리하는 것이다.
+다음 단계는 Harness Step 저장 모델을 확장할지 결정하는 것이다.
 
-현재 기본 단건 조회 API는 DB 기반 `HarnessRunDetail`로 이동했다.
+현재 기본 단건 조회 API는 DB 기반 `HarnessRunDetail`로 이동했고, 메모리 기반 Run 이력 보관은 제거됐다.
 
 ```text
 GET /api/harness/runs/{runId}
 -> DB 기반 HarnessRunDetail
 ```
 
-하지만 서비스 내부에는 아직 메모리 기반 조회 메서드가 남아 있다.
+이제 Run이 어떤 순서로 진행됐는지는 Step 목록으로 확인할 수 있다.
 
 ```text
-HarnessRunHistoryService.getRuntimeRunById(runId)
--> 메모리에 남아 있는 HarnessRunResult 조회
+HarnessStepResult
+-> type
+-> status
+-> message
 ```
 
-다음 작업에서는 이 메서드의 의도를 먼저 결정해야 한다.
+다음 작업에서는 Step에 시간 정보를 추가할지 판단하는 것이 좋다.
 
 ```text
-1. 테스트와 내부 확인을 위해 계속 유지할 것인가?
-2. 유지한다면 어떤 테스트에서 런타임 결과 보관을 검증할 것인가?
-3. 필요 없다면 메모리 runs 저장 자체를 줄일 수 있는가?
+1. 각 Step이 언제 시작됐는지 저장할 것인가?
+2. 각 Step이 언제 끝났는지 저장할 것인가?
+3. 지금은 finishedAt만으로 충분한가, 아니면 durationMillis까지 둘 것인가?
 ```
 
-현재 추천 방향은 바로 삭제하지 않고, 메모리 기반 런타임 조회가 필요한 테스트 범위를 먼저 확인하는 것이다.
+현재 추천 방향은 먼저 `startedAt`, `finishedAt`을 Step 저장 모델에 추가하는 것이다.
 
 이유는 다음과 같다.
 
-- `HarnessRunResult`는 방금 실행한 런타임 결과를 확인할 때 아직 의미가 있다.
-- 갑자기 삭제하면 `InvestmentHarnessTest`, `HarnessRunHistoryServiceTest`, `HarnessStateServiceTest`의 의도가 한 번에 흔들린다.
-- 테스트 범위를 먼저 보면 메모리 저장을 유지할지 제거할지 더 구체적으로 판단할 수 있다.
+- 실패 Run을 분석할 때 어느 Step에서 멈췄는지뿐 아니라 언제 멈췄는지도 중요하다.
+- 이후 Tool 호출, Broker API 호출, Retry 정책을 붙일 때 Step 단위 시간 정보가 필요해진다.
+- `durationMillis`는 `startedAt`, `finishedAt`으로 계산 가능하므로 현재 단계에서는 저장하지 않아도 된다.

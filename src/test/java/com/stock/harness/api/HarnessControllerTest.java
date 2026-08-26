@@ -119,7 +119,6 @@ class HarnessControllerTest {
 
         verify(harnessRunHistoryService).getRunDetail(eq(runId), any());
         verify(tradeHistoryService).getRecordsByRunId(runId);
-        verify(harnessRunHistoryService, never()).getRuntimeRunById(any());
     }
 
     @Test
@@ -134,7 +133,6 @@ class HarnessControllerTest {
 
         verify(harnessRunHistoryService).getRunDetail(eq(runId), any());
         verify(tradeHistoryService).getRecordsByRunId(runId);
-        verify(harnessRunHistoryService, never()).getRuntimeRunById(any());
     }
 
     @Test

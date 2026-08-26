@@ -39,29 +39,6 @@ class HarnessRunHistoryServiceTest {
     );
 
     @Test
-    void recordStoresCompleteRunResult() {
-        harnessRunHistoryService.record(completedRun("run-1"));
-
-        assertThat(harnessRunHistoryService.getRuntimeRunById("run-1")).isPresent();
-
-        verify(harnessRunRepository).save(any());
-        verify(harnessStepRepository).saveAll(any());
-    }
-
-    @Test
-    void recordStoresFailRunResult() {
-        harnessRunHistoryService.record(failedRun("run-1"));
-
-        Optional<HarnessRunResult> result = harnessRunHistoryService.getRuntimeRunById("run-1");
-
-        assertThat(result).isPresent();
-        assertThat(result.get().status()).isEqualTo(HarnessRunStatus.FAILED);
-
-        verify(harnessRunRepository).save(any());
-        verify(harnessStepRepository).saveAll(any());
-    }
-
-    @Test
     void recordStoresDecisionAndRiskCheckSnapshotJson() {
         HarnessRunResult result = completedBuyRun("run-1");
         when(harnessRunSnapshotJsonConverter.toDecisionJson(any()))
@@ -190,17 +167,6 @@ class HarnessRunHistoryServiceTest {
     }
 
     @Test
-    void getRunByIdReturnsMatchingRuntimeRun() {
-        harnessRunHistoryService.record(completedRun("run-1"));
-        harnessRunHistoryService.record(completedRun("run-2"));
-
-        Optional<HarnessRunResult> result = harnessRunHistoryService.getRuntimeRunById("run-2");
-
-        assertThat(result.isPresent()).isTrue();
-        assertThat(result.get().runId()).isEqualTo("run-2");
-    }
-
-    @Test
     void getRunSummariesReturnsRunMetadata() {
         when(harnessRunRepository.findAllByOrderByStartedAtDesc())
                 .thenReturn(List.of(completedRunEntity("run-1")));
@@ -214,17 +180,6 @@ class HarnessRunHistoryServiceTest {
         assertThat(summary.status()).isEqualTo(HarnessRunStatus.COMPLETED);
         assertThat(summary.startedAt()).isEqualTo(startedAt());
         assertThat(summary.finishedAt()).isEqualTo(finishedAt());
-    }
-
-    @Test
-    void clearRemovesRunHistory() {
-        harnessRunHistoryService.record(failedRun("run-1"));
-
-        harnessRunHistoryService.clear();
-
-        assertThat(harnessRunHistoryService.getRuntimeRunById("run-1")).isEmpty();
-        verify(harnessRunRepository).deleteAll();
-        verify(harnessStepRepository).deleteAll();
     }
 
     @Test

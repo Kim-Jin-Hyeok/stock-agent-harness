@@ -17,11 +17,7 @@ public class HarnessRunHistoryService {
     private final HarnessRunRepository harnessRunRepository;
     private final HarnessStepRepository harnessStepRepository;
 
-    private final List<HarnessRunResult> runs = new ArrayList<>();
-
     public void record(HarnessRunResult result) {
-        runs.add(result);
-
         String decisionSnapshotJson = result.decision() == null
                 ? null
                 : harnessRunSnapshotJsonConverter.toDecisionJson(
@@ -62,12 +58,6 @@ public class HarnessRunHistoryService {
                 ))
                 .toList();
         harnessStepRepository.saveAll(stepEntities);
-    }
-
-    public Optional<HarnessRunResult> getRuntimeRunById(String runId) {
-        return runs.stream()
-                .filter(run -> run.runId().equals(runId))
-                .findFirst();
     }
 
     public List<HarnessStepResult> getStepsByRunId(String runId) {
@@ -121,7 +111,6 @@ public class HarnessRunHistoryService {
     }
 
     public void clear() {
-        runs.clear();
         harnessRunRepository.deleteAll();
         harnessStepRepository.deleteAll();
     }
