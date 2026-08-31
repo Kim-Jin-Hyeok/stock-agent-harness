@@ -113,6 +113,11 @@ class InvestmentHarnessTest {
         assertThat(loadMarketStep.finishedAt()).isNotNull();
         assertThat(loadMarketStep.startedAt()).isBeforeOrEqualTo(loadMarketStep.finishedAt());
 
+        HarnessStepResult agentStep = result.steps().get(2);
+
+        assertThat(agentStep.type()).isEqualTo(HarnessStepType.RUN_INVESTMENT_AGENT);
+        assertThat(agentStep.message()).contains("allowedTools=[GET_PORTFOLIO, GET_MARKET]");
+
         HarnessStepResult validateDecisionStep = result.steps().get(3);
 
         assertThat(validateDecisionStep.type()).isEqualTo(HarnessStepType.VALIDATE_DECISION);

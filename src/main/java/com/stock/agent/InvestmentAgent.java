@@ -16,6 +16,8 @@ public class InvestmentAgent {
                 + context.portfolioSnapshot().cashAmountKrw()
                 + ", marketOpen="
                 + context.marketSnapshot().marketOpen()
+                + ", allowedTools="
+                + context.allowedTools().types()
         );
     }
 }
