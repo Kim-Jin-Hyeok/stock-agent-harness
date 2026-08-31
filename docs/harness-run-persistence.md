@@ -550,21 +550,48 @@ HarnessRunContext
 
 현재는 Step limit 판정 메시지에 실행 당시의 `maxSteps`가 남는다.
 
+## Harness Tool Types
+
+`HarnessToolType`은 Harness가 Agent에게 허용할 수 있는 Tool 종류를 표현한다.
+
+```text
+src/main/java/com/stock/harness/tool/HarnessToolType.java
+```
+
+현재 단계에서는 실제 Tool Calling을 구현하지 않는다.
+
+먼저 Agent에게 열 수 있는 Tool의 경계를 코드로 정의한다.
+
+현재 허용 후보는 읽기 전용 Tool만 둔다.
+
+```text
+GET_PORTFOLIO
+GET_MARKET
+```
+
+`BUY`, `SELL`, `EXECUTE_TRADE`는 아직 Tool 타입에 넣지 않는다.
+
+현재 거래 실행은 Agent가 직접 호출하는 Tool이 아니라, Harness가 Risk Guard 검증 이후 `TradeExecutor`를 통해 통제하는 흐름이다.
+
+주문 실행 Tool을 너무 일찍 열면 Agent 권한, Risk Guard, Step 기록, Trade 이력 저장의 책임 경계가 섞일 수 있다.
+
+따라서 현재 단계의 `HarnessToolType`은 "Agent에게 어떤 조회 Tool을 열 수 있는가"를 표현하는 최소 모델로 본다.
+
 ## Recommended Next Step
 
-다음 단계는 `HarnessRunLimits`를 저장 이력에 포함할지 판단하는 것이다.
+다음 단계는 Tool 타입 정의를 실제 Run Context와 연결할지 판단하는 것이다.
 
 현재 Harness는 `maxSteps`를 통해 Run의 전체 Step 수를 제한한다. 장기 목표에서는 Step 수뿐 아니라 Tool 호출 수, Broker API 호출 수, Cache 사용 여부, Rate Limit도 Harness가 관리해야 한다.
 
-다음 작업에서는 아직 실제 Tool Calling이나 Broker API를 붙이지 말고, `HarnessRunLimits`를 어디까지 영속화할지 검토하는 것이 좋다.
+다음 작업에서는 아직 실제 Tool Calling이나 Broker API를 붙이지 말고, 이번 Run에서 허용된 Tool 목록을 `HarnessRunContext`에 포함할지 검토하는 것이 좋다.
 
 판단해야 할 질문은 다음과 같다.
 
 ```text
-1. 과거 Run이 어떤 maxSteps로 실행됐는지 별도 필드로 조회해야 하는가?
-2. 현재처럼 CHECK_STEP_LIMIT 메시지에 남기는 것으로 충분한가?
-3. HarnessRunEntity에 maxStepsSnapshot 컬럼을 추가할 필요가 있는가?
-4. Tool 계층이 생긴 뒤 apiCallLimit, toolCallLimit과 함께 저장하는 편이 나은가?
+1. Agent가 이번 Run에서 사용할 수 있는 Tool 목록을 어디서 받아야 하는가?
+2. 허용 Tool 목록은 HarnessRunContext에 들어가야 하는가?
+3. 단순 List<HarnessToolType>으로 충분한가, 별도 HarnessAllowedTools 모델이 필요한가?
+4. Tool 호출 권한과 Tool 호출 횟수 제한은 같은 모델에서 관리해야 하는가?
 ```
 
 설정 책임은 현재 다음처럼 분리되어 있다.
@@ -598,6 +625,6 @@ enabled
 
 `harness.scheduler.fixed-delay-ms`는 현재 `@Scheduled(fixedDelayString = "${harness.scheduler.fixed-delay-ms}")` 속성에서 직접 참조한다. `@Scheduled`는 어노테이션 속성으로 스케줄 간격을 받아야 하므로, 이 단계에서는 `fixed-delay-ms`를 별도 record 필드로 옮기지 않는다.
 
-현재 추천 방향은 바로 `HarnessRunEntity`에 limits 컬럼을 추가하지 않는 것이다.
+현재 추천 방향은 바로 Tool 실행기를 만들지 않는 것이다.
 
-아직 저장해서 조회할 제한값이 `maxSteps` 하나뿐이고, 실제 Run별 override도 없다. 따라서 다음 구현 단계는 영속화보다 Tool 계층의 최소 형태를 잡을지 검토하는 것이 더 자연스럽다.
+아직 Agent가 Tool을 선택하거나 호출하지 않는다. 따라서 다음 구현 단계는 실제 Tool 실행보다, Harness가 Run Context에 허용 Tool 목록을 담아 Agent에게 전달할 수 있는 구조를 검토하는 것이 더 자연스럽다.
