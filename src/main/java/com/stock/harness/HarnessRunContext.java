@@ -5,7 +5,7 @@ import com.stock.portfolio.PortfolioSnapshot;
 
 public record HarnessRunContext(
         String runId,
-        int maxSteps,
+        HarnessRunLimits limits,
         PortfolioSnapshot portfolioSnapshot,
         MarketSnapshot marketSnapshot
 ) {

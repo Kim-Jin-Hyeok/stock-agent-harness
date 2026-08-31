@@ -504,21 +504,67 @@ stepLimitExceeded = finalStepCount > maxSteps
 Executable steps: 6, final steps: 7, max steps: 4
 ```
 
+## Run Limits
+
+`HarnessRunLimits`는 Run 하나에 적용되는 실행 제한을 표현한다.
+
+```text
+src/main/java/com/stock/harness/HarnessRunLimits.java
+```
+
+현재는 다음 값만 가진다.
+
+```text
+maxSteps
+```
+
+`HarnessProperties.maxSteps`는 애플리케이션의 기본 설정값이다.
+
+`HarnessRunLimits.maxSteps`는 Run 시작 시점에 확정되어 해당 Run에 적용되는 제한값이다.
+
+현재 흐름은 다음과 같다.
+
+```text
+application.yml
+-> HarnessProperties(maxSteps)
+-> InvestmentHarness.createContext()
+-> HarnessRunLimits(maxSteps)
+-> HarnessRunContext(limits)
+```
+
+`HarnessRunContext`는 `maxSteps`를 직접 들지 않고 `HarnessRunLimits`를 가진다.
+
+```text
+HarnessRunContext
+-> runId
+-> limits
+-> portfolioSnapshot
+-> marketSnapshot
+```
+
+이 구조를 통해 나중에 `apiCallLimit`, `toolCallLimit` 같은 Run 단위 실행 제한이 생기더라도 `HarnessRunContext`에 개별 필드를 계속 추가하지 않고 `HarnessRunLimits` 안에서 관리할 수 있다.
+
+단, 현재 `HarnessRunLimits`는 DB에 저장하지 않는다.
+
+아직 Run별 override, Tool 호출 제한, Broker API 호출 제한이 없기 때문에 저장 컬럼을 먼저 만들면 과한 구조가 될 수 있다.
+
+현재는 Step limit 판정 메시지에 실행 당시의 `maxSteps`가 남는다.
+
 ## Recommended Next Step
 
-다음 단계는 Harness가 통제할 실행 제약을 Step 이력과 연결하는 것이다.
+다음 단계는 `HarnessRunLimits`를 저장 이력에 포함할지 판단하는 것이다.
 
-현재 Harness는 `maxSteps`를 통해 Run의 전체 Step 수를 제한한다. 하지만 장기 목표에서는 Step 수뿐 아니라 Tool 호출 수, Broker API 호출 수, Cache 사용 여부, Rate Limit도 Harness가 관리해야 한다.
+현재 Harness는 `maxSteps`를 통해 Run의 전체 Step 수를 제한한다. 장기 목표에서는 Step 수뿐 아니라 Tool 호출 수, Broker API 호출 수, Cache 사용 여부, Rate Limit도 Harness가 관리해야 한다.
 
-다음 작업에서는 아직 실제 Tool Calling이나 Broker API를 붙이지 말고, 가장 작은 단위로 `Run Budget` 개념을 도입할지 검토하는 것이 좋다.
+다음 작업에서는 아직 실제 Tool Calling이나 Broker API를 붙이지 말고, `HarnessRunLimits`를 어디까지 영속화할지 검토하는 것이 좋다.
 
 판단해야 할 질문은 다음과 같다.
 
 ```text
-1. maxSteps 외에 Run 단위로 제한해야 할 값은 무엇인가?
-2. 지금 당장 apiCallLimit 같은 값을 HarnessProperties에 추가할 필요가 있는가?
-3. 실제 API 호출이 없는 현재 단계에서 Budget을 코드로 만들면 과한 추상화인가?
-4. 우선 문서와 테스트 기준만 정리하고, Tool 계층이 생긴 뒤 구현하는 편이 나은가?
+1. 과거 Run이 어떤 maxSteps로 실행됐는지 별도 필드로 조회해야 하는가?
+2. 현재처럼 CHECK_STEP_LIMIT 메시지에 남기는 것으로 충분한가?
+3. HarnessRunEntity에 maxStepsSnapshot 컬럼을 추가할 필요가 있는가?
+4. Tool 계층이 생긴 뒤 apiCallLimit, toolCallLimit과 함께 저장하는 편이 나은가?
 ```
 
 설정 책임은 현재 다음처럼 분리되어 있다.
@@ -552,4 +598,6 @@ enabled
 
 `harness.scheduler.fixed-delay-ms`는 현재 `@Scheduled(fixedDelayString = "${harness.scheduler.fixed-delay-ms}")` 속성에서 직접 참조한다. `@Scheduled`는 어노테이션 속성으로 스케줄 간격을 받아야 하므로, 이 단계에서는 `fixed-delay-ms`를 별도 record 필드로 옮기지 않는다.
 
-다음 설계에서는 `maxSteps` 외에 Run 단위 실행 제약을 추가할 필요가 있는지 검토한다. 단, 실제 Tool 계층이나 Broker API 호출 지점이 생기기 전까지는 복잡한 Budget 클래스를 먼저 만들지 않는다.
+현재 추천 방향은 바로 `HarnessRunEntity`에 limits 컬럼을 추가하지 않는 것이다.
+
+아직 저장해서 조회할 제한값이 `maxSteps` 하나뿐이고, 실제 Run별 override도 없다. 따라서 다음 구현 단계는 영속화보다 Tool 계층의 최소 형태를 잡을지 검토하는 것이 더 자연스럽다.

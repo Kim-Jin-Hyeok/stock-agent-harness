@@ -148,9 +148,13 @@ public class InvestmentHarness {
             PortfolioSnapshot portfolioSnapshot,
             MarketSnapshot marketSnapshot
     ) {
+        HarnessRunLimits limits = new HarnessRunLimits(
+                harnessProperties.maxSteps()
+        );
+
         return new HarnessRunContext(
                 runId,
-                harnessProperties.maxSteps(),
+                limits,
                 portfolioSnapshot,
                 marketSnapshot
         );
@@ -213,14 +217,14 @@ public class InvestmentHarness {
     ) {
         int executableStepCount = stepRecorder.size();
         int finalStepCount = executableStepCount + 1;
-        boolean stepLimitExceeded = finalStepCount > context.maxSteps();
+        boolean stepLimitExceeded = finalStepCount > context.limits().maxSteps();
 
         String stepLimitMessage = "Executable steps: "
                 + executableStepCount
                 + ", final steps: "
                 + finalStepCount
                 + ", max steps: "
-                + context.maxSteps();
+                + context.limits().maxSteps();
 
         if (stepLimitExceeded) {
             stepRecorder.failed(HarnessStepType.CHECK_STEP_LIMIT, stepLimitMessage);
