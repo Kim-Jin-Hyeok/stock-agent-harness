@@ -536,8 +536,20 @@ maxOrderRatio
 maxPositionRatio
 ```
 
+`HarnessSchedulerProperties`는 현재 다음 값을 가진다.
+
+```text
+enabled
+```
+
 `maxSteps`는 Harness 실행 통제 값이고, `maxOrderRatio`, `maxPositionRatio`는 Risk Guard 정책 값이다.
 
+`enabled`는 Scheduler가 주기적으로 `InvestmentHarness`를 실행할지 결정하는 Scheduler 실행 설정 값이다.
+
 이 분리를 통해 `InvestmentHarness`는 실행 제약만 알고, `RiskGuard`는 주문 위험 정책만 알게 된다.
+
+`HarnessScheduler`는 `HarnessSchedulerProperties.enabled()`를 통해 실행 여부를 판단한다. `enabled=false`이면 Scheduler는 `InvestmentHarness.run()`을 호출하지 않는다.
+
+`harness.scheduler.fixed-delay-ms`는 현재 `@Scheduled(fixedDelayString = "${harness.scheduler.fixed-delay-ms}")` 속성에서 직접 참조한다. `@Scheduled`는 어노테이션 속성으로 스케줄 간격을 받아야 하므로, 이 단계에서는 `fixed-delay-ms`를 별도 record 필드로 옮기지 않는다.
 
 다음 설계에서는 `maxSteps` 외에 Run 단위 실행 제약을 추가할 필요가 있는지 검토한다. 단, 실제 Tool 계층이나 Broker API 호출 지점이 생기기 전까지는 복잡한 Budget 클래스를 먼저 만들지 않는다.
