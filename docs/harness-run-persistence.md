@@ -521,16 +521,23 @@ Executable steps: 6, final steps: 7, max steps: 4
 4. 우선 문서와 테스트 기준만 정리하고, Tool 계층이 생긴 뒤 구현하는 편이 나은가?
 ```
 
-현재 추천 방향은 바로 복잡한 Budget 클래스를 만들기보다, 다음 작은 단계로 `HarnessProperties`의 책임을 정리하는 것이다.
+설정 책임은 현재 다음처럼 분리되어 있다.
 
 `HarnessProperties`는 현재 다음 값을 가진다.
 
 ```text
 maxSteps
+```
+
+`RiskProperties`는 현재 다음 값을 가진다.
+
+```text
 maxOrderRatio
 maxPositionRatio
 ```
 
-여기서 `maxSteps`는 Harness 실행 통제 값이고, `maxOrderRatio`, `maxPositionRatio`는 Risk Guard 정책 값이다.
+`maxSteps`는 Harness 실행 통제 값이고, `maxOrderRatio`, `maxPositionRatio`는 Risk Guard 정책 값이다.
 
-다음 설계에서는 이 값들이 한 record에 함께 있는 것이 적절한지, 또는 Harness 실행 제약과 Risk Rule을 분리해야 하는지 검토한다.
+이 분리를 통해 `InvestmentHarness`는 실행 제약만 알고, `RiskGuard`는 주문 위험 정책만 알게 된다.
+
+다음 설계에서는 `maxSteps` 외에 Run 단위 실행 제약을 추가할 필요가 있는지 검토한다. 단, 실제 Tool 계층이나 Broker API 호출 지점이 생기기 전까지는 복잡한 Budget 클래스를 먼저 만들지 않는다.

@@ -2,7 +2,6 @@ package com.stock.risk;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
-import com.stock.harness.HarnessProperties;
 import com.stock.portfolio.PortfolioSnapshot;
 import org.springframework.stereotype.Component;
 
@@ -10,10 +9,10 @@ import java.util.Optional;
 
 @Component
 public class RiskGuard {
-    private final HarnessProperties harnessProperties;
+    private final RiskProperties riskProperties;
 
-    public RiskGuard(HarnessProperties harnessProperties) {
-        this.harnessProperties = harnessProperties;
+    public RiskGuard(RiskProperties riskProperties) {
+        this.riskProperties = riskProperties;
     }
 
     public RiskCheckResult validate(
@@ -59,7 +58,7 @@ public class RiskGuard {
         }
 
         long maxOrderAmountKrw = (long) (
-                portfolioSnapshot.totalAssetAmountKrw() * harnessProperties.maxOrderRatio()
+                portfolioSnapshot.totalAssetAmountKrw() * riskProperties.maxOrderRatio()
         );
 
         if (decision.estimatedOrderAmountKrw() > maxOrderAmountKrw) {
@@ -71,7 +70,7 @@ public class RiskGuard {
                             + ", maxOrderAmountKrw="
                             + maxOrderAmountKrw
                             + ", maxOrderRatio="
-                            + harnessProperties.maxOrderRatio()
+                            + riskProperties.maxOrderRatio()
             );
         }
 
@@ -80,7 +79,7 @@ public class RiskGuard {
         long expectedPositionAmountKrw =
                 currentPositionMarketValueKrw + decision.estimatedOrderAmountKrw();
         long maxPositionAmountKrw = (long) (
-                portfolioSnapshot.totalAssetAmountKrw() * harnessProperties.maxPositionRatio()
+                portfolioSnapshot.totalAssetAmountKrw() * riskProperties.maxPositionRatio()
         );
 
         if (expectedPositionAmountKrw > maxPositionAmountKrw) {
@@ -92,7 +91,7 @@ public class RiskGuard {
                             + ", maxPositionAmountKrw="
                             + maxPositionAmountKrw
                             + ", maxPositionRatio="
-                            + harnessProperties.maxPositionRatio()
+                            + riskProperties.maxPositionRatio()
             );
         }
 

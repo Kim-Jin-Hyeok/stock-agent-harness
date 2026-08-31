@@ -12,6 +12,7 @@ import com.stock.portfolio.PortfolioService;
 import com.stock.portfolio.PortfolioSnapshotStore;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskGuard;
+import com.stock.risk.RiskProperties;
 import com.stock.trade.TradeExecutor;
 import com.stock.trade.TradeHistoryService;
 import com.stock.trade.TradeStatus;
@@ -26,12 +27,13 @@ import static org.mockito.Mockito.mock;
 class InvestmentHarnessTest {
 
     private final HarnessProperties harnessProperties = new HarnessProperties(
-            10,
-            0.1,
-            0.3
+            10
     );
     private final HarnessProperties failHarnessProperties = new HarnessProperties(
-            4,
+            4
+    );
+
+    private final RiskProperties riskProperties = new RiskProperties(
             0.1,
             0.3
     );
@@ -40,7 +42,7 @@ class InvestmentHarnessTest {
     private final HarnessRunSnapshotJsonConverter harnessRunSnapshotJsonConverter =
             mock(HarnessRunSnapshotJsonConverter.class);
     private final HarnessStepRepository harnessStepRepository = mock(HarnessStepRepository.class);
-    private final RiskGuard riskGuard = new RiskGuard(harnessProperties);
+    private final RiskGuard riskGuard = new RiskGuard(riskProperties);
     private final PortfolioSnapshotStore store = new PortfolioSnapshotStore();
     private final PortfolioService portfolioService = new PortfolioService(store);
     private final TradeHistoryService tradeHistoryService = new TradeHistoryService(mock(TradeRecordRepository.class));

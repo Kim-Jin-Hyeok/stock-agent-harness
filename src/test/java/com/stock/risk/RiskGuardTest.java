@@ -2,7 +2,6 @@ package com.stock.risk;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
-import com.stock.harness.HarnessProperties;
 import com.stock.portfolio.PortfolioPosition;
 import com.stock.portfolio.PortfolioSnapshot;
 import org.junit.jupiter.api.Test;
@@ -12,14 +11,12 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class RiskGuardTest {
-
-    private final HarnessProperties harnessProperties = new HarnessProperties(
-            10,
+    private final RiskProperties riskProperties = new RiskProperties(
             0.1,
             0.3
     );
 
-    private final RiskGuard riskGuard = new RiskGuard(harnessProperties);
+    private final RiskGuard riskGuard = new RiskGuard(riskProperties);
 
     private final PortfolioSnapshot portfolioSnapshot = new PortfolioSnapshot(
             10_000_000L,
