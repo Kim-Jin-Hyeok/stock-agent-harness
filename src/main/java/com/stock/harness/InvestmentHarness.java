@@ -82,7 +82,11 @@ public class InvestmentHarness {
                     TradeResult::reason
             );
 
-            PortfolioSnapshot finalPortfolioSnapshot = portfolioService.getCurrentSnapshot();
+            PortfolioSnapshot finalPortfolioSnapshot = stepRecorder.record(
+                    HarnessStepType.LOAD_FINAL_PORTFOLIO,
+                    portfolioService::getCurrentSnapshot,
+                    "Final portfolio loading complete."
+            );
 
             List<HarnessStepResult> steps = recordSteps(
                     stepRecorder,

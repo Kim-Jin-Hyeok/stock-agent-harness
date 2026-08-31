@@ -84,7 +84,7 @@ class InvestmentHarnessTest {
         assertThat(result.decision().action()).isEqualTo(InvestmentAction.HOLD);
         assertThat(result.riskCheckResult().status()).isEqualTo(RiskCheckStatus.APPROVED);
         assertThat(result.tradeResult().status()).isEqualTo(TradeStatus.SKIPPED);
-        assertThat(result.steps().size()).isEqualTo(6);
+        assertThat(result.steps().size()).isEqualTo(7);
 
         List<HarnessStepType> stepTypes = result.steps().stream()
                 .map(HarnessStepResult::type)
@@ -96,6 +96,7 @@ class InvestmentHarnessTest {
                 HarnessStepType.RUN_INVESTMENT_AGENT,
                 HarnessStepType.VALIDATE_DECISION,
                 HarnessStepType.EXECUTE_TRADE,
+                HarnessStepType.LOAD_FINAL_PORTFOLIO,
                 HarnessStepType.CHECK_STEP_LIMIT
         );
 
@@ -127,6 +128,15 @@ class InvestmentHarnessTest {
         assertThat(executeTradeStep.startedAt()).isNotNull();
         assertThat(executeTradeStep.finishedAt()).isNotNull();
         assertThat(executeTradeStep.startedAt()).isBeforeOrEqualTo(executeTradeStep.finishedAt());
+
+        HarnessStepResult finalPortfolioStep = result.steps().get(5);
+
+        assertThat(finalPortfolioStep.type()).isEqualTo(HarnessStepType.LOAD_FINAL_PORTFOLIO);
+        assertThat(finalPortfolioStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
+        assertThat(finalPortfolioStep.message()).isEqualTo("Final portfolio loading complete.");
+        assertThat(finalPortfolioStep.startedAt()).isNotNull();
+        assertThat(finalPortfolioStep.finishedAt()).isNotNull();
+        assertThat(finalPortfolioStep.startedAt()).isBeforeOrEqualTo(finalPortfolioStep.finishedAt());
     }
 
     @Test
@@ -139,7 +149,7 @@ class InvestmentHarnessTest {
 
         assertThat(lastStep.type()).isEqualTo(HarnessStepType.CHECK_STEP_LIMIT);
         assertThat(lastStep.status()).isEqualTo(HarnessStepStatus.FAILED);
-        assertThat(lastStep.message()).isEqualTo("Executable steps: 5, final steps: 6, max steps: 4");
+        assertThat(lastStep.message()).isEqualTo("Executable steps: 6, final steps: 7, max steps: 4");
     }
 
     @Test

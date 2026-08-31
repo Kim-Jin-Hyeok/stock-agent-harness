@@ -448,9 +448,9 @@ Agent가 어떤 판단을 했는지보다 먼저 확인해야 할 것은 Harness
 - 개발용 `reset()` API를 운영에서도 유지할 것인가?
 - Snapshot JSON 값 중 나중에 검색이나 집계가 필요한 필드는 별도 컬럼 또는 Entity로 분리할 것인가?
 
-## Recommended Next Step
+## Current Step Recording Flow
 
-다음 단계는 `HarnessStepRecorder`의 실행 블록 계측 범위를 넓힐지 결정하는 것이다.
+현재 `HarnessStepRecorder`는 Harness Run의 주요 실행 블록을 감싸며 `startedAt`, `finishedAt`을 기록한다.
 
 현재 기본 단건 조회 API는 DB 기반 `HarnessRunDetail`로 이동했고, 메모리 기반 Run 이력 보관은 제거됐다.
 
@@ -470,23 +470,67 @@ HarnessStepResult
 -> finishedAt
 ```
 
-현재 `LOAD_PORTFOLIO`, `LOAD_MARKET`, `RUN_INVESTMENT_AGENT`, `VALIDATE_DECISION`, `EXECUTE_TRADE` Step은 `HarnessStepRecorder`가 실제 작업을 감싸며 `startedAt`, `finishedAt`을 기록한다.
-
-나머지 Step은 아직 결과를 보고 기록하는 방식이다. 이 경우 `HarnessStepRecorder`가 Step 기록 시점에 `recordedAt`을 한 번 생성하고, 그 값을 `startedAt`, `finishedAt`에 동일하게 넣는다.
-
-다음 작업에서는 이 방식을 다른 Step까지 확장할지 판단하는 것이 좋다.
+현재 Run의 Step 기록 순서는 다음과 같다.
 
 ```text
-1. CHECK_STEP_LIMIT도 Recorder가 감쌀 대상인가?
-2. Step limit 판정은 실행 블록 계측보다 별도 helper가 더 적절한가?
-3. Step limit 검사 시점이 현재 순서에서 맞는가?
+LOAD_PORTFOLIO
+LOAD_MARKET
+RUN_INVESTMENT_AGENT
+VALIDATE_DECISION
+EXECUTE_TRADE
+LOAD_FINAL_PORTFOLIO
+CHECK_STEP_LIMIT
 ```
 
-현재 추천 방향은 `CHECK_STEP_LIMIT`를 무리하게 실행 블록으로 감싸기보다, Step limit 판정 책임을 더 명확히 분리할지 검토하는 것이다.
+`LOAD_PORTFOLIO`는 Agent 판단에 사용될 초기 포트폴리오 상태를 조회한다.
 
-이유는 다음과 같다.
+`LOAD_FINAL_PORTFOLIO`는 거래 실행 이후 Run 결과로 저장할 최종 포트폴리오 상태를 조회한다.
 
-- 상태 조회, Agent 판단, Risk Guard 검증, 거래 실행에서 실행 블록 계측 방식이 먼저 검증됐다.
-- `CHECK_STEP_LIMIT`는 외부 작업 실행이라기보다 Harness 내부 판정에 가깝다.
-- 따라서 같은 Recorder API로 감싸기보다, Step limit 계산과 Step 기록의 책임을 분리하는 것이 더 자연스러울 수 있다.
-- 이후 Tool 호출, Broker API 호출, Retry 정책을 붙일 때 이 구조가 필요해진다.
+두 포트폴리오 조회는 의미가 다르므로 별도 Step으로 기록한다. 이후 포트폴리오 조회가 Broker API 또는 Cache/Adapter 계층으로 이동하더라도, Harness는 어떤 시점의 상태를 읽었는지 Step 이력으로 추적할 수 있다.
+
+`CHECK_STEP_LIMIT`는 외부 작업 실행이라기보다 Harness 내부 판정 Step이다. 따라서 `Supplier` 기반 실행 블록으로 감싸지 않고, 별도 helper에서 계산한 뒤 `completed` 또는 `failed` Step으로 기록한다.
+
+Step limit 판정은 `CHECK_STEP_LIMIT` Step 자신까지 포함한 최종 Step 수를 기준으로 한다.
+
+```text
+executableStepCount = CHECK_STEP_LIMIT 기록 전 Step 수
+finalStepCount = executableStepCount + 1
+stepLimitExceeded = finalStepCount > maxSteps
+```
+
+예를 들어 현재 정상 실행 흐름은 `CHECK_STEP_LIMIT` 이전에 6개 Step을 기록하고, 최종 Step 수는 7개가 된다.
+
+```text
+Executable steps: 6, final steps: 7, max steps: 4
+```
+
+## Recommended Next Step
+
+다음 단계는 Harness가 통제할 실행 제약을 Step 이력과 연결하는 것이다.
+
+현재 Harness는 `maxSteps`를 통해 Run의 전체 Step 수를 제한한다. 하지만 장기 목표에서는 Step 수뿐 아니라 Tool 호출 수, Broker API 호출 수, Cache 사용 여부, Rate Limit도 Harness가 관리해야 한다.
+
+다음 작업에서는 아직 실제 Tool Calling이나 Broker API를 붙이지 말고, 가장 작은 단위로 `Run Budget` 개념을 도입할지 검토하는 것이 좋다.
+
+판단해야 할 질문은 다음과 같다.
+
+```text
+1. maxSteps 외에 Run 단위로 제한해야 할 값은 무엇인가?
+2. 지금 당장 apiCallLimit 같은 값을 HarnessProperties에 추가할 필요가 있는가?
+3. 실제 API 호출이 없는 현재 단계에서 Budget을 코드로 만들면 과한 추상화인가?
+4. 우선 문서와 테스트 기준만 정리하고, Tool 계층이 생긴 뒤 구현하는 편이 나은가?
+```
+
+현재 추천 방향은 바로 복잡한 Budget 클래스를 만들기보다, 다음 작은 단계로 `HarnessProperties`의 책임을 정리하는 것이다.
+
+`HarnessProperties`는 현재 다음 값을 가진다.
+
+```text
+maxSteps
+maxOrderRatio
+maxPositionRatio
+```
+
+여기서 `maxSteps`는 Harness 실행 통제 값이고, `maxOrderRatio`, `maxPositionRatio`는 Risk Guard 정책 값이다.
+
+다음 설계에서는 이 값들이 한 record에 함께 있는 것이 적절한지, 또는 Harness 실행 제약과 Risk Rule을 분리해야 하는지 검토한다.
