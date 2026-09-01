@@ -638,21 +638,57 @@ allowedTools=[GET_PORTFOLIO, GET_MARKET]
 
 아직 Tool 실행기가 없고, 기본 생성 흐름은 `HarnessAllowedTools.readOnly()`로 고정되어 있기 때문이다.
 
+## Harness Tool Request
+
+`HarnessToolRequest`는 Agent 또는 Agent Loop가 호출하고 싶은 Tool을 표현한다.
+
+```text
+src/main/java/com/stock/harness/tool/HarnessToolRequest.java
+```
+
+현재는 다음 값만 가진다.
+
+```text
+type
+```
+
+`HarnessAllowedTools`와 `HarnessToolRequest`는 서로 다른 의미를 가진다.
+
+```text
+HarnessAllowedTools
+-> 이번 Run에서 무엇이 허용되어 있는가
+
+HarnessToolRequest
+-> 이번에 무엇을 호출하고 싶은가
+```
+
+현재는 실제 Tool 실행을 하지 않는다.
+
+따라서 `HarnessToolRequest`는 Tool 실행기가 아니라, 이후 권한 판정과 Tool 호출 기록으로 연결될 요청 모델이다.
+
+다음 단계에서는 이 요청을 `HarnessAllowedTools.allows(request.type())`로 판정할 수 있다.
+
+```text
+HarnessToolRequest(type)
+-> HarnessAllowedTools.allows(type)
+-> allowed / denied
+```
+
 ## Recommended Next Step
 
-다음 단계는 Agent에게 허용 Tool 목록을 어떻게 활용하게 할지 판단하는 것이다.
+다음 단계는 Tool 요청의 허용 여부를 어떤 모델로 표현할지 판단하는 것이다.
 
 현재 Harness는 `maxSteps`를 통해 Run의 전체 Step 수를 제한한다. 장기 목표에서는 Step 수뿐 아니라 Tool 호출 수, Broker API 호출 수, Cache 사용 여부, Rate Limit도 Harness가 관리해야 한다.
 
-다음 작업에서는 아직 실제 Tool Calling이나 Broker API를 붙이지 말고, Agent가 허용 Tool 목록을 보고 판단 흐름을 바꾸는 최소 연결을 검토하는 것이 좋다.
+다음 작업에서는 아직 실제 Tool Calling이나 Broker API를 붙이지 말고, `HarnessToolRequest`가 허용됐는지 거부됐는지를 표현하는 최소 결과 모델을 검토하는 것이 좋다.
 
 판단해야 할 질문은 다음과 같다.
 
 ```text
-1. Agent가 allowedTools를 보고 어떤 판단을 달리할 수 있는가?
-2. 허용되지 않은 Tool이 필요하면 Agent는 HOLD를 해야 하는가?
-3. Tool 호출 없이 reason에만 남기는 현재 수준으로 충분한가?
-4. 다음 단계에서 Tool 실행 요청 모델을 만들 필요가 있는가?
+1. Tool 요청 허용 결과는 boolean이면 충분한가?
+2. denied일 때 reasonCode와 reason이 필요한가?
+3. 허용 판정 결과를 Step 이력에 남겨야 하는가?
+4. Tool 실행 결과와 Tool 허용 판정 결과는 분리해야 하는가?
 ```
 
 설정 책임은 현재 다음처럼 분리되어 있다.
@@ -688,4 +724,4 @@ enabled
 
 현재 추천 방향은 바로 Tool 실행기를 만들지 않는 것이다.
 
-아직 Agent가 Tool을 선택하거나 호출하지 않는다. 따라서 다음 구현 단계는 실제 Tool 실행보다, 허용 Tool 목록 모델이 값 객체로서 안전한지 먼저 정리하는 것이 더 자연스럽다.
+아직 Agent가 Tool을 선택하거나 호출하지 않는다. 따라서 다음 구현 단계는 실제 Tool 실행보다, Tool 요청 허용 판정 결과를 값 객체로 정의하는 것이 더 자연스럽다.
