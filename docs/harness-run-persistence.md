@@ -666,29 +666,97 @@ HarnessToolRequest
 
 따라서 `HarnessToolRequest`는 Tool 실행기가 아니라, 이후 권한 판정과 Tool 호출 기록으로 연결될 요청 모델이다.
 
-다음 단계에서는 이 요청을 `HarnessAllowedTools.allows(request.type())`로 판정할 수 있다.
+이 요청은 `HarnessToolAuthorizer`에서 `HarnessAllowedTools.allows(request.type())`로 판정한다.
 
 ```text
 HarnessToolRequest(type)
--> HarnessAllowedTools.allows(type)
--> allowed / denied
+-> HarnessToolAuthorizer.authorize(...)
+-> HarnessToolAuthorizationResult
+```
+
+## Harness Tool Authorization
+
+`HarnessToolAuthorizer`는 Agent 또는 Agent Loop가 요청한 Tool이 이번 Run에서 허용된 Tool인지 판정한다.
+
+패키지 경로:
+
+```text
+src/main/java/com/stock/harness/tool/HarnessToolAuthorizer.java
+```
+
+현재 판정 흐름은 다음과 같다.
+
+```text
+HarnessAllowedTools
+HarnessToolRequest
+-> HarnessToolAuthorizer.authorize(...)
+-> HarnessToolAuthorizationResult
+```
+
+허용된 Tool이면 다음 결과를 반환한다.
+
+```text
+status = ALLOWED
+reasonCode = TOOL_ALLOWED
+```
+
+허용되지 않은 Tool이면 다음 결과를 반환한다.
+
+```text
+status = DENIED
+reasonCode = TOOL_NOT_ALLOWED
+```
+
+`HarnessToolAuthorizationResult`는 단순 boolean 대신 `status`, `type`, `reasonCode`, `reason`을 가진다.
+
+패키지 경로:
+
+```text
+src/main/java/com/stock/harness/tool/HarnessToolAuthorizationResult.java
+src/main/java/com/stock/harness/tool/HarnessToolAuthorizationStatus.java
+src/main/java/com/stock/harness/tool/HarnessToolAuthorizationReasonCode.java
+```
+
+boolean만 반환하지 않는 이유는 Harness 관점에서 "거부됐다"보다 "왜 거부됐는지"가 더 중요하기 때문이다.
+
+예를 들어 Agent가 허용되지 않은 Tool을 요청했다면 Harness는 다음 정보를 남길 수 있어야 한다.
+
+```text
+requestedTool = GET_PORTFOLIO
+status = DENIED
+reasonCode = TOOL_NOT_ALLOWED
+reason = Harness tool is not allowed.
+```
+
+이 정보는 이후 Agent가 다음 판단에 활용하거나, Run 상세 이력에서 실패 원인을 추적할 때 사용할 수 있다.
+
+현재 단계에서는 실제 Tool 실행을 하지 않는다.
+
+권한 판정과 Tool 실행은 분리한다.
+
+```text
+Tool authorization
+-> 이 Tool을 호출해도 되는가?
+
+Tool execution
+-> 허용된 Tool을 실제로 실행했는가?
 ```
 
 ## Recommended Next Step
 
-다음 단계는 Tool 요청의 허용 여부를 어떤 모델로 표현할지 판단하는 것이다.
+다음 단계는 Tool 권한 판정 결과를 Harness 실행 이력에 어떻게 남길지 판단하는 것이다.
 
 현재 Harness는 `maxSteps`를 통해 Run의 전체 Step 수를 제한한다. 장기 목표에서는 Step 수뿐 아니라 Tool 호출 수, Broker API 호출 수, Cache 사용 여부, Rate Limit도 Harness가 관리해야 한다.
 
-다음 작업에서는 아직 실제 Tool Calling이나 Broker API를 붙이지 말고, `HarnessToolRequest`가 허용됐는지 거부됐는지를 표현하는 최소 결과 모델을 검토하는 것이 좋다.
+현재는 `HarnessToolRequest`와 `HarnessToolAuthorizationResult`가 있으므로, 다음 작업에서는 아직 실제 Tool Calling이나 Broker API를 붙이지 말고 권한 판정 결과를 어디에 기록할지 검토하는 것이 좋다.
 
 판단해야 할 질문은 다음과 같다.
 
 ```text
-1. Tool 요청 허용 결과는 boolean이면 충분한가?
-2. denied일 때 reasonCode와 reason이 필요한가?
-3. 허용 판정 결과를 Step 이력에 남겨야 하는가?
-4. Tool 실행 결과와 Tool 허용 판정 결과는 분리해야 하는가?
+1. Tool 권한 판정 결과를 HarnessStep으로 기록할 것인가?
+2. Tool 호출 이력을 Step과 별도 모델로 분리할 것인가?
+3. allowed 결과도 기록할 것인가, denied 결과만 기록할 것인가?
+4. Tool 실행 결과와 Tool 권한 판정 결과는 어디까지 분리할 것인가?
 ```
 
 설정 책임은 현재 다음처럼 분리되어 있다.
@@ -724,4 +792,4 @@ enabled
 
 현재 추천 방향은 바로 Tool 실행기를 만들지 않는 것이다.
 
-아직 Agent가 Tool을 선택하거나 호출하지 않는다. 따라서 다음 구현 단계는 실제 Tool 실행보다, Tool 요청 허용 판정 결과를 값 객체로 정의하는 것이 더 자연스럽다.
+아직 Agent가 Tool을 선택하거나 호출하지 않는다. 따라서 다음 구현 단계는 실제 Tool 실행보다, Tool 권한 판정 결과를 Run 이력에서 관찰 가능하게 만들지 여부를 먼저 결정하는 것이 더 자연스럽다.
