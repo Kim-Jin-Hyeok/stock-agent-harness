@@ -22,7 +22,7 @@ class HarnessStepRepositoryTest {
         // given
         harnessStepRepository.save(completedStepEntity("run-1", 2));
         harnessStepRepository.save(completedStepEntity("run-2", 1));
-        harnessStepRepository.save(completedStepEntity("run-1", 1));
+        harnessStepRepository.save(authorizedToolRequestStepEntity("run-1", 1));
 
         // when
         List<HarnessStepEntity> entities = harnessStepRepository.findAllByRunIdOrderByStepOrderAsc("run-1");
@@ -35,6 +35,12 @@ class HarnessStepRepositoryTest {
         assertThat(entities)
                 .extracting(HarnessStepEntity::getStepOrder)
                 .containsExactly(1, 2);
+        assertThat(entities)
+                .extracting(HarnessStepEntity::getType)
+                .containsExactly(
+                        HarnessStepType.AUTHORIZE_TOOL_REQUEST,
+                        HarnessStepType.CHECK_STEP_LIMIT
+                );
     }
 
     private HarnessStepEntity completedStepEntity(String runId, Integer stepOrder) {
@@ -54,6 +60,16 @@ class HarnessStepRepositoryTest {
                 HarnessStepType.RUN_FAILED,
                 HarnessStepStatus.FAILED,
                 "Test failed step."
+        );
+    }
+
+    private HarnessStepEntity authorizedToolRequestStepEntity(String runId, Integer stepOrder) {
+        return stepEntity(
+                runId,
+                stepOrder,
+                HarnessStepType.AUTHORIZE_TOOL_REQUEST,
+                HarnessStepStatus.COMPLETED,
+                "Tool authorization completed."
         );
     }
 
