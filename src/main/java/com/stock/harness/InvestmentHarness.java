@@ -3,7 +3,6 @@ package com.stock.harness;
 import com.stock.agent.InvestmentAgent;
 import com.stock.agent.InvestmentDecision;
 import com.stock.harness.tool.HarnessAllowedTools;
-import com.stock.harness.tool.HarnessToolType;
 import com.stock.market.MarketService;
 import com.stock.market.MarketSnapshot;
 import com.stock.portfolio.PortfolioService;
@@ -154,12 +153,7 @@ public class InvestmentHarness {
                 harnessProperties.maxSteps()
         );
 
-        HarnessAllowedTools allowedTools = new HarnessAllowedTools(
-                List.of(
-                        HarnessToolType.GET_PORTFOLIO,
-                        HarnessToolType.GET_MARKET
-                )
-        );
+        HarnessAllowedTools allowedTools = HarnessAllowedTools.readOnly();
 
         return new HarnessRunContext(
                 runId,

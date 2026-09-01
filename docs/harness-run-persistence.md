@@ -577,21 +577,68 @@ GET_MARKET
 
 따라서 현재 단계의 `HarnessToolType`은 "Agent에게 어떤 조회 Tool을 열 수 있는가"를 표현하는 최소 모델로 본다.
 
+`HarnessAllowedTools`는 이번 Run에서 Agent에게 허용된 Tool 목록을 표현한다.
+
+```text
+src/main/java/com/stock/harness/tool/HarnessAllowedTools.java
+```
+
+현재는 다음 값을 가진다.
+
+```text
+types
+```
+
+`allows(type)`는 특정 Tool이 이번 Run에서 허용되는지 확인한다.
+
+기본 읽기 전용 Tool 목록은 `HarnessAllowedTools.readOnly()`에서 생성한다.
+
+```text
+HarnessAllowedTools.readOnly()
+-> GET_PORTFOLIO
+-> GET_MARKET
+```
+
+이렇게 두는 이유는 `InvestmentHarness`가 구체적인 Tool enum 목록을 직접 만들지 않도록 하기 위해서다.
+
+`InvestmentHarness`는 "기본 읽기 전용 Tool을 허용한다"는 의도만 표현하고, 실제 기본 목록은 `HarnessAllowedTools`가 관리한다.
+
+현재 `HarnessRunContext`는 Run 실행 제한과 허용 Tool 목록을 함께 가진다.
+
+```text
+HarnessRunContext
+-> runId
+-> limits
+-> allowedTools
+-> portfolioSnapshot
+-> marketSnapshot
+```
+
+`InvestmentAgent`는 아직 Tool을 직접 호출하지 않는다.
+
+현재는 `context.allowedTools().types()`를 읽어 판단 reason에 남기는 수준이다.
+
+```text
+allowedTools=[GET_PORTFOLIO, GET_MARKET]
+```
+
+이는 실제 Tool Calling 구현 전, Harness가 정한 Tool 권한 목록이 Agent까지 전달되는지 확인하기 위한 연결 단계다.
+
 ## Recommended Next Step
 
-다음 단계는 Tool 타입 정의를 실제 Run Context와 연결할지 판단하는 것이다.
+다음 단계는 `HarnessAllowedTools`의 불변성 보장 방식을 정리할지 판단하는 것이다.
 
 현재 Harness는 `maxSteps`를 통해 Run의 전체 Step 수를 제한한다. 장기 목표에서는 Step 수뿐 아니라 Tool 호출 수, Broker API 호출 수, Cache 사용 여부, Rate Limit도 Harness가 관리해야 한다.
 
-다음 작업에서는 아직 실제 Tool Calling이나 Broker API를 붙이지 말고, 이번 Run에서 허용된 Tool 목록을 `HarnessRunContext`에 포함할지 검토하는 것이 좋다.
+다음 작업에서는 아직 실제 Tool Calling이나 Broker API를 붙이지 말고, `HarnessAllowedTools`가 외부에서 전달받은 List를 그대로 보관해도 되는지 검토하는 것이 좋다.
 
 판단해야 할 질문은 다음과 같다.
 
 ```text
-1. Agent가 이번 Run에서 사용할 수 있는 Tool 목록을 어디서 받아야 하는가?
-2. 허용 Tool 목록은 HarnessRunContext에 들어가야 하는가?
-3. 단순 List<HarnessToolType>으로 충분한가, 별도 HarnessAllowedTools 모델이 필요한가?
-4. Tool 호출 권한과 Tool 호출 횟수 제한은 같은 모델에서 관리해야 하는가?
+1. HarnessAllowedTools 생성 시 전달된 List를 방어적으로 복사해야 하는가?
+2. 중복 Tool을 허용해도 되는가?
+3. 빈 Tool 목록을 허용할 것인가?
+4. types()로 내부 List를 그대로 노출해도 되는가?
 ```
 
 설정 책임은 현재 다음처럼 분리되어 있다.
@@ -627,4 +674,4 @@ enabled
 
 현재 추천 방향은 바로 Tool 실행기를 만들지 않는 것이다.
 
-아직 Agent가 Tool을 선택하거나 호출하지 않는다. 따라서 다음 구현 단계는 실제 Tool 실행보다, Harness가 Run Context에 허용 Tool 목록을 담아 Agent에게 전달할 수 있는 구조를 검토하는 것이 더 자연스럽다.
+아직 Agent가 Tool을 선택하거나 호출하지 않는다. 따라서 다음 구현 단계는 실제 Tool 실행보다, 허용 Tool 목록 모델이 값 객체로서 안전한지 먼저 정리하는 것이 더 자연스럽다.

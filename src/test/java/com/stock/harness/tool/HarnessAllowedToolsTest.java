@@ -2,8 +2,6 @@ package com.stock.harness.tool;
 
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
-
 import static org.assertj.core.api.Assertions.assertThat;
 
 class HarnessAllowedToolsTest {
@@ -17,12 +15,7 @@ class HarnessAllowedToolsTest {
     }
 
     private HarnessAllowedTools readOnlyAllowedTools() {
-        return new HarnessAllowedTools(
-                List.of(
-                        getPortfolioTool(),
-                        getMarketTool()
-                )
-        );
+        return HarnessAllowedTools.readOnly();
     }
 
     private HarnessToolType getPortfolioTool() {
