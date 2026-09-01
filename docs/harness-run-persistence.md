@@ -742,21 +742,69 @@ Tool execution
 -> 허용된 Tool을 실제로 실행했는가?
 ```
 
+## Harness Tool Authorization Step
+
+Tool 권한 판정 결과를 Harness 실행 이력에서 표현하기 위해 `AUTHORIZE_TOOL_REQUEST` Step 타입을 정의한다.
+
+패키지 경로:
+
+```text
+src/main/java/com/stock/harness/HarnessStepType.java
+```
+
+현재 Step 타입 목록에는 다음 값이 포함된다.
+
+```text
+AUTHORIZE_TOOL_REQUEST
+```
+
+이 Step은 Agent 또는 Agent Loop가 요청한 Tool에 대해 Harness가 권한 판정을 수행했다는 사실을 표현한다.
+
+예상 흐름은 다음과 같다.
+
+```text
+HarnessToolRequest
+-> HarnessToolAuthorizer.authorize(...)
+-> HarnessToolAuthorizationResult
+-> HarnessStepType.AUTHORIZE_TOOL_REQUEST
+```
+
+현재 단계에서는 이 Step 타입을 실제 `InvestmentHarness.run()` 실행 순서에 넣지 않는다.
+
+이유는 아직 Agent가 실제로 `HarnessToolRequest`를 생성하거나 Tool을 선택하는 Agent Loop가 없기 때문이다.
+
+지금 `InvestmentAgent.decide(context)`는 Tool을 호출하지 않고, Harness가 전달한 Context를 읽어 최종 투자 판단을 반환한다. 이 상태에서 `AUTHORIZE_TOOL_REQUEST`를 실행 흐름에 넣으려면 Harness가 가짜 Tool 요청을 만들어야 한다.
+
+그렇게 하면 Step 이력에는 Tool 권한 판정이 남지만, 실제 Agent가 Tool을 요청한 것은 아니므로 Run 이력의 의미가 흐려진다.
+
+따라서 현재 단계에서는 다음까지만 검증한다.
+
+```text
+1. AUTHORIZE_TOOL_REQUEST Step 타입을 코드에 정의한다.
+2. HarnessStepEntity가 해당 타입을 저장할 수 있다.
+3. HarnessStepRepository가 해당 타입을 조회할 수 있다.
+4. 실제 Run 실행 순서는 아직 변경하지 않는다.
+```
+
 ## Recommended Next Step
 
-다음 단계는 Tool 권한 판정 결과를 Harness 실행 이력에 어떻게 남길지 판단하는 것이다.
+다음 단계는 `AUTHORIZE_TOOL_REQUEST` Step을 실제 실행 흐름에 넣기 전에, Agent가 Tool 요청을 만들 수 있는 최소 흐름을 설계하는 것이다.
 
 현재 Harness는 `maxSteps`를 통해 Run의 전체 Step 수를 제한한다. 장기 목표에서는 Step 수뿐 아니라 Tool 호출 수, Broker API 호출 수, Cache 사용 여부, Rate Limit도 Harness가 관리해야 한다.
 
-현재는 `HarnessToolRequest`와 `HarnessToolAuthorizationResult`가 있으므로, 다음 작업에서는 아직 실제 Tool Calling이나 Broker API를 붙이지 말고 권한 판정 결과를 어디에 기록할지 검토하는 것이 좋다.
+현재는 `HarnessToolRequest`, `HarnessToolAuthorizationResult`, `HarnessToolAuthorizer`, `AUTHORIZE_TOOL_REQUEST` Step 타입이 있다.
+
+다만 아직 Agent가 Tool을 선택하거나 요청하지 않는다.
+
+따라서 다음 작업에서는 실제 Broker API나 복잡한 Tool Executor를 붙이지 말고, Agent가 "어떤 Tool을 요청했다"는 사실을 표현하는 최소 흐름을 검토하는 것이 좋다.
 
 판단해야 할 질문은 다음과 같다.
 
 ```text
-1. Tool 권한 판정 결과를 HarnessStep으로 기록할 것인가?
-2. Tool 호출 이력을 Step과 별도 모델로 분리할 것인가?
-3. allowed 결과도 기록할 것인가, denied 결과만 기록할 것인가?
-4. Tool 실행 결과와 Tool 권한 판정 결과는 어디까지 분리할 것인가?
+1. Agent가 Tool 요청을 반환해야 하는가, 아니면 Agent Loop가 중간 상태로 만들어야 하는가?
+2. HarnessToolRequest는 계속 com.stock.harness.tool 패키지에 둘 것인가?
+3. Tool 요청이 허용되면 바로 실행할 것인가, 아니면 우선 Step 기록까지만 할 것인가?
+4. Tool 권한 판정 결과를 Agent가 다음 판단에 다시 사용할 수 있어야 하는가?
 ```
 
 설정 책임은 현재 다음처럼 분리되어 있다.
@@ -792,4 +840,4 @@ enabled
 
 현재 추천 방향은 바로 Tool 실행기를 만들지 않는 것이다.
 
-아직 Agent가 Tool을 선택하거나 호출하지 않는다. 따라서 다음 구현 단계는 실제 Tool 실행보다, Tool 권한 판정 결과를 Run 이력에서 관찰 가능하게 만들지 여부를 먼저 결정하는 것이 더 자연스럽다.
+아직 Agent가 Tool을 선택하거나 호출하지 않는다. 따라서 다음 구현 단계는 실제 Tool 실행보다, Agent의 Tool 요청을 표현하는 최소 Agent Loop 또는 요청 모델을 먼저 설계하는 것이 더 자연스럽다.
