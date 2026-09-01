@@ -20,6 +20,9 @@ class HarnessToolAuthorizerTest {
         );
 
         assertThat(result.status()).isEqualTo(HarnessToolAuthorizationStatus.ALLOWED);
+        assertThat(result.type()).isEqualTo(getMarketTool());
+        assertThat(result.reasonCode()).isEqualTo(HarnessToolAuthorizationReasonCode.TOOL_ALLOWED);
+        assertThat(result.reason()).isEqualTo(toolAllowedReason());
     }
 
     @Test
@@ -34,7 +37,9 @@ class HarnessToolAuthorizerTest {
         );
 
         assertThat(result.status()).isEqualTo(HarnessToolAuthorizationStatus.DENIED);
+        assertThat(result.type()).isEqualTo(getPortfolioTool());
         assertThat(result.reasonCode()).isEqualTo(HarnessToolAuthorizationReasonCode.TOOL_NOT_ALLOWED);
+        assertThat(result.reason()).isEqualTo(toolNotAllowedReason());
     }
 
     private HarnessToolAuthorizer authorizer() {
@@ -65,5 +70,13 @@ class HarnessToolAuthorizerTest {
 
     private HarnessToolType getMarketTool() {
         return HarnessToolType.GET_MARKET;
+    }
+
+    private String toolAllowedReason() {
+        return "Harness tool authorization allowed.";
+    }
+
+    private String toolNotAllowedReason() {
+        return "Harness tool is not allowed.";
     }
 }
