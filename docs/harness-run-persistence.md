@@ -624,7 +624,7 @@ allowedTools=[GET_PORTFOLIO, GET_MARKET]
 
 이는 실제 Tool Calling 구현 전, Harness가 정한 Tool 권한 목록이 Agent까지 전달되는지 확인하기 위한 연결 단계다.
 
-## Recommended Next Step
+## HarnessAllowedTools Immutability
 
 `HarnessAllowedTools`는 생성 시 전달받은 List를 `List.copyOf(types)`로 복사한다.
 
