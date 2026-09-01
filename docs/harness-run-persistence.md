@@ -626,19 +626,33 @@ allowedTools=[GET_PORTFOLIO, GET_MARKET]
 
 ## Recommended Next Step
 
-다음 단계는 `HarnessAllowedTools`의 불변성 보장 방식을 정리할지 판단하는 것이다.
+`HarnessAllowedTools`는 생성 시 전달받은 List를 `List.copyOf(types)`로 복사한다.
+
+이를 통해 생성 이후 원본 List가 변경되어도 Run에 허용된 Tool 목록은 바뀌지 않는다.
+
+`types()`로 반환되는 List도 수정 불가능한 List다.
+
+따라서 `HarnessAllowedTools`는 현재 Tool 목록 값 객체로서 필요한 최소 불변성을 가진다.
+
+다만 현재는 중복 Tool이나 빈 Tool 목록은 별도로 막지 않는다.
+
+아직 Tool 실행기가 없고, 기본 생성 흐름은 `HarnessAllowedTools.readOnly()`로 고정되어 있기 때문이다.
+
+## Recommended Next Step
+
+다음 단계는 Agent에게 허용 Tool 목록을 어떻게 활용하게 할지 판단하는 것이다.
 
 현재 Harness는 `maxSteps`를 통해 Run의 전체 Step 수를 제한한다. 장기 목표에서는 Step 수뿐 아니라 Tool 호출 수, Broker API 호출 수, Cache 사용 여부, Rate Limit도 Harness가 관리해야 한다.
 
-다음 작업에서는 아직 실제 Tool Calling이나 Broker API를 붙이지 말고, `HarnessAllowedTools`가 외부에서 전달받은 List를 그대로 보관해도 되는지 검토하는 것이 좋다.
+다음 작업에서는 아직 실제 Tool Calling이나 Broker API를 붙이지 말고, Agent가 허용 Tool 목록을 보고 판단 흐름을 바꾸는 최소 연결을 검토하는 것이 좋다.
 
 판단해야 할 질문은 다음과 같다.
 
 ```text
-1. HarnessAllowedTools 생성 시 전달된 List를 방어적으로 복사해야 하는가?
-2. 중복 Tool을 허용해도 되는가?
-3. 빈 Tool 목록을 허용할 것인가?
-4. types()로 내부 List를 그대로 노출해도 되는가?
+1. Agent가 allowedTools를 보고 어떤 판단을 달리할 수 있는가?
+2. 허용되지 않은 Tool이 필요하면 Agent는 HOLD를 해야 하는가?
+3. Tool 호출 없이 reason에만 남기는 현재 수준으로 충분한가?
+4. 다음 단계에서 Tool 실행 요청 모델을 만들 필요가 있는가?
 ```
 
 설정 책임은 현재 다음처럼 분리되어 있다.

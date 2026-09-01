@@ -5,6 +5,10 @@ import java.util.List;
 public record HarnessAllowedTools(
         List<HarnessToolType> types
 ) {
+    public HarnessAllowedTools {
+        types = List.copyOf(types);
+    }
+
     public boolean allows(HarnessToolType type) {
         return types.contains(type);
     }
