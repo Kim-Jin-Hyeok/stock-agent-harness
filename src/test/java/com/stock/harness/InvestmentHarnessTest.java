@@ -1,11 +1,14 @@
 package com.stock.harness;
 
+import com.stock.agent.AgentNextAction;
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentAgent;
 import com.stock.agent.InvestmentDecision;
 import com.stock.harness.persistence.HarnessRunRepository;
 import com.stock.harness.persistence.HarnessRunSnapshotJsonConverter;
 import com.stock.harness.persistence.HarnessStepRepository;
+import com.stock.harness.tool.HarnessToolRequest;
+import com.stock.harness.tool.HarnessToolType;
 import com.stock.market.MarketService;
 import com.stock.portfolio.PortfolioPosition;
 import com.stock.portfolio.PortfolioService;
@@ -305,6 +308,46 @@ class InvestmentHarnessTest {
         assertThat(position.quantity()).isEqualTo(5L);
     }
 
+    @Test
+    void runFailsWhenAgentRequestsToolAction() {
+        InvestmentHarness toolRequestingHarness = new InvestmentHarness(
+                riskGuard,
+                tradeExecutor,
+                portfolioService,
+                marketService,
+                harnessRunHistoryService,
+                new ToolRequestingInvestmentAgent(),
+                harnessProperties
+        );
+
+        HarnessRunResult result = toolRequestingHarness.run();
+
+        assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
+        assertThat(result.steps())
+                .extracting(HarnessStepResult::type)
+                .containsExactly(
+                        HarnessStepType.LOAD_PORTFOLIO,
+                        HarnessStepType.LOAD_MARKET,
+                        HarnessStepType.RUN_INVESTMENT_AGENT,
+                        HarnessStepType.RUN_FAILED
+                );
+
+        HarnessStepResult agentStep = result.steps().get(2);
+
+        assertThat(agentStep.status()).isEqualTo(HarnessStepStatus.FAILED);
+        assertThat(agentStep.message()).isEqualTo(
+                "Tool request action is not supported yet. type=GET_PORTFOLIO"
+        );
+
+        HarnessStepResult failedStep = result.steps().getLast();
+
+        assertThat(failedStep.type()).isEqualTo(HarnessStepType.RUN_FAILED);
+        assertThat(failedStep.status()).isEqualTo(HarnessStepStatus.FAILED);
+        assertThat(failedStep.message()).isEqualTo(
+                "Tool request action is not supported yet. type=GET_PORTFOLIO"
+        );
+    }
+
     private static class BuyingInvestmentAgent extends InvestmentAgent {
         @Override
         public InvestmentDecision decide(HarnessRunContext context) {
@@ -348,6 +391,15 @@ class InvestmentHarnessTest {
         @Override
         public InvestmentDecision decide(HarnessRunContext context) {
             throw new IllegalStateException("Test agent failure");
+        }
+    }
+
+    private static class ToolRequestingInvestmentAgent extends InvestmentAgent {
+        @Override
+        public AgentNextAction next(HarnessRunContext context) {
+            return AgentNextAction.requestTool(
+                    new HarnessToolRequest(HarnessToolType.GET_PORTFOLIO)
+            );
         }
     }
 }

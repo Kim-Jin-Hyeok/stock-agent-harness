@@ -1,5 +1,7 @@
 package com.stock.harness;
 
+import com.stock.agent.AgentNextAction;
+import com.stock.agent.AgentNextActionType;
 import com.stock.agent.InvestmentAgent;
 import com.stock.agent.InvestmentDecision;
 import com.stock.harness.tool.HarnessAllowedTools;
@@ -61,7 +63,7 @@ public class InvestmentHarness {
 
             InvestmentDecision decision = stepRecorder.record(
                     HarnessStepType.RUN_INVESTMENT_AGENT,
-                    () -> investmentAgent.decide(context),
+                    () -> resolveFinalDecision(investmentAgent.next(context)),
                     InvestmentDecision::reason
             );
 
@@ -235,5 +237,15 @@ public class InvestmentHarness {
         } else {
             stepRecorder.completed(HarnessStepType.CHECK_STEP_LIMIT, stepLimitMessage);
         }
+    }
+
+    private InvestmentDecision resolveFinalDecision(AgentNextAction action) {
+        if (action.type() == AgentNextActionType.FINAL_DECISION) {
+            return action.investmentDecision();
+        }
+
+        throw new IllegalStateException(
+                "Tool request action is not supported yet. type=" + action.toolRequest().type()
+        );
     }
 }
