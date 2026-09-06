@@ -1,5 +1,8 @@
 package com.stock.harness.tool;
 
+import org.springframework.stereotype.Component;
+
+@Component
 public class HarnessToolAuthorizer {
 
     public HarnessToolAuthorizationResult authorize(

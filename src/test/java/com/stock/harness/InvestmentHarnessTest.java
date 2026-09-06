@@ -7,6 +7,7 @@ import com.stock.agent.InvestmentDecision;
 import com.stock.harness.persistence.HarnessRunRepository;
 import com.stock.harness.persistence.HarnessRunSnapshotJsonConverter;
 import com.stock.harness.persistence.HarnessStepRepository;
+import com.stock.harness.tool.HarnessToolAuthorizer;
 import com.stock.harness.tool.HarnessToolRequest;
 import com.stock.harness.tool.HarnessToolType;
 import com.stock.market.MarketService;
@@ -60,6 +61,7 @@ class InvestmentHarnessTest {
             harnessStepRepository
     );
     private final InvestmentAgent investmentAgent = new InvestmentAgent();
+    private final HarnessToolAuthorizer harnessToolAuthorizer = new HarnessToolAuthorizer();
 
     private final InvestmentHarness investmentHarness = new InvestmentHarness(
             riskGuard,
@@ -68,7 +70,8 @@ class InvestmentHarnessTest {
             marketService,
             harnessRunHistoryService,
             investmentAgent,
-            harnessProperties
+            harnessProperties,
+            harnessToolAuthorizer
     );
 
     private final InvestmentHarness failInvestmentHarness = new InvestmentHarness(
@@ -78,7 +81,8 @@ class InvestmentHarnessTest {
             marketService,
             harnessRunHistoryService,
             investmentAgent,
-            failHarnessProperties
+            failHarnessProperties,
+            harnessToolAuthorizer
     );
 
     @Test
@@ -171,7 +175,8 @@ class InvestmentHarnessTest {
                 marketService,
                 harnessRunHistoryService,
                 new FailingInvestmentAgent(),
-                harnessProperties
+                harnessProperties,
+                harnessToolAuthorizer
         );
 
         HarnessRunResult result = failingHarness.run();
@@ -205,7 +210,8 @@ class InvestmentHarnessTest {
                 marketService,
                 harnessRunHistoryService,
                 new BuyingInvestmentAgent(),
-                harnessProperties
+                harnessProperties,
+                harnessToolAuthorizer
         );
 
         HarnessRunResult result = successHarness.run();
@@ -244,7 +250,8 @@ class InvestmentHarnessTest {
                 marketService,
                 harnessRunHistoryService,
                 new OverLimitBuyingInvestmentAgent(),
-                harnessProperties
+                harnessProperties,
+                harnessToolAuthorizer
         );
 
         HarnessRunResult result = deniedHarness.run();
@@ -292,7 +299,8 @@ class InvestmentHarnessTest {
                 marketService,
                 harnessRunHistoryService,
                 new SellingInvestmentAgent(),
-                harnessProperties
+                harnessProperties,
+                harnessToolAuthorizer
         );
 
         HarnessRunResult result = sellHarness.run();
@@ -317,7 +325,8 @@ class InvestmentHarnessTest {
                 marketService,
                 harnessRunHistoryService,
                 new ToolRequestingInvestmentAgent(),
-                harnessProperties
+                harnessProperties,
+                harnessToolAuthorizer
         );
 
         HarnessRunResult result = toolRequestingHarness.run();
@@ -329,22 +338,29 @@ class InvestmentHarnessTest {
                         HarnessStepType.LOAD_PORTFOLIO,
                         HarnessStepType.LOAD_MARKET,
                         HarnessStepType.RUN_INVESTMENT_AGENT,
+                        HarnessStepType.AUTHORIZE_TOOL_REQUEST,
                         HarnessStepType.RUN_FAILED
                 );
 
         HarnessStepResult agentStep = result.steps().get(2);
 
-        assertThat(agentStep.status()).isEqualTo(HarnessStepStatus.FAILED);
+        assertThat(agentStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
         assertThat(agentStep.message()).isEqualTo(
-                "Tool request action is not supported yet. type=GET_PORTFOLIO"
+                "Requested tool. type=GET_PORTFOLIO"
         );
+
+        HarnessStepResult authorizationStep = result.steps().get(3);
+
+        assertThat(authorizationStep.type()).isEqualTo(HarnessStepType.AUTHORIZE_TOOL_REQUEST);
+        assertThat(authorizationStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
+        assertThat(authorizationStep.message()).isEqualTo("Harness tool authorization allowed.");
 
         HarnessStepResult failedStep = result.steps().getLast();
 
         assertThat(failedStep.type()).isEqualTo(HarnessStepType.RUN_FAILED);
         assertThat(failedStep.status()).isEqualTo(HarnessStepStatus.FAILED);
         assertThat(failedStep.message()).isEqualTo(
-                "Tool request action is not supported yet. type=GET_PORTFOLIO"
+                "Tool execution is not supported yet. type=GET_PORTFOLIO"
         );
     }
 

@@ -5,6 +5,9 @@ import com.stock.agent.AgentNextActionType;
 import com.stock.agent.InvestmentAgent;
 import com.stock.agent.InvestmentDecision;
 import com.stock.harness.tool.HarnessAllowedTools;
+import com.stock.harness.tool.HarnessToolAuthorizationResult;
+import com.stock.harness.tool.HarnessToolAuthorizationStatus;
+import com.stock.harness.tool.HarnessToolAuthorizer;
 import com.stock.market.MarketService;
 import com.stock.market.MarketSnapshot;
 import com.stock.portfolio.PortfolioService;
@@ -35,6 +38,7 @@ public class InvestmentHarness {
     private final HarnessRunHistoryService harnessRunHistoryService;
     private final InvestmentAgent investmentAgent;
     private final HarnessProperties harnessProperties;
+    private final HarnessToolAuthorizer harnessToolAuthorizer;
 
     public HarnessRunResult run() {
         LocalDateTime startedAt = LocalDateTime.now();
@@ -61,10 +65,16 @@ public class InvestmentHarness {
                     marketSnapshot
             );
 
-            InvestmentDecision decision = stepRecorder.record(
+            AgentNextAction agentNextAction = stepRecorder.record(
                     HarnessStepType.RUN_INVESTMENT_AGENT,
-                    () -> resolveFinalDecision(investmentAgent.next(context)),
-                    InvestmentDecision::reason
+                    () -> investmentAgent.next(context),
+                    this::agentNextActionMessage
+            );
+
+            InvestmentDecision decision = resolvedInvestmentDecision(
+                    agentNextAction,
+                    context,
+                    stepRecorder
             );
 
             RiskCheckResult riskCheckResult = stepRecorder.record(
@@ -239,13 +249,37 @@ public class InvestmentHarness {
         }
     }
 
-    private InvestmentDecision resolveFinalDecision(AgentNextAction action) {
+    private InvestmentDecision resolvedInvestmentDecision(
+            AgentNextAction action,
+            HarnessRunContext context,
+            HarnessStepRecorder stepRecorder
+    ) {
         if (action.type() == AgentNextActionType.FINAL_DECISION) {
             return action.investmentDecision();
         }
 
-        throw new IllegalStateException(
-                "Tool request action is not supported yet. type=" + action.toolRequest().type()
+        HarnessToolAuthorizationResult authorizationResult = stepRecorder.record(
+                HarnessStepType.AUTHORIZE_TOOL_REQUEST,
+                () -> harnessToolAuthorizer.authorize(
+                        context.allowedTools(),
+                        action.toolRequest()
+                ),
+                result -> result.status() == HarnessToolAuthorizationStatus.ALLOWED
+                        ? HarnessStepStatus.COMPLETED
+                        : HarnessStepStatus.FAILED,
+                HarnessToolAuthorizationResult::reason
         );
+
+        throw new IllegalStateException(
+                "Tool execution is not supported yet. type=" + authorizationResult.type()
+        );
+    }
+
+    private String agentNextActionMessage(AgentNextAction action) {
+        if (action.type() == AgentNextActionType.FINAL_DECISION) {
+            return action.investmentDecision().reason();
+        }
+
+        return "Requested tool. type=" + action.toolRequest().type();
     }
 }
