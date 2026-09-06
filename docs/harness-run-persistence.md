@@ -786,25 +786,90 @@ HarnessToolRequest
 4. 실제 Run 실행 순서는 아직 변경하지 않는다.
 ```
 
+## Agent Next Action
+
+`AgentNextAction`은 Agent가 다음에 수행하려는 행동을 표현한다.
+
+패키지 경로:
+
+```text
+src/main/java/com/stock/agent/AgentNextAction.java
+src/main/java/com/stock/agent/AgentNextActionType.java
+```
+
+현재 타입은 다음 두 가지다.
+
+```text
+REQUEST_TOOL
+FINAL_DECISION
+```
+
+`REQUEST_TOOL`은 Agent가 최종 투자 판단을 내리기 전에 추가 정보를 얻기 위해 Tool 호출을 요청하는 상태를 표현한다.
+
+```text
+AgentNextAction.requestTool(HarnessToolRequest)
+-> type = REQUEST_TOOL
+-> toolRequest = HarnessToolRequest
+-> investmentDecision = null
+```
+
+`FINAL_DECISION`은 Agent가 더 이상 Tool을 요청하지 않고 최종 투자 판단을 반환하는 상태를 표현한다.
+
+```text
+AgentNextAction.finalDecision(InvestmentDecision)
+-> type = FINAL_DECISION
+-> toolRequest = null
+-> investmentDecision = InvestmentDecision
+```
+
+현재 `InvestmentAgent`는 `next(context)` 메서드를 제공한다.
+
+패키지 경로:
+
+```text
+src/main/java/com/stock/agent/InvestmentAgent.java
+```
+
+현재 구현은 아직 Tool 요청을 만들지 않는다.
+
+```text
+InvestmentAgent.next(context)
+-> AgentNextAction.finalDecision(decide(context))
+```
+
+즉 기존 `decide(context)`의 HOLD 판단을 `FINAL_DECISION`으로 감싸서 반환한다.
+
+이 구조를 둔 이유는 기존 Harness 실행 흐름을 바로 깨지 않고, Agent가 나중에 Tool 요청과 최종 판단 중 하나를 반환할 수 있는 형태로 점진적으로 이동하기 위해서다.
+
+현재 상태는 다음과 같다.
+
+```text
+AgentNextAction 모델 있음
+InvestmentAgent.next(context) 있음
+InvestmentHarness는 아직 investmentAgent.decide(context)를 직접 호출함
+Agent Loop는 아직 없음
+Tool 실행도 아직 없음
+```
+
 ## Recommended Next Step
 
-다음 단계는 `AUTHORIZE_TOOL_REQUEST` Step을 실제 실행 흐름에 넣기 전에, Agent가 Tool 요청을 만들 수 있는 최소 흐름을 설계하는 것이다.
+다음 단계는 `InvestmentHarness`가 `investmentAgent.decide(context)`를 직접 호출하지 않고, `investmentAgent.next(context)`를 호출하도록 전환할지 검토하는 것이다.
 
 현재 Harness는 `maxSteps`를 통해 Run의 전체 Step 수를 제한한다. 장기 목표에서는 Step 수뿐 아니라 Tool 호출 수, Broker API 호출 수, Cache 사용 여부, Rate Limit도 Harness가 관리해야 한다.
 
-현재는 `HarnessToolRequest`, `HarnessToolAuthorizationResult`, `HarnessToolAuthorizer`, `AUTHORIZE_TOOL_REQUEST` Step 타입이 있다.
+현재는 `HarnessToolRequest`, `HarnessToolAuthorizationResult`, `HarnessToolAuthorizer`, `AUTHORIZE_TOOL_REQUEST` Step 타입, `AgentNextAction`, `InvestmentAgent.next(context)`가 있다.
 
-다만 아직 Agent가 Tool을 선택하거나 요청하지 않는다.
+다만 `InvestmentHarness`의 실제 실행 흐름은 아직 기존 `InvestmentDecision` 직접 반환 방식이다.
 
-따라서 다음 작업에서는 실제 Broker API나 복잡한 Tool Executor를 붙이지 말고, Agent가 "어떤 Tool을 요청했다"는 사실을 표현하는 최소 흐름을 검토하는 것이 좋다.
+따라서 다음 작업에서는 실제 Broker API나 복잡한 Tool Executor를 붙이지 말고, Harness가 Agent의 다음 행동을 해석하는 최소 흐름을 검토하는 것이 좋다.
 
 판단해야 할 질문은 다음과 같다.
 
 ```text
-1. Agent가 Tool 요청을 반환해야 하는가, 아니면 Agent Loop가 중간 상태로 만들어야 하는가?
-2. HarnessToolRequest는 계속 com.stock.harness.tool 패키지에 둘 것인가?
-3. Tool 요청이 허용되면 바로 실행할 것인가, 아니면 우선 Step 기록까지만 할 것인가?
-4. Tool 권한 판정 결과를 Agent가 다음 판단에 다시 사용할 수 있어야 하는가?
+1. InvestmentHarness가 RUN_INVESTMENT_AGENT Step에서 next(context)를 호출할 것인가?
+2. next(context)가 FINAL_DECISION을 반환하면 기존 Risk Guard 흐름으로 바로 연결할 것인가?
+3. next(context)가 REQUEST_TOOL을 반환하면 지금은 실패로 볼 것인가, 아니면 보류 상태로 볼 것인가?
+4. REQUEST_TOOL 처리를 아직 구현하지 않는다면 어떤 reason/message로 막을 것인가?
 ```
 
 설정 책임은 현재 다음처럼 분리되어 있다.
@@ -840,4 +905,4 @@ enabled
 
 현재 추천 방향은 바로 Tool 실행기를 만들지 않는 것이다.
 
-아직 Agent가 Tool을 선택하거나 호출하지 않는다. 따라서 다음 구현 단계는 실제 Tool 실행보다, Agent의 Tool 요청을 표현하는 최소 Agent Loop 또는 요청 모델을 먼저 설계하는 것이 더 자연스럽다.
+아직 Agent Loop와 Tool 실행기가 없다. 따라서 다음 구현 단계는 실제 Tool 실행보다, `InvestmentHarness`가 `AgentNextAction`을 받아 `FINAL_DECISION`만 처리하도록 전환하는 것이 더 자연스럽다.
