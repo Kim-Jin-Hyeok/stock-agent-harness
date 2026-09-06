@@ -20,4 +20,8 @@ public class InvestmentAgent {
                 + context.allowedTools().types()
         );
     }
+
+    public AgentNextAction next(HarnessRunContext context) {
+        return AgentNextAction.finalDecision(decide(context));
+    }
 }
