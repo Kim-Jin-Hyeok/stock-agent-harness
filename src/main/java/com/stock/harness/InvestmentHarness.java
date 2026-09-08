@@ -36,6 +36,7 @@ public class InvestmentHarness {
     private final InvestmentAgent investmentAgent;
     private final HarnessProperties harnessProperties;
     private final HarnessToolAuthorizer harnessToolAuthorizer;
+    private final HarnessToolExecutor harnessToolExecutor;
 
     public HarnessRunResult run() {
         LocalDateTime startedAt = LocalDateTime.now();
@@ -267,7 +268,24 @@ public class InvestmentHarness {
                 HarnessToolAuthorizationResult::reason
         );
 
-        HarnessToolExecutionResult executionResult = HarnessToolExecutionResult.notSupported(authorizationResult.type());
+        if (authorizationResult.status() != HarnessToolAuthorizationStatus.ALLOWED) {
+            HarnessToolExecutionResult executionResult = HarnessToolExecutionResult.authorizationDenied(
+                    authorizationResult.type()
+            );
+
+            throw new IllegalStateException(
+                    executionResult.reason() + " type=" + executionResult.type()
+            );
+        }
+
+        HarnessToolExecutionResult executionResult = stepRecorder.record(
+                HarnessStepType.EXECUTE_TOOL_REQUEST,
+                () -> harnessToolExecutor.execute(action.toolRequest()),
+                result -> result.status() == HarnessToolExecutionStatus.EXECUTED
+                        ? HarnessStepStatus.COMPLETED
+                        : HarnessStepStatus.FAILED,
+                HarnessToolExecutionResult::reason
+        );
 
         throw new IllegalStateException(
                 executionResult.reason() + " type=" + executionResult.type()
