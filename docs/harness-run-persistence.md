@@ -927,7 +927,7 @@ HarnessToolExecutionResult
 
 ## Recommended Next Step
 
-다음 단계는 `REQUEST_TOOL` 처리에서 문자열 예외 대신 `HarnessToolExecutionResult.notSupported(...)`를 사용하도록 연결하는 것이다.
+다음 단계는 Tool 실행 결과를 Step 이력으로 기록할지 설계하는 것이다.
 
 현재 Harness는 `maxSteps`를 통해 Run의 전체 Step 수를 제한한다. 장기 목표에서는 Step 수뿐 아니라 Tool 호출 수, Broker API 호출 수, Cache 사용 여부, Rate Limit도 Harness가 관리해야 한다.
 
@@ -957,15 +957,29 @@ DENIED
 Tool execution is not supported yet. type={toolType}
 ```
 
-따라서 다음 작업에서는 실제 Broker API나 복잡한 Tool Executor를 붙이지 말고, 현재 문자열로 만들어지는 미지원 실행 결과를 `HarnessToolExecutionResult.notSupported(type)`로 표현하는 것이 좋다.
+이 메시지는 `HarnessToolExecutionResult.notSupported(type)`의 `reason`과 `type`을 조합해서 만든다.
+
+현재 이력에는 다음처럼 남는다.
+
+```text
+AUTHORIZE_TOOL_REQUEST
+-> 권한 판정 결과 기록
+
+RUN_FAILED
+-> Tool execution is not supported yet. type={toolType}
+```
+
+즉 Tool 실행 결과는 값 객체로 표현되지만, 아직 별도 Step으로 기록되지는 않는다.
+
+따라서 다음 작업에서는 실제 Broker API나 복잡한 Tool Executor를 붙이지 말고, Tool 실행 결과를 별도 Step으로 기록할지 먼저 설계하는 것이 좋다.
 
 판단해야 할 질문은 다음과 같다.
 
 ```text
-1. Tool 실행 미지원 상태를 Run 실패 메시지에 어떤 형태로 남길 것인가?
-2. HarnessToolExecutionResult.reason()만 사용할 것인가, reasonCode도 메시지에 포함할 것인가?
-3. Tool 권한이 DENIED인 경우 authorizationDenied(...)까지 바로 연결할 것인가?
-4. Tool 실행 결과를 아직 Step으로 기록하지 않고 예외 메시지에만 사용할 것인가?
+1. Tool 실행 미지원도 EXECUTE_TOOL Step으로 남길 것인가?
+2. 실제 ToolExecutor가 생긴 뒤에만 EXECUTE_TOOL Step을 기록할 것인가?
+3. Tool 권한이 DENIED인 경우 Tool 실행 결과도 authorizationDenied(...)로 만들 것인가?
+4. EXECUTE_TOOL Step을 만든다면 status는 FAILED로 둘 것인가, SKIPPED로 둘 것인가?
 ```
 
 설정 책임은 현재 다음처럼 분리되어 있다.
@@ -1001,4 +1015,4 @@ enabled
 
 현재 추천 방향은 바로 Tool 실행기를 만들지 않는 것이다.
 
-아직 Agent Loop와 Tool 실행기가 없다. 따라서 다음 구현 단계는 실제 Tool 실행보다, `HarnessToolExecutionResult.notSupported(type)`를 현재 `REQUEST_TOOL` 미지원 실패 흐름에 연결하는 것이 더 자연스럽다.
+아직 Agent Loop와 Tool 실행기가 없다. 따라서 다음 구현 단계는 실제 Tool 실행보다, Tool 실행 결과를 Step으로 기록할지 여부를 먼저 결정하는 것이 더 자연스럽다.
