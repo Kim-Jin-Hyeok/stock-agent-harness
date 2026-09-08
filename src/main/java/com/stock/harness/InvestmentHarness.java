@@ -4,10 +4,7 @@ import com.stock.agent.AgentNextAction;
 import com.stock.agent.AgentNextActionType;
 import com.stock.agent.InvestmentAgent;
 import com.stock.agent.InvestmentDecision;
-import com.stock.harness.tool.HarnessAllowedTools;
-import com.stock.harness.tool.HarnessToolAuthorizationResult;
-import com.stock.harness.tool.HarnessToolAuthorizationStatus;
-import com.stock.harness.tool.HarnessToolAuthorizer;
+import com.stock.harness.tool.*;
 import com.stock.market.MarketService;
 import com.stock.market.MarketSnapshot;
 import com.stock.portfolio.PortfolioService;
@@ -270,8 +267,10 @@ public class InvestmentHarness {
                 HarnessToolAuthorizationResult::reason
         );
 
+        HarnessToolExecutionResult executionResult = HarnessToolExecutionResult.notSupported(authorizationResult.type());
+
         throw new IllegalStateException(
-                "Tool execution is not supported yet. type=" + authorizationResult.type()
+                executionResult.reason() + " type=" + executionResult.type()
         );
     }
 

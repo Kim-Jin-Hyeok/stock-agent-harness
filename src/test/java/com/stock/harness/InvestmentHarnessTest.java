@@ -8,6 +8,7 @@ import com.stock.harness.persistence.HarnessRunRepository;
 import com.stock.harness.persistence.HarnessRunSnapshotJsonConverter;
 import com.stock.harness.persistence.HarnessStepRepository;
 import com.stock.harness.tool.HarnessToolAuthorizer;
+import com.stock.harness.tool.HarnessToolExecutionResult;
 import com.stock.harness.tool.HarnessToolRequest;
 import com.stock.harness.tool.HarnessToolType;
 import com.stock.market.MarketService;
@@ -359,9 +360,7 @@ class InvestmentHarnessTest {
 
         assertThat(failedStep.type()).isEqualTo(HarnessStepType.RUN_FAILED);
         assertThat(failedStep.status()).isEqualTo(HarnessStepStatus.FAILED);
-        assertThat(failedStep.message()).isEqualTo(
-                "Tool execution is not supported yet. type=GET_PORTFOLIO"
-        );
+        assertThat(failedStep.message()).isEqualTo(unsupportedPortfolioToolExecutionMessage());
     }
 
     private static class BuyingInvestmentAgent extends InvestmentAgent {
@@ -417,5 +416,13 @@ class InvestmentHarnessTest {
                     new HarnessToolRequest(HarnessToolType.GET_PORTFOLIO)
             );
         }
+    }
+
+    private String unsupportedPortfolioToolExecutionMessage() {
+        HarnessToolExecutionResult executionResult = HarnessToolExecutionResult.notSupported(
+                HarnessToolType.GET_PORTFOLIO
+        );
+
+        return executionResult.reason() + " type=" + executionResult.type();
     }
 }
