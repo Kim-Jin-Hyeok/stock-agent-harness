@@ -482,6 +482,19 @@ LOAD_FINAL_PORTFOLIO
 CHECK_STEP_LIMIT
 ```
 
+Agent가 최종 판단이 아니라 Tool 요청을 반환하면 Step 흐름은 다음처럼 달라진다.
+
+```text
+LOAD_PORTFOLIO
+LOAD_MARKET
+RUN_INVESTMENT_AGENT
+AUTHORIZE_TOOL_REQUEST
+EXECUTE_TOOL_REQUEST
+RUN_FAILED
+```
+
+현재 Tool 실행기는 실제 조회 Tool을 실행하지 않고 `notSupported` 결과를 반환한다. 따라서 허용된 Tool 요청이라도 `EXECUTE_TOOL_REQUEST` Step은 `FAILED`로 기록되고 Run은 실패로 종료된다.
+
 `LOAD_PORTFOLIO`는 Agent 판단에 사용될 초기 포트폴리오 상태를 조회한다.
 
 `LOAD_FINAL_PORTFOLIO`는 거래 실행 이후 Run 결과로 저장할 최종 포트폴리오 상태를 조회한다.
@@ -636,7 +649,7 @@ allowedTools=[GET_PORTFOLIO, GET_MARKET]
 
 다만 현재는 중복 Tool이나 빈 Tool 목록은 별도로 막지 않는다.
 
-아직 Tool 실행기가 없고, 기본 생성 흐름은 `HarnessAllowedTools.readOnly()`로 고정되어 있기 때문이다.
+현재 기본 생성 흐름은 `HarnessAllowedTools.readOnly()`로 고정되어 있고, Tool 목록도 읽기 전용 Tool 두 개뿐이기 때문이다.
 
 ## Harness Tool Request
 
@@ -662,9 +675,9 @@ HarnessToolRequest
 -> 이번에 무엇을 호출하고 싶은가
 ```
 
-현재는 실제 Tool 실행을 하지 않는다.
+현재 `HarnessToolRequest`는 Tool 실행 입력값으로 사용된다.
 
-따라서 `HarnessToolRequest`는 Tool 실행기가 아니라, 이후 권한 판정과 Tool 호출 기록으로 연결될 요청 모델이다.
+다만 아직 요청 인자는 `type` 하나뿐이다. 실제 조회 Tool이 구현되면 symbol, market, period 같은 Tool별 입력값을 어떻게 표현할지 별도로 설계해야 한다.
 
 이 요청은 `HarnessToolAuthorizer`에서 `HarnessAllowedTools.allows(request.type())`로 판정한다.
 
@@ -672,6 +685,8 @@ HarnessToolRequest
 HarnessToolRequest(type)
 -> HarnessToolAuthorizer.authorize(...)
 -> HarnessToolAuthorizationResult
+-> HarnessToolExecutor.execute(...)
+-> HarnessToolExecutionResult
 ```
 
 ## Harness Tool Authorization
@@ -756,6 +771,7 @@ src/main/java/com/stock/harness/HarnessStepType.java
 
 ```text
 AUTHORIZE_TOOL_REQUEST
+EXECUTE_TOOL_REQUEST
 ```
 
 이 Step은 Agent 또는 Agent Loop가 요청한 Tool에 대해 Harness가 권한 판정을 수행했다는 사실을 표현한다.
@@ -769,21 +785,27 @@ HarnessToolRequest
 -> HarnessStepType.AUTHORIZE_TOOL_REQUEST
 ```
 
-현재 단계에서는 이 Step 타입을 실제 `InvestmentHarness.run()` 실행 순서에 넣지 않는다.
+현재 `InvestmentHarness.run()`은 Agent가 `REQUEST_TOOL`을 반환한 경우 이 Step을 실제 실행 흐름에 기록한다.
 
-이유는 아직 Agent가 실제로 `HarnessToolRequest`를 생성하거나 Tool을 선택하는 Agent Loop가 없기 때문이다.
+권한 판정이 허용되면 다음으로 `EXECUTE_TOOL_REQUEST` Step을 기록한다.
 
-지금 `InvestmentAgent.decide(context)`는 Tool을 호출하지 않고, Harness가 전달한 Context를 읽어 최종 투자 판단을 반환한다. 이 상태에서 `AUTHORIZE_TOOL_REQUEST`를 실행 흐름에 넣으려면 Harness가 가짜 Tool 요청을 만들어야 한다.
+```text
+HarnessToolRequest
+-> HarnessToolExecutor.execute(...)
+-> HarnessToolExecutionResult
+-> HarnessStepType.EXECUTE_TOOL_REQUEST
+```
 
-그렇게 하면 Step 이력에는 Tool 권한 판정이 남지만, 실제 Agent가 Tool을 요청한 것은 아니므로 Run 이력의 의미가 흐려진다.
+권한 판정이 거절되면 Tool 실행기로 넘어가지 않는다. 이 경우 `AUTHORIZE_TOOL_REQUEST`는 `FAILED`로 기록되고, Run은 `RUN_FAILED`로 종료된다.
 
-따라서 현재 단계에서는 다음까지만 검증한다.
+현재 단계에서 검증할 내용은 다음과 같다.
 
 ```text
 1. AUTHORIZE_TOOL_REQUEST Step 타입을 코드에 정의한다.
-2. HarnessStepEntity가 해당 타입을 저장할 수 있다.
-3. HarnessStepRepository가 해당 타입을 조회할 수 있다.
-4. 실제 Run 실행 순서는 아직 변경하지 않는다.
+2. EXECUTE_TOOL_REQUEST Step 타입을 코드에 정의한다.
+3. HarnessStepEntity가 두 Step 타입을 저장할 수 있다.
+4. HarnessStepRepository가 두 Step 타입을 조회할 수 있다.
+5. Tool 요청 Run에서 권한 확인과 실행 시도가 순서대로 Step에 남는다.
 ```
 
 ## Agent Next Action
@@ -849,10 +871,11 @@ InvestmentAgent.next(context) 있음
 InvestmentHarness는 investmentAgent.next(context)를 호출함
 FINAL_DECISION은 기존 Risk Guard / Trade 흐름으로 연결됨
 REQUEST_TOOL은 HarnessToolAuthorizer로 권한 판정한 뒤 AUTHORIZE_TOOL_REQUEST Step을 기록함
-Tool 실행기는 아직 없으므로 권한 판정 이후 Run 실패로 처리함
+권한이 허용되면 HarnessToolExecutor로 실행을 시도하고 EXECUTE_TOOL_REQUEST Step을 기록함
+현재 HarnessToolExecutor는 notSupported 결과를 반환하므로 Tool 요청 Run은 실패로 종료됨
 HarnessToolExecutionResult 모델 있음
 Agent Loop는 아직 없음
-Tool 실행도 아직 없음
+실제 조회 Tool 구현은 아직 없음
 ```
 
 ## Harness Tool Execution Result
@@ -911,9 +934,11 @@ HarnessToolExecutionResult.authorizationDenied(type)
 -> reason = Tool authorization denied.
 ```
 
-이 모델은 아직 실제 Tool 실행기를 의미하지 않는다.
+이 모델은 `HarnessToolExecutor`가 Tool 실행 결과를 Harness에 돌려줄 때 사용하는 값 객체다.
 
-현재는 `REQUEST_TOOL` 처리 중 권한 판정 이후 "아직 Tool 실행을 지원하지 않는다"는 상태를 문자열 예외가 아니라 값 객체로 표현하기 위한 준비 단계다.
+현재 `HarnessToolExecutor`는 실제 Tool을 실행하지 않고 `HarnessToolExecutionResult.notSupported(type)`을 반환한다.
+
+따라서 지금 단계의 의미는 "Tool 실행기가 연결되어 있지만 실제 Tool 구현은 아직 없다"에 가깝다.
 
 `HarnessToolAuthorizationResult`와 `HarnessToolExecutionResult`는 비슷한 구조를 가지지만 책임이 다르다.
 
@@ -927,17 +952,17 @@ HarnessToolExecutionResult
 
 ## Recommended Next Step
 
-다음 단계는 Tool 실행 결과를 Step 이력으로 기록할지 설계하는 것이다.
+다음 단계는 Tool 실행 결과를 Agent에게 다시 전달하는 Agent Loop를 설계하는 것이다.
 
 현재 Harness는 `maxSteps`를 통해 Run의 전체 Step 수를 제한한다. 장기 목표에서는 Step 수뿐 아니라 Tool 호출 수, Broker API 호출 수, Cache 사용 여부, Rate Limit도 Harness가 관리해야 한다.
 
-현재는 `HarnessToolRequest`, `HarnessToolAuthorizationResult`, `HarnessToolAuthorizer`, `AUTHORIZE_TOOL_REQUEST` Step 타입, `AgentNextAction`, `InvestmentAgent.next(context)`, `HarnessToolExecutionResult`가 있다.
+현재는 `HarnessToolRequest`, `HarnessToolAuthorizationResult`, `HarnessToolAuthorizer`, `AUTHORIZE_TOOL_REQUEST` Step 타입, `EXECUTE_TOOL_REQUEST` Step 타입, `AgentNextAction`, `InvestmentAgent.next(context)`, `HarnessToolExecutor`, `HarnessToolExecutionResult`가 있다.
 
 `InvestmentHarness`는 이제 `RUN_INVESTMENT_AGENT` Step에서 `investmentAgent.next(context)`를 호출한다.
 
 `FINAL_DECISION`이 반환되면 기존처럼 `InvestmentDecision`을 꺼내 Risk Guard와 Trade Executor 흐름으로 진행한다.
 
-`REQUEST_TOOL`이 반환되면 Harness는 `HarnessToolAuthorizer`로 권한을 판정하고 `AUTHORIZE_TOOL_REQUEST` Step을 기록한다.
+`REQUEST_TOOL`이 반환되면 Harness는 `HarnessToolAuthorizer`로 권한을 판정하고 `AUTHORIZE_TOOL_REQUEST` Step을 기록한다. 권한이 허용되면 `HarnessToolExecutor`로 Tool 실행을 시도하고 `EXECUTE_TOOL_REQUEST` Step을 기록한다.
 
 권한 판정 결과는 Step status와 message로 남는다.
 
@@ -951,35 +976,44 @@ DENIED
 -> message = Harness tool is not allowed.
 ```
 
-현재는 아직 Tool 실행을 지원하지 않으므로 권한 판정 이후 다음 메시지로 Run을 실패 처리한다.
+Tool 실행 결과도 Step status와 message로 남는다.
 
 ```text
-Tool execution is not supported yet. type={toolType}
+EXECUTED
+-> EXECUTE_TOOL_REQUEST Step COMPLETED
+-> message = Harness tool execution completed.
+
+FAILED
+-> EXECUTE_TOOL_REQUEST Step FAILED
+-> message = Tool execution is not supported yet.
 ```
 
-이 메시지는 `HarnessToolExecutionResult.notSupported(type)`의 `reason`과 `type`을 조합해서 만든다.
+현재 `HarnessToolExecutor`는 실제 Tool을 실행하지 않고 `notSupported` 결과를 반환한다. 따라서 허용된 Tool 요청은 다음 흐름으로 실패한다.
 
 현재 이력에는 다음처럼 남는다.
 
 ```text
 AUTHORIZE_TOOL_REQUEST
--> 권한 판정 결과 기록
+-> Harness tool authorization allowed.
+
+EXECUTE_TOOL_REQUEST
+-> Tool execution is not supported yet.
 
 RUN_FAILED
 -> Tool execution is not supported yet. type={toolType}
 ```
 
-즉 Tool 실행 결과는 값 객체로 표현되지만, 아직 별도 Step으로 기록되지는 않는다.
+이 구조는 아직 최종 Agent Loop는 아니다. 지금은 Agent가 한 번 `REQUEST_TOOL`을 반환하면 Harness가 Tool 실행을 시도하고, 실행 결과를 Agent에게 돌려주지 못한 채 Run을 종료한다.
 
-따라서 다음 작업에서는 실제 Broker API나 복잡한 Tool Executor를 붙이지 말고, Tool 실행 결과를 별도 Step으로 기록할지 먼저 설계하는 것이 좋다.
+따라서 다음 작업에서는 실제 Broker API를 붙이기보다, Tool 실행 결과를 Agent의 다음 판단 입력으로 돌려주는 최소 Loop를 설계하는 것이 좋다.
 
 판단해야 할 질문은 다음과 같다.
 
 ```text
-1. Tool 실행 미지원도 EXECUTE_TOOL Step으로 남길 것인가?
-2. 실제 ToolExecutor가 생긴 뒤에만 EXECUTE_TOOL Step을 기록할 것인가?
-3. Tool 권한이 DENIED인 경우 Tool 실행 결과도 authorizationDenied(...)로 만들 것인가?
-4. EXECUTE_TOOL Step을 만든다면 status는 FAILED로 둘 것인가, SKIPPED로 둘 것인가?
+1. Tool 실행 결과를 어디에 담아 Agent에게 전달할 것인가?
+2. Agent가 Tool 결과를 받은 뒤 다시 AgentNextAction을 반환하려면 메서드 시그니처를 어떻게 바꿀 것인가?
+3. maxSteps는 Agent 판단 Step과 Tool Step을 모두 포함해 제한할 것인가?
+4. Tool 실행 실패를 Agent에게 돌려줘서 재판단하게 할 것인가, Harness가 즉시 실패시킬 것인가?
 ```
 
 설정 책임은 현재 다음처럼 분리되어 있다.
@@ -1013,6 +1047,6 @@ enabled
 
 `harness.scheduler.fixed-delay-ms`는 현재 `@Scheduled(fixedDelayString = "${harness.scheduler.fixed-delay-ms}")` 속성에서 직접 참조한다. `@Scheduled`는 어노테이션 속성으로 스케줄 간격을 받아야 하므로, 이 단계에서는 `fixed-delay-ms`를 별도 record 필드로 옮기지 않는다.
 
-현재 추천 방향은 바로 Tool 실행기를 만들지 않는 것이다.
+현재 추천 방향은 바로 실제 Broker API Tool을 만들지 않는 것이다.
 
-아직 Agent Loop와 Tool 실행기가 없다. 따라서 다음 구현 단계는 실제 Tool 실행보다, Tool 실행 결과를 Step으로 기록할지 여부를 먼저 결정하는 것이 더 자연스럽다.
+아직 Agent Loop가 없다. 따라서 다음 구현 단계는 실제 Tool 구현보다, `REQUEST_TOOL -> EXECUTE_TOOL_REQUEST -> Agent 재판단 -> FINAL_DECISION`으로 이어지는 최소 Loop를 설계하는 것이 더 자연스럽다.
