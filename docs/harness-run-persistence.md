@@ -850,17 +850,88 @@ InvestmentHarness는 investmentAgent.next(context)를 호출함
 FINAL_DECISION은 기존 Risk Guard / Trade 흐름으로 연결됨
 REQUEST_TOOL은 HarnessToolAuthorizer로 권한 판정한 뒤 AUTHORIZE_TOOL_REQUEST Step을 기록함
 Tool 실행기는 아직 없으므로 권한 판정 이후 Run 실패로 처리함
+HarnessToolExecutionResult 모델 있음
 Agent Loop는 아직 없음
 Tool 실행도 아직 없음
 ```
 
+## Harness Tool Execution Result
+
+`HarnessToolExecutionResult`는 Tool 실행이 어떻게 끝났는지 표현한다.
+
+패키지 경로:
+
+```text
+src/main/java/com/stock/harness/tool/HarnessToolExecutionResult.java
+src/main/java/com/stock/harness/tool/HarnessToolExecutionStatus.java
+src/main/java/com/stock/harness/tool/HarnessToolExecutionReasonCode.java
+```
+
+현재 필드는 다음과 같다.
+
+```text
+status
+type
+reasonCode
+reason
+```
+
+`status`는 Tool 실행의 최종 상태를 표현한다.
+
+```text
+EXECUTED
+FAILED
+SKIPPED
+```
+
+`reasonCode`는 Tool 실행이 어떤 이유로 끝났는지 코드로 분류한다.
+
+```text
+TOOL_EXECUTED
+TOOL_NOT_SUPPORTED
+TOOL_AUTHORIZATION_DENIED
+```
+
+현재 생성 흐름은 다음과 같다.
+
+```text
+HarnessToolExecutionResult.executed(type)
+-> status = EXECUTED
+-> reasonCode = TOOL_EXECUTED
+-> reason = Harness tool execution completed.
+
+HarnessToolExecutionResult.notSupported(type)
+-> status = FAILED
+-> reasonCode = TOOL_NOT_SUPPORTED
+-> reason = Tool execution is not supported yet.
+
+HarnessToolExecutionResult.authorizationDenied(type)
+-> status = FAILED
+-> reasonCode = TOOL_AUTHORIZATION_DENIED
+-> reason = Tool authorization denied.
+```
+
+이 모델은 아직 실제 Tool 실행기를 의미하지 않는다.
+
+현재는 `REQUEST_TOOL` 처리 중 권한 판정 이후 "아직 Tool 실행을 지원하지 않는다"는 상태를 문자열 예외가 아니라 값 객체로 표현하기 위한 준비 단계다.
+
+`HarnessToolAuthorizationResult`와 `HarnessToolExecutionResult`는 비슷한 구조를 가지지만 책임이 다르다.
+
+```text
+HarnessToolAuthorizationResult
+-> 이 Tool을 호출해도 되는가?
+
+HarnessToolExecutionResult
+-> Tool 실행이 어떻게 끝났는가?
+```
+
 ## Recommended Next Step
 
-다음 단계는 Tool 실행 결과를 표현하는 최소 모델을 설계하는 것이다.
+다음 단계는 `REQUEST_TOOL` 처리에서 문자열 예외 대신 `HarnessToolExecutionResult.notSupported(...)`를 사용하도록 연결하는 것이다.
 
 현재 Harness는 `maxSteps`를 통해 Run의 전체 Step 수를 제한한다. 장기 목표에서는 Step 수뿐 아니라 Tool 호출 수, Broker API 호출 수, Cache 사용 여부, Rate Limit도 Harness가 관리해야 한다.
 
-현재는 `HarnessToolRequest`, `HarnessToolAuthorizationResult`, `HarnessToolAuthorizer`, `AUTHORIZE_TOOL_REQUEST` Step 타입, `AgentNextAction`, `InvestmentAgent.next(context)`가 있다.
+현재는 `HarnessToolRequest`, `HarnessToolAuthorizationResult`, `HarnessToolAuthorizer`, `AUTHORIZE_TOOL_REQUEST` Step 타입, `AgentNextAction`, `InvestmentAgent.next(context)`, `HarnessToolExecutionResult`가 있다.
 
 `InvestmentHarness`는 이제 `RUN_INVESTMENT_AGENT` Step에서 `investmentAgent.next(context)`를 호출한다.
 
@@ -886,15 +957,15 @@ DENIED
 Tool execution is not supported yet. type={toolType}
 ```
 
-따라서 다음 작업에서는 실제 Broker API나 복잡한 Tool Executor를 붙이지 말고, Tool 실행 결과를 값 객체로 표현하는 최소 모델을 먼저 검토하는 것이 좋다.
+따라서 다음 작업에서는 실제 Broker API나 복잡한 Tool Executor를 붙이지 말고, 현재 문자열로 만들어지는 미지원 실행 결과를 `HarnessToolExecutionResult.notSupported(type)`로 표현하는 것이 좋다.
 
 판단해야 할 질문은 다음과 같다.
 
 ```text
-1. Tool 실행 결과도 authorization처럼 status, type, reasonCode, reason을 가질 것인가?
-2. 아직 지원하지 않는 Tool 실행은 FAILED로 볼 것인가, SKIPPED로 볼 것인가?
-3. Tool 권한 거부와 Tool 실행 실패는 같은 결과 모델로 볼 것인가, 분리할 것인가?
-4. Tool 실행 결과를 나중에 Agent가 다음 판단에 활용할 수 있어야 하는가?
+1. Tool 실행 미지원 상태를 Run 실패 메시지에 어떤 형태로 남길 것인가?
+2. HarnessToolExecutionResult.reason()만 사용할 것인가, reasonCode도 메시지에 포함할 것인가?
+3. Tool 권한이 DENIED인 경우 authorizationDenied(...)까지 바로 연결할 것인가?
+4. Tool 실행 결과를 아직 Step으로 기록하지 않고 예외 메시지에만 사용할 것인가?
 ```
 
 설정 책임은 현재 다음처럼 분리되어 있다.
@@ -930,4 +1001,4 @@ enabled
 
 현재 추천 방향은 바로 Tool 실행기를 만들지 않는 것이다.
 
-아직 Agent Loop와 Tool 실행기가 없다. 따라서 다음 구현 단계는 실제 Tool 실행보다, Tool 실행 결과를 표현하는 `HarnessToolExecutionResult` 같은 값 객체를 먼저 만드는 것이 더 자연스럽다.
+아직 Agent Loop와 Tool 실행기가 없다. 따라서 다음 구현 단계는 실제 Tool 실행보다, `HarnessToolExecutionResult.notSupported(type)`를 현재 `REQUEST_TOOL` 미지원 실패 흐름에 연결하는 것이 더 자연스럽다.
