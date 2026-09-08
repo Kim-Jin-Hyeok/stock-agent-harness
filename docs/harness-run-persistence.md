@@ -848,14 +848,15 @@ AgentNextAction 모델 있음
 InvestmentAgent.next(context) 있음
 InvestmentHarness는 investmentAgent.next(context)를 호출함
 FINAL_DECISION은 기존 Risk Guard / Trade 흐름으로 연결됨
-REQUEST_TOOL은 아직 지원하지 않고 Run 실패로 처리함
+REQUEST_TOOL은 HarnessToolAuthorizer로 권한 판정한 뒤 AUTHORIZE_TOOL_REQUEST Step을 기록함
+Tool 실행기는 아직 없으므로 권한 판정 이후 Run 실패로 처리함
 Agent Loop는 아직 없음
 Tool 실행도 아직 없음
 ```
 
 ## Recommended Next Step
 
-다음 단계는 `REQUEST_TOOL`을 바로 실패로 끝내는 대신, Tool 권한 판정 Step으로 기록하는 최소 흐름을 설계하는 것이다.
+다음 단계는 Tool 실행 결과를 표현하는 최소 모델을 설계하는 것이다.
 
 현재 Harness는 `maxSteps`를 통해 Run의 전체 Step 수를 제한한다. 장기 목표에서는 Step 수뿐 아니라 Tool 호출 수, Broker API 호출 수, Cache 사용 여부, Rate Limit도 Harness가 관리해야 한다.
 
@@ -865,21 +866,35 @@ Tool 실행도 아직 없음
 
 `FINAL_DECISION`이 반환되면 기존처럼 `InvestmentDecision`을 꺼내 Risk Guard와 Trade Executor 흐름으로 진행한다.
 
-`REQUEST_TOOL`이 반환되면 현재는 아직 Tool 실행을 지원하지 않으므로 다음 메시지로 Run을 실패 처리한다.
+`REQUEST_TOOL`이 반환되면 Harness는 `HarnessToolAuthorizer`로 권한을 판정하고 `AUTHORIZE_TOOL_REQUEST` Step을 기록한다.
+
+권한 판정 결과는 Step status와 message로 남는다.
 
 ```text
-Tool request action is not supported yet. type={toolType}
+ALLOWED
+-> AUTHORIZE_TOOL_REQUEST Step COMPLETED
+-> message = Harness tool authorization allowed.
+
+DENIED
+-> AUTHORIZE_TOOL_REQUEST Step FAILED
+-> message = Harness tool is not allowed.
 ```
 
-따라서 다음 작업에서는 실제 Broker API나 복잡한 Tool Executor를 붙이지 말고, `REQUEST_TOOL`이 들어왔을 때 권한 판정까지만 수행하고 그 결과를 Step 이력에 남기는 최소 흐름을 검토하는 것이 좋다.
+현재는 아직 Tool 실행을 지원하지 않으므로 권한 판정 이후 다음 메시지로 Run을 실패 처리한다.
+
+```text
+Tool execution is not supported yet. type={toolType}
+```
+
+따라서 다음 작업에서는 실제 Broker API나 복잡한 Tool Executor를 붙이지 말고, Tool 실행 결과를 값 객체로 표현하는 최소 모델을 먼저 검토하는 것이 좋다.
 
 판단해야 할 질문은 다음과 같다.
 
 ```text
-1. REQUEST_TOOL도 RUN_INVESTMENT_AGENT Step 성공으로 볼 것인가?
-2. Tool 권한 판정은 별도 AUTHORIZE_TOOL_REQUEST Step으로 기록할 것인가?
-3. Tool 권한이 ALLOWED여도 아직 Tool 실행기가 없으면 어떤 상태로 Run을 끝낼 것인가?
-4. Tool 권한이 DENIED이면 Agent 실패로 볼 것인가, Harness 정책 거부로 볼 것인가?
+1. Tool 실행 결과도 authorization처럼 status, type, reasonCode, reason을 가질 것인가?
+2. 아직 지원하지 않는 Tool 실행은 FAILED로 볼 것인가, SKIPPED로 볼 것인가?
+3. Tool 권한 거부와 Tool 실행 실패는 같은 결과 모델로 볼 것인가, 분리할 것인가?
+4. Tool 실행 결과를 나중에 Agent가 다음 판단에 활용할 수 있어야 하는가?
 ```
 
 설정 책임은 현재 다음처럼 분리되어 있다.
@@ -915,4 +930,4 @@ enabled
 
 현재 추천 방향은 바로 Tool 실행기를 만들지 않는 것이다.
 
-아직 Agent Loop와 Tool 실행기가 없다. 따라서 다음 구현 단계는 실제 Tool 실행보다, `REQUEST_TOOL`에 대해 `HarnessToolAuthorizer`를 호출하고 `AUTHORIZE_TOOL_REQUEST` Step을 기록하는 흐름을 먼저 만드는 것이 더 자연스럽다.
+아직 Agent Loop와 Tool 실행기가 없다. 따라서 다음 구현 단계는 실제 Tool 실행보다, Tool 실행 결과를 표현하는 `HarnessToolExecutionResult` 같은 값 객체를 먼저 만드는 것이 더 자연스럽다.
