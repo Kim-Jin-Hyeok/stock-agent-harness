@@ -64,7 +64,10 @@ class InvestmentHarnessTest {
     );
     private final InvestmentAgent investmentAgent = new InvestmentAgent();
     private final HarnessToolAuthorizer harnessToolAuthorizer = new HarnessToolAuthorizer();
-    private final HarnessToolExecutor harnessToolExecutor = new HarnessToolExecutor();
+    private final HarnessToolExecutor harnessToolExecutor = new HarnessToolExecutor(
+            portfolioService,
+            marketService
+    );
 
     private final InvestmentHarness investmentHarness = new InvestmentHarness(
             riskGuard,
@@ -369,14 +372,14 @@ class InvestmentHarnessTest {
         HarnessStepResult executeToolStep = result.steps().get(4);
 
         assertThat(executeToolStep.type()).isEqualTo(HarnessStepType.EXECUTE_TOOL_REQUEST);
-        assertThat(executeToolStep.status()).isEqualTo(HarnessStepStatus.FAILED);
-        assertThat(executeToolStep.message()).isEqualTo("Tool execution is not supported yet.");
+        assertThat(executeToolStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
+        assertThat(executeToolStep.message()).isEqualTo("Harness tool execution completed.");
 
         HarnessStepResult failedStep = result.steps().getLast();
 
         assertThat(failedStep.type()).isEqualTo(HarnessStepType.RUN_FAILED);
         assertThat(failedStep.status()).isEqualTo(HarnessStepStatus.FAILED);
-        assertThat(failedStep.message()).isEqualTo(unsupportedPortfolioToolExecutionMessage());
+        assertThat(failedStep.message()).isEqualTo(unsupportedPortfolioToolResultHandlingMessage());
     }
 
     private static class BuyingInvestmentAgent extends InvestmentAgent {
@@ -434,11 +437,7 @@ class InvestmentHarnessTest {
         }
     }
 
-    private String unsupportedPortfolioToolExecutionMessage() {
-        HarnessToolExecutionResult executionResult = HarnessToolExecutionResult.notSupported(
-                HarnessToolType.GET_PORTFOLIO
-        );
-
-        return executionResult.reason() + " type=" + executionResult.type();
+    private String unsupportedPortfolioToolResultHandlingMessage() {
+        return "Tool result handling is not supported yet. type=" + HarnessToolType.GET_PORTFOLIO;
     }
 }

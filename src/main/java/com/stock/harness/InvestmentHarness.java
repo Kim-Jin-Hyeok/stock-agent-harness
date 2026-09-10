@@ -287,6 +287,12 @@ public class InvestmentHarness {
                 HarnessToolExecutionResult::reason
         );
 
+        if (executionResult.status() == HarnessToolExecutionStatus.EXECUTED) {
+            throw new IllegalStateException(
+                    "Tool result handling is not supported yet. type=" + executionResult.type()
+            );
+        }
+
         throw new IllegalStateException(
                 executionResult.reason() + " type=" + executionResult.type()
         );
