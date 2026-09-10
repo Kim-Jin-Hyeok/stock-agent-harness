@@ -475,11 +475,11 @@ HarnessStepResult
 ```text
 LOAD_PORTFOLIO
 LOAD_MARKET
+CHECK_STEP_LIMIT
 RUN_INVESTMENT_AGENT
 VALIDATE_DECISION
 EXECUTE_TRADE
 LOAD_FINAL_PORTFOLIO
-CHECK_STEP_LIMIT
 ```
 
 Agent가 최종 판단이 아니라 Tool 요청을 반환하면 Step 흐름은 다음처럼 달라진다.
@@ -487,14 +487,15 @@ Agent가 최종 판단이 아니라 Tool 요청을 반환하면 Step 흐름은 �
 ```text
 LOAD_PORTFOLIO
 LOAD_MARKET
+CHECK_STEP_LIMIT
 RUN_INVESTMENT_AGENT
 AUTHORIZE_TOOL_REQUEST
 EXECUTE_TOOL_REQUEST
+CHECK_STEP_LIMIT
 RUN_INVESTMENT_AGENT
 VALIDATE_DECISION
 EXECUTE_TRADE
 LOAD_FINAL_PORTFOLIO
-CHECK_STEP_LIMIT
 ```
 
 현재 Tool 실행기는 `GET_PORTFOLIO`, `GET_MARKET` 조회 Tool을 실행할 수 있다. 실행 결과는 `HarnessRunContext.toolResults`에 추가되고, Harness는 갱신된 Context로 Agent를 한 번 더 실행한다. 두 번째 Agent 실행이 `FINAL_DECISION`을 반환하면 기존 Risk Guard와 Trade Executor 흐름으로 진행한다.
@@ -507,20 +508,18 @@ CHECK_STEP_LIMIT
 
 두 포트폴리오 조회는 의미가 다르므로 별도 Step으로 기록한다. 이후 포트폴리오 조회가 Broker API 또는 Cache/Adapter 계층으로 이동하더라도, Harness는 어떤 시점의 상태를 읽었는지 Step 이력으로 추적할 수 있다.
 
-`CHECK_STEP_LIMIT`는 외부 작업 실행이라기보다 Harness 내부 판정 Step이다. 따라서 `Supplier` 기반 실행 블록으로 감싸지 않고, 별도 helper에서 계산한 뒤 `completed` 또는 `failed` Step으로 기록한다.
+`CHECK_STEP_LIMIT`는 Agent를 실행하기 직전에 Agent Step Budget을 확인한 결과다. 기록된 전체 Harness Step 수가 아니라 `investmentAgent.next(context)` 호출 횟수를 제한한다.
 
-Step limit 판정은 `CHECK_STEP_LIMIT` Step 자신까지 포함한 최종 Step 수를 기준으로 한다.
+Budget에 남은 횟수가 있으면 사용 횟수를 하나 증가시키고 `COMPLETED`로 기록한 뒤 Agent를 실행한다.
 
 ```text
-executableStepCount = CHECK_STEP_LIMIT 기록 전 Step 수
-finalStepCount = executableStepCount + 1
-stepLimitExceeded = finalStepCount > maxSteps
+Agent step allowed. used={usedSteps}, max={maxSteps}
 ```
 
-예를 들어 현재 정상 실행 흐름은 `CHECK_STEP_LIMIT` 이전에 6개 Step을 기록하고, 최종 Step 수는 7개가 된다.
+Budget을 모두 사용했다면 `CHECK_STEP_LIMIT`를 `FAILED`로 기록하고 Agent를 추가로 실행하지 않는다. 따라서 제한 실패 이후에는 투자 판단 검증이나 거래 실행으로 넘어가지 않는다.
 
 ```text
-Executable steps: 6, final steps: 7, max steps: 4
+Agent step limit exceeded. used={usedSteps}, max={maxSteps}
 ```
 
 ## Run Limits
@@ -537,6 +536,16 @@ src/main/java/com/stock/harness/HarnessRunLimits.java
 maxSteps
 ```
 
+현재 `maxSteps`는 전체 `HarnessStepResult` 개수가 아니라 한 Run에서 Agent가 판단할 수 있는 최대 횟수다.
+
+```text
+maxSteps = 1
+-> 최초 Agent 판단만 허용
+
+maxSteps = 2
+-> 최초 Agent 판단과 Tool 결과를 받은 재판단 허용
+```
+
 `HarnessProperties.maxSteps`는 애플리케이션의 기본 설정값이다.
 
 `HarnessRunLimits.maxSteps`는 Run 시작 시점에 확정되어 해당 Run에 적용되는 제한값이다.
@@ -549,7 +558,16 @@ application.yml
 -> InvestmentHarness.createContext()
 -> HarnessRunLimits(maxSteps)
 -> HarnessRunContext(limits)
+-> HarnessAgentStepBudget(maxSteps)
 ```
+
+`HarnessAgentStepBudget`의 패키지 경로는 다음과 같다.
+
+```text
+src/main/java/com/stock/harness/execution/limit/HarnessAgentStepBudget.java
+```
+
+Budget은 사용 횟수를 가지는 Run 전용 객체다. Spring Bean으로 등록하지 않고 `InvestmentHarness.run()`에서 매번 새로 생성하므로 서로 다른 Run이 상태를 공유하지 않는다.
 
 `HarnessRunContext`는 `maxSteps`를 직접 들지 않고 `HarnessRunLimits`를 가진다.
 
@@ -557,8 +575,10 @@ application.yml
 HarnessRunContext
 -> runId
 -> limits
+-> allowedTools
 -> portfolioSnapshot
 -> marketSnapshot
+-> toolResults
 ```
 
 이 구조를 통해 나중에 `apiCallLimit`, `toolCallLimit` 같은 Run 단위 실행 제한이 생기더라도 `HarnessRunContext`에 개별 필드를 계속 추가하지 않고 `HarnessRunLimits` 안에서 관리할 수 있다.
@@ -567,7 +587,7 @@ HarnessRunContext
 
 아직 Run별 override, Tool 호출 제한, Broker API 호출 제한이 없기 때문에 저장 컬럼을 먼저 만들면 과한 구조가 될 수 있다.
 
-현재는 Step limit 판정 메시지에 실행 당시의 `maxSteps`가 남는다.
+현재는 각 `CHECK_STEP_LIMIT`의 message에 사용한 Agent Step 수와 최대 Agent Step 수가 남는다.
 
 ## Harness Tool Types
 
@@ -1055,4 +1075,4 @@ enabled
 
 현재 추천 방향은 바로 실제 Broker API Tool을 만들지 않는 것이다.
 
-다음 구현 단계는 한 번으로 제한된 Tool 결과 피드백을 반복 가능한 Agent Loop로 확장하는 것이다. 반복문을 추가하기 전에 `CHECK_STEP_LIMIT`를 실행 중 제한으로 바꿔, Agent가 계속 Tool을 요청하더라도 정해진 Step 수 안에서 Run이 반드시 종료되게 해야 한다.
+다음 구현 단계는 한 번으로 제한된 Tool 결과 피드백을 반복 가능한 Agent Loop로 확장하는 것이다. Agent 호출 전에 `HarnessAgentStepBudget`을 소비하도록 연결됐으므로, 하드코딩된 두 번째 Tool 요청 실패를 제거하고 Budget이 허용하는 동안 `REQUEST_TOOL -> Tool 실행 -> Context 갱신 -> Agent 재판단`을 반복할 수 있다.

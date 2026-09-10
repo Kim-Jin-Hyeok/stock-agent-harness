@@ -4,6 +4,7 @@ import com.stock.agent.AgentNextAction;
 import com.stock.agent.AgentNextActionType;
 import com.stock.agent.InvestmentAgent;
 import com.stock.agent.InvestmentDecision;
+import com.stock.harness.execution.limit.HarnessAgentStepBudget;
 import com.stock.harness.tool.*;
 import com.stock.market.MarketService;
 import com.stock.market.MarketSnapshot;
@@ -62,16 +63,21 @@ public class InvestmentHarness {
                     portfolioSnapshot,
                     marketSnapshot
             );
+            HarnessAgentStepBudget agentStepBudget = new HarnessAgentStepBudget(
+                    context.limits().maxSteps()
+            );
 
             AgentNextAction agentNextAction = runInvestmentAgent(
                     context,
-                    stepRecorder
+                    stepRecorder,
+                    agentStepBudget
             );
 
             InvestmentDecision decision = resolvedInvestmentDecision(
                     agentNextAction,
                     context,
-                    stepRecorder
+                    stepRecorder,
+                    agentStepBudget
             );
 
             RiskCheckResult riskCheckResult = stepRecorder.record(
@@ -98,10 +104,7 @@ public class InvestmentHarness {
                     "Final portfolio loading complete."
             );
 
-            List<HarnessStepResult> steps = recordSteps(
-                    stepRecorder,
-                    context
-            );
+            List<HarnessStepResult> steps = stepRecorder.steps();
 
             HarnessRunStatus runStatus = determineRunStatus(steps);
 
@@ -174,15 +177,6 @@ public class InvestmentHarness {
         );
     }
 
-    private List<HarnessStepResult> recordSteps(
-            HarnessStepRecorder stepRecorder,
-            HarnessRunContext context
-    ) {
-        recordStepLimitCheck(stepRecorder, context);
-
-        return stepRecorder.steps();
-    }
-
     private HarnessRunStatus determineRunStatus(List<HarnessStepResult> steps) {
         boolean hasFailedStep = steps.stream()
                 .anyMatch(step -> step.status() == HarnessStepStatus.FAILED);
@@ -225,32 +219,11 @@ public class InvestmentHarness {
         );
     }
 
-    private void recordStepLimitCheck(
-            HarnessStepRecorder stepRecorder,
-            HarnessRunContext context
-    ) {
-        int executableStepCount = stepRecorder.size();
-        int finalStepCount = executableStepCount + 1;
-        boolean stepLimitExceeded = finalStepCount > context.limits().maxSteps();
-
-        String stepLimitMessage = "Executable steps: "
-                + executableStepCount
-                + ", final steps: "
-                + finalStepCount
-                + ", max steps: "
-                + context.limits().maxSteps();
-
-        if (stepLimitExceeded) {
-            stepRecorder.failed(HarnessStepType.CHECK_STEP_LIMIT, stepLimitMessage);
-        } else {
-            stepRecorder.completed(HarnessStepType.CHECK_STEP_LIMIT, stepLimitMessage);
-        }
-    }
-
     private InvestmentDecision resolvedInvestmentDecision(
             AgentNextAction action,
             HarnessRunContext context,
-            HarnessStepRecorder stepRecorder
+            HarnessStepRecorder stepRecorder,
+            HarnessAgentStepBudget agentStepBudget
     ) {
         if (action.type() == AgentNextActionType.FINAL_DECISION) {
             return action.investmentDecision();
@@ -291,7 +264,8 @@ public class InvestmentHarness {
             HarnessRunContext updatedContext = context.withToolResult(executionResult);
             AgentNextAction nextAction = runInvestmentAgent(
                     updatedContext,
-                    stepRecorder
+                    stepRecorder,
+                    agentStepBudget
             );
 
             if (nextAction.type() == AgentNextActionType.FINAL_DECISION) {
@@ -311,8 +285,27 @@ public class InvestmentHarness {
 
     private AgentNextAction runInvestmentAgent(
             HarnessRunContext context,
-            HarnessStepRecorder stepRecorder
+            HarnessStepRecorder stepRecorder,
+            HarnessAgentStepBudget agentStepBudget
     ) {
+        if (!agentStepBudget.tryConsume()) {
+            String message = "Agent step limit exceeded. used="
+                    + agentStepBudget.usedSteps()
+                    + ", max="
+                    + agentStepBudget.maxSteps();
+
+            stepRecorder.failed(HarnessStepType.CHECK_STEP_LIMIT, message);
+            throw new IllegalStateException(message);
+        }
+
+        stepRecorder.completed(
+                HarnessStepType.CHECK_STEP_LIMIT,
+                "Agent step allowed. used="
+                + agentStepBudget.usedSteps()
+                + ", max="
+                + agentStepBudget.maxSteps()
+        );
+
         return stepRecorder.record(
                 HarnessStepType.RUN_INVESTMENT_AGENT,
                 () -> investmentAgent.next(context),
