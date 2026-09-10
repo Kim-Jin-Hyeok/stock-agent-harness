@@ -170,7 +170,8 @@ public class InvestmentHarness {
                 limits,
                 allowedTools,
                 portfolioSnapshot,
-                marketSnapshot
+                marketSnapshot,
+                List.of()
         );
     }
 

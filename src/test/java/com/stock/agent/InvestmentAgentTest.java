@@ -61,7 +61,8 @@ class InvestmentAgentTest {
                 runLimits(),
                 allowedTools(),
                 portfolioSnapshot(),
-                marketSnapshot()
+                marketSnapshot(),
+                List.of()
         );
     }
 
