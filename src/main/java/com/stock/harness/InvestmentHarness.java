@@ -63,10 +63,9 @@ public class InvestmentHarness {
                     marketSnapshot
             );
 
-            AgentNextAction agentNextAction = stepRecorder.record(
-                    HarnessStepType.RUN_INVESTMENT_AGENT,
-                    () -> investmentAgent.next(context),
-                    this::agentNextActionMessage
+            AgentNextAction agentNextAction = runInvestmentAgent(
+                    context,
+                    stepRecorder
             );
 
             InvestmentDecision decision = resolvedInvestmentDecision(
@@ -289,13 +288,35 @@ public class InvestmentHarness {
         );
 
         if (executionResult.status() == HarnessToolExecutionStatus.EXECUTED) {
+            HarnessRunContext updatedContext = context.withToolResult(executionResult);
+            AgentNextAction nextAction = runInvestmentAgent(
+                    updatedContext,
+                    stepRecorder
+            );
+
+            if (nextAction.type() == AgentNextActionType.FINAL_DECISION) {
+                return nextAction.investmentDecision();
+            }
+
             throw new IllegalStateException(
-                    "Tool result handling is not supported yet. type=" + executionResult.type()
+                    "Multiple tool requests are not supported yet. type="
+                    + nextAction.toolRequest().type()
             );
         }
 
         throw new IllegalStateException(
                 executionResult.reason() + " type=" + executionResult.type()
+        );
+    }
+
+    private AgentNextAction runInvestmentAgent(
+            HarnessRunContext context,
+            HarnessStepRecorder stepRecorder
+    ) {
+        return stepRecorder.record(
+                HarnessStepType.RUN_INVESTMENT_AGENT,
+                () -> investmentAgent.next(context),
+                this::agentNextActionMessage
         );
     }
 

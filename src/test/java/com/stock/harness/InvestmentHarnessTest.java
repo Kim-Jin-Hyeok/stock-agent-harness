@@ -329,7 +329,70 @@ class InvestmentHarnessTest {
     }
 
     @Test
-    void runFailsWhenAgentRequestsToolAction() {
+    void runCompletesAfterAgentUsesPortfolioToolResult() {
+        InvestmentHarness toolRequestingHarness = new InvestmentHarness(
+                riskGuard,
+                tradeExecutor,
+                portfolioService,
+                marketService,
+                harnessRunHistoryService,
+                new ToolResultUsingInvestmentAgent(),
+                harnessProperties,
+                harnessToolAuthorizer,
+                harnessToolExecutor
+        );
+
+        HarnessRunResult result = toolRequestingHarness.run();
+
+        assertThat(result.status()).isEqualTo(HarnessRunStatus.COMPLETED);
+        assertThat(result.decision().action()).isEqualTo(InvestmentAction.HOLD);
+        assertThat(result.decision().reason()).isEqualTo(
+                "Portfolio tool result received. cashAmountKrw="
+                + result.portfolioSnapshot().cashAmountKrw()
+        );
+        assertThat(result.steps())
+                .extracting(HarnessStepResult::type)
+                .containsExactly(
+                        HarnessStepType.LOAD_PORTFOLIO,
+                        HarnessStepType.LOAD_MARKET,
+                        HarnessStepType.RUN_INVESTMENT_AGENT,
+                        HarnessStepType.AUTHORIZE_TOOL_REQUEST,
+                        HarnessStepType.EXECUTE_TOOL_REQUEST,
+                        HarnessStepType.RUN_INVESTMENT_AGENT,
+                        HarnessStepType.VALIDATE_DECISION,
+                        HarnessStepType.EXECUTE_TRADE,
+                        HarnessStepType.LOAD_FINAL_PORTFOLIO,
+                        HarnessStepType.CHECK_STEP_LIMIT
+                );
+
+        HarnessStepResult agentStep = result.steps().get(2);
+
+        assertThat(agentStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
+        assertThat(agentStep.message()).isEqualTo(
+                "Requested tool. type=GET_PORTFOLIO"
+        );
+
+        HarnessStepResult authorizationStep = result.steps().get(3);
+
+        assertThat(authorizationStep.type()).isEqualTo(HarnessStepType.AUTHORIZE_TOOL_REQUEST);
+        assertThat(authorizationStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
+        assertThat(authorizationStep.message()).isEqualTo("Harness tool authorization allowed.");
+
+        HarnessStepResult executeToolStep = result.steps().get(4);
+
+        assertThat(executeToolStep.type()).isEqualTo(HarnessStepType.EXECUTE_TOOL_REQUEST);
+        assertThat(executeToolStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
+        assertThat(executeToolStep.message()).isEqualTo("Harness tool execution completed.");
+
+        HarnessStepResult secondAgentStep = result.steps().get(5);
+
+        assertThat(secondAgentStep.type()).isEqualTo(HarnessStepType.RUN_INVESTMENT_AGENT);
+        assertThat(secondAgentStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
+        assertThat(secondAgentStep.message()).isEqualTo(result.decision().reason());
+    }
+
+    @Test
+    void runFailsWhenAgentRequestsSecondToolAction() {
         InvestmentHarness toolRequestingHarness = new InvestmentHarness(
                 riskGuard,
                 tradeExecutor,
@@ -353,33 +416,14 @@ class InvestmentHarnessTest {
                         HarnessStepType.RUN_INVESTMENT_AGENT,
                         HarnessStepType.AUTHORIZE_TOOL_REQUEST,
                         HarnessStepType.EXECUTE_TOOL_REQUEST,
+                        HarnessStepType.RUN_INVESTMENT_AGENT,
                         HarnessStepType.RUN_FAILED
                 );
 
-        HarnessStepResult agentStep = result.steps().get(2);
-
-        assertThat(agentStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
-        assertThat(agentStep.message()).isEqualTo(
-                "Requested tool. type=GET_PORTFOLIO"
-        );
-
-        HarnessStepResult authorizationStep = result.steps().get(3);
-
-        assertThat(authorizationStep.type()).isEqualTo(HarnessStepType.AUTHORIZE_TOOL_REQUEST);
-        assertThat(authorizationStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
-        assertThat(authorizationStep.message()).isEqualTo("Harness tool authorization allowed.");
-
-        HarnessStepResult executeToolStep = result.steps().get(4);
-
-        assertThat(executeToolStep.type()).isEqualTo(HarnessStepType.EXECUTE_TOOL_REQUEST);
-        assertThat(executeToolStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
-        assertThat(executeToolStep.message()).isEqualTo("Harness tool execution completed.");
-
         HarnessStepResult failedStep = result.steps().getLast();
 
-        assertThat(failedStep.type()).isEqualTo(HarnessStepType.RUN_FAILED);
         assertThat(failedStep.status()).isEqualTo(HarnessStepStatus.FAILED);
-        assertThat(failedStep.message()).isEqualTo(unsupportedPortfolioToolResultHandlingMessage());
+        assertThat(failedStep.message()).isEqualTo(multiplePortfolioToolRequestsMessage());
     }
 
     private static class BuyingInvestmentAgent extends InvestmentAgent {
@@ -437,7 +481,33 @@ class InvestmentHarnessTest {
         }
     }
 
-    private String unsupportedPortfolioToolResultHandlingMessage() {
-        return "Tool result handling is not supported yet. type=" + HarnessToolType.GET_PORTFOLIO;
+    private static class ToolResultUsingInvestmentAgent extends InvestmentAgent {
+        @Override
+        public AgentNextAction next(HarnessRunContext context) {
+            if (context.toolResults().isEmpty()) {
+                return AgentNextAction.requestTool(
+                        new HarnessToolRequest(HarnessToolType.GET_PORTFOLIO)
+                );
+            }
+
+            HarnessToolExecutionResult toolResult = context.toolResults().getFirst();
+
+            if (toolResult.output().portfolioSnapshot() == null) {
+                throw new IllegalStateException("Portfolio tool result is missing.");
+            }
+
+            return AgentNextAction.finalDecision(new InvestmentDecision(
+                    InvestmentAction.HOLD,
+                    null,
+                    null,
+                    null,
+                    "Portfolio tool result received. cashAmountKrw="
+                    + toolResult.output().portfolioSnapshot().cashAmountKrw()
+            ));
+        }
+    }
+
+    private String multiplePortfolioToolRequestsMessage() {
+        return "Multiple tool requests are not supported yet. type=" + HarnessToolType.GET_PORTFOLIO;
     }
 }
