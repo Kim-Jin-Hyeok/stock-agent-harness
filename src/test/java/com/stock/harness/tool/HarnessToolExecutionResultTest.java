@@ -1,6 +1,9 @@
 package com.stock.harness.tool;
 
+import com.stock.portfolio.PortfolioSnapshot;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -14,6 +17,7 @@ class HarnessToolExecutionResultTest {
         assertThat(result.type()).isEqualTo(HarnessToolType.GET_PORTFOLIO);
         assertThat(result.reasonCode()).isEqualTo(toolExecutedReasonCode());
         assertThat(result.reason()).isEqualTo(toolExecutedReason());
+        assertThat(result.output()).isEqualTo(portfolioToolOutput());
     }
 
     @Test
@@ -24,6 +28,7 @@ class HarnessToolExecutionResultTest {
         assertThat(result.type()).isEqualTo(HarnessToolType.GET_PORTFOLIO);
         assertThat(result.reasonCode()).isEqualTo(toolNotSupportedReasonCode());
         assertThat(result.reason()).isEqualTo(toolNotSupportedReason());
+        assertThat(result.output()).isNull();
     }
 
     @Test
@@ -34,10 +39,11 @@ class HarnessToolExecutionResultTest {
         assertThat(result.type()).isEqualTo(HarnessToolType.GET_PORTFOLIO);
         assertThat(result.reasonCode()).isEqualTo(toolAuthorizationDeniedReasonCode());
         assertThat(result.reason()).isEqualTo(toolAuthorizationDeniedReason());
+        assertThat(result.output()).isNull();
     }
 
     private HarnessToolExecutionResult executedPortfolioToolResult() {
-        return HarnessToolExecutionResult.executed(portfolioTool());
+        return HarnessToolExecutionResult.executed(portfolioToolOutput());
     }
 
     private HarnessToolExecutionResult notSupportedPortfolioToolResult() {
@@ -50,6 +56,18 @@ class HarnessToolExecutionResultTest {
 
     private HarnessToolType portfolioTool() {
         return HarnessToolType.GET_PORTFOLIO;
+    }
+
+    private HarnessToolOutput portfolioToolOutput() {
+        return HarnessToolOutput.portfolio(portfolioSnapshot());
+    }
+
+    private PortfolioSnapshot portfolioSnapshot() {
+        return new PortfolioSnapshot(
+                5_000_000L,
+                10_000_000L,
+                List.of()
+        );
     }
 
     private HarnessToolExecutionStatus executedStatus() {

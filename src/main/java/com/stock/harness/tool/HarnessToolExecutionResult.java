@@ -4,14 +4,16 @@ public record HarnessToolExecutionResult(
         HarnessToolExecutionStatus status,
         HarnessToolType type,
         HarnessToolExecutionReasonCode reasonCode,
-        String reason
+        String reason,
+        HarnessToolOutput output
 ) {
-    public static HarnessToolExecutionResult executed(HarnessToolType type) {
+    public static HarnessToolExecutionResult executed(HarnessToolOutput output) {
         return new HarnessToolExecutionResult(
                 HarnessToolExecutionStatus.EXECUTED,
-                type,
+                output.type(),
                 HarnessToolExecutionReasonCode.TOOL_EXECUTED,
-                "Harness tool execution completed."
+                "Harness tool execution completed.",
+                output
         );
     }
 
@@ -20,7 +22,8 @@ public record HarnessToolExecutionResult(
                 HarnessToolExecutionStatus.FAILED,
                 type,
                 HarnessToolExecutionReasonCode.TOOL_NOT_SUPPORTED,
-                "Tool execution is not supported yet."
+                "Tool execution is not supported yet.",
+                null
         );
     }
 
@@ -29,7 +32,8 @@ public record HarnessToolExecutionResult(
                 HarnessToolExecutionStatus.FAILED,
                 type,
                 HarnessToolExecutionReasonCode.TOOL_AUTHORIZATION_DENIED,
-                "Tool authorization denied."
+                "Tool authorization denied.",
+                null
         );
     }
 }
