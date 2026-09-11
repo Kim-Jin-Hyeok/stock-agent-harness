@@ -498,9 +498,9 @@ EXECUTE_TRADE
 LOAD_FINAL_PORTFOLIO
 ```
 
-현재 Tool 실행기는 `GET_PORTFOLIO`, `GET_MARKET` 조회 Tool을 실행할 수 있다. 실행 결과는 `HarnessRunContext.toolResults`에 추가되고, Harness는 갱신된 Context로 Agent를 한 번 더 실행한다. 두 번째 Agent 실행이 `FINAL_DECISION`을 반환하면 기존 Risk Guard와 Trade Executor 흐름으로 진행한다.
+현재 Tool 실행기는 `GET_PORTFOLIO`, `GET_MARKET` 조회 Tool을 실행할 수 있다. 실행 결과는 `HarnessRunContext.toolResults`에 추가되고, Harness는 갱신된 Context로 Agent를 다시 실행한다. Agent가 `FINAL_DECISION`을 반환하면 기존 Risk Guard와 Trade Executor 흐름으로 진행한다.
 
-현재 단계에서는 한 Run에서 한 번의 Tool 요청만 지원한다. Tool 결과를 받은 Agent가 다시 `REQUEST_TOOL`을 반환하면 Harness는 반복 Tool 요청을 지원하지 않는다는 메시지와 함께 Run을 실패로 종료한다.
+Agent가 다시 `REQUEST_TOOL`을 반환하면 같은 흐름을 반복한다. 반복 횟수는 `HarnessAgentStepBudget`이 제한하며, Budget을 모두 사용하면 다음 Agent를 호출하지 않고 Run을 실패로 종료한다.
 
 `LOAD_PORTFOLIO`는 Agent 판단에 사용될 초기 포트폴리오 상태를 조회한다.
 
@@ -900,8 +900,8 @@ REQUEST_TOOL은 HarnessToolAuthorizer로 권한 판정한 뒤 AUTHORIZE_TOOL_REQ
 권한이 허용되면 HarnessToolExecutor로 실행을 시도하고 EXECUTE_TOOL_REQUEST Step을 기록함
 HarnessToolExecutor는 GET_PORTFOLIO와 GET_MARKET 조회 Tool을 실행함
 HarnessToolExecutionResult 모델 있음
-Tool 실행 결과를 HarnessRunContext에 추가하고 Agent를 한 번 더 실행함
-반복 가능한 Agent Loop는 아직 없음
+Tool 실행 결과를 HarnessRunContext에 추가하고 Agent Step Budget 안에서 재판단을 반복함
+Tool Calling 기반 Agent Loop 있음
 ```
 
 ## Harness Tool Execution Result
@@ -979,11 +979,11 @@ HarnessToolExecutionResult
 -> Tool 실행이 어떻게 끝났는가?
 ```
 
-## Tool Result Feedback
+## Agent Loop
 
-현재 Harness는 Tool 실행 결과를 Agent에게 한 번 다시 전달할 수 있다.
+현재 Harness는 Agent Step Budget 안에서 Tool 실행 결과를 Agent에게 반복해서 전달할 수 있다.
 
-현재 Harness는 `maxSteps`를 통해 Run의 전체 Step 수를 제한한다. 장기 목표에서는 Step 수뿐 아니라 Tool 호출 수, Broker API 호출 수, Cache 사용 여부, Rate Limit도 Harness가 관리해야 한다.
+현재 Harness는 `maxSteps`를 통해 한 Run의 Agent 판단 횟수를 제한한다. 장기 목표에서는 Agent Step뿐 아니라 Tool 호출 수, Broker API 호출 수, Cache 사용 여부, Rate Limit도 Harness가 관리해야 한다.
 
 `HarnessRunContext.toolResults`는 현재 Run에서 완료된 Tool 실행 결과를 보관한다. `withToolResult`는 기존 Context를 변경하지 않고 실행 결과가 추가된 새 Context를 만든다.
 
@@ -991,7 +991,7 @@ HarnessToolExecutionResult
 
 `FINAL_DECISION`이 반환되면 기존처럼 `InvestmentDecision`을 꺼내 Risk Guard와 Trade Executor 흐름으로 진행한다.
 
-`REQUEST_TOOL`이 반환되면 Harness는 `HarnessToolAuthorizer`로 권한을 판정하고 `AUTHORIZE_TOOL_REQUEST` Step을 기록한다. 권한이 허용되면 `HarnessToolExecutor`로 Tool을 실행하고 `EXECUTE_TOOL_REQUEST` Step을 기록한다. 실행 결과는 새 Context에 추가되고 Agent의 두 번째 판단 입력으로 전달된다.
+`REQUEST_TOOL`이 반환되면 Harness는 `HarnessToolAuthorizer`로 권한을 판정하고 `AUTHORIZE_TOOL_REQUEST` Step을 기록한다. 권한이 허용되면 `HarnessToolExecutor`로 Tool을 실행하고 `EXECUTE_TOOL_REQUEST` Step을 기록한다. 실행 결과는 새 Context에 추가되고 Agent의 다음 판단 입력으로 전달된다.
 
 권한 판정 결과는 Step status와 message로 남는다.
 
@@ -1030,16 +1030,14 @@ RUN_INVESTMENT_AGENT
 -> Agent의 최종 판단 사유
 ```
 
-이 구조는 아직 반복 가능한 Agent Loop는 아니다. 현재는 Agent가 한 번 `REQUEST_TOOL`을 반환하면 Harness가 Tool 실행 결과를 전달하고 Agent를 한 번 더 실행한다.
-
-두 번째 Agent 실행이 `FINAL_DECISION`을 반환하면 Risk Guard와 Trade Executor 흐름으로 진행한다. 다시 `REQUEST_TOOL`을 반환하면 `Multiple tool requests are not supported yet.` 메시지와 함께 Run을 실패로 종료한다.
+Agent Loop는 `FINAL_DECISION`이 반환되거나 Agent Step Budget이 소진될 때까지 반복된다. `FINAL_DECISION`이 반환되면 Risk Guard와 Trade Executor 흐름으로 진행하고, Budget이 소진되면 `Agent step limit exceeded.` 메시지와 함께 Run을 실패로 종료한다.
 
 판단해야 할 질문은 다음과 같다.
 
 ```text
-1. `maxSteps`를 실행 종료 후 판정이 아니라 실행 중단 조건으로 어떻게 적용할 것인가?
-2. Agent 판단, Tool 권한 검사, Tool 실행을 모두 Step Budget에 포함할 것인가?
-3. Tool 실행 실패를 Agent에게 전달해 재판단하게 할 것인가, Harness가 즉시 실패시킬 것인가?
+1. Tool 실행 실패를 Agent에게 전달해 재판단하게 할 것인가, Harness가 즉시 실패시킬 것인가?
+2. Agent Step과 별도로 Tool 호출 횟수를 제한할 것인가?
+3. Tool 실행 결과를 Run 상세 이력에 어떤 형태로 저장할 것인가?
 ```
 
 설정 책임은 현재 다음처럼 분리되어 있다.
@@ -1075,4 +1073,4 @@ enabled
 
 현재 추천 방향은 바로 실제 Broker API Tool을 만들지 않는 것이다.
 
-다음 구현 단계는 한 번으로 제한된 Tool 결과 피드백을 반복 가능한 Agent Loop로 확장하는 것이다. Agent 호출 전에 `HarnessAgentStepBudget`을 소비하도록 연결됐으므로, 하드코딩된 두 번째 Tool 요청 실패를 제거하고 Budget이 허용하는 동안 `REQUEST_TOOL -> Tool 실행 -> Context 갱신 -> Agent 재판단`을 반복할 수 있다.
+다음 구현 단계는 Agent Step과 별도로 Tool 호출 Budget을 추가하는 것이다. Agent가 최종 결정을 내리지 않은 채 Tool만 반복 호출하는 상황을 독립적으로 제한하고, 이후 Broker API 호출 Budget과 Cache 정책으로 확장할 수 있다.

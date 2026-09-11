@@ -67,14 +67,7 @@ public class InvestmentHarness {
                     context.limits().maxSteps()
             );
 
-            AgentNextAction agentNextAction = runInvestmentAgent(
-                    context,
-                    stepRecorder,
-                    agentStepBudget
-            );
-
-            InvestmentDecision decision = resolvedInvestmentDecision(
-                    agentNextAction,
+            InvestmentDecision decision = resolveInvestmentDecision(
                     context,
                     stepRecorder,
                     agentStepBudget
@@ -219,68 +212,64 @@ public class InvestmentHarness {
         );
     }
 
-    private InvestmentDecision resolvedInvestmentDecision(
-            AgentNextAction action,
+    private InvestmentDecision resolveInvestmentDecision(
             HarnessRunContext context,
             HarnessStepRecorder stepRecorder,
             HarnessAgentStepBudget agentStepBudget
     ) {
-        if (action.type() == AgentNextActionType.FINAL_DECISION) {
-            return action.investmentDecision();
-        }
+        HarnessRunContext currentContext = context;
 
-        HarnessToolAuthorizationResult authorizationResult = stepRecorder.record(
-                HarnessStepType.AUTHORIZE_TOOL_REQUEST,
-                () -> harnessToolAuthorizer.authorize(
-                        context.allowedTools(),
-                        action.toolRequest()
-                ),
-                result -> result.status() == HarnessToolAuthorizationStatus.ALLOWED
-                        ? HarnessStepStatus.COMPLETED
-                        : HarnessStepStatus.FAILED,
-                HarnessToolAuthorizationResult::reason
-        );
-
-        if (authorizationResult.status() != HarnessToolAuthorizationStatus.ALLOWED) {
-            HarnessToolExecutionResult executionResult = HarnessToolExecutionResult.authorizationDenied(
-                    authorizationResult.type()
-            );
-
-            throw new IllegalStateException(
-                    executionResult.reason() + " type=" + executionResult.type()
-            );
-        }
-
-        HarnessToolExecutionResult executionResult = stepRecorder.record(
-                HarnessStepType.EXECUTE_TOOL_REQUEST,
-                () -> harnessToolExecutor.execute(action.toolRequest()),
-                result -> result.status() == HarnessToolExecutionStatus.EXECUTED
-                        ? HarnessStepStatus.COMPLETED
-                        : HarnessStepStatus.FAILED,
-                HarnessToolExecutionResult::reason
-        );
-
-        if (executionResult.status() == HarnessToolExecutionStatus.EXECUTED) {
-            HarnessRunContext updatedContext = context.withToolResult(executionResult);
-            AgentNextAction nextAction = runInvestmentAgent(
-                    updatedContext,
+        while (true) {
+            AgentNextAction action = runInvestmentAgent(
+                    currentContext,
                     stepRecorder,
                     agentStepBudget
             );
 
-            if (nextAction.type() == AgentNextActionType.FINAL_DECISION) {
-                return nextAction.investmentDecision();
+            if (action.type() == AgentNextActionType.FINAL_DECISION) {
+                return action.investmentDecision();
             }
 
-            throw new IllegalStateException(
-                    "Multiple tool requests are not supported yet. type="
-                    + nextAction.toolRequest().type()
+            HarnessAllowedTools allowedTools = currentContext.allowedTools();
+            HarnessToolAuthorizationResult authorizationResult = stepRecorder.record(
+                    HarnessStepType.AUTHORIZE_TOOL_REQUEST,
+                    () -> harnessToolAuthorizer.authorize(
+                            allowedTools,
+                            action.toolRequest()
+                    ),
+                    result -> result.status() == HarnessToolAuthorizationStatus.ALLOWED
+                            ? HarnessStepStatus.COMPLETED
+                            : HarnessStepStatus.FAILED,
+                    HarnessToolAuthorizationResult::reason
             );
-        }
 
-        throw new IllegalStateException(
-                executionResult.reason() + " type=" + executionResult.type()
-        );
+            if (authorizationResult.status() != HarnessToolAuthorizationStatus.ALLOWED) {
+                HarnessToolExecutionResult executionResult = HarnessToolExecutionResult.authorizationDenied(
+                        authorizationResult.type()
+                );
+
+                throw new IllegalStateException(
+                        executionResult.reason() + " type=" + executionResult.type()
+                );
+            }
+
+            HarnessToolExecutionResult executionResult = stepRecorder.record(
+                    HarnessStepType.EXECUTE_TOOL_REQUEST,
+                    () -> harnessToolExecutor.execute(action.toolRequest()),
+                    result -> result.status() == HarnessToolExecutionStatus.EXECUTED
+                            ? HarnessStepStatus.COMPLETED
+                            : HarnessStepStatus.FAILED,
+                    HarnessToolExecutionResult::reason
+            );
+
+            if (executionResult.status() != HarnessToolExecutionStatus.EXECUTED) {
+                throw new IllegalStateException(
+                        executionResult.reason() + " type=" + executionResult.type()
+                );
+            }
+
+            currentContext = currentContext.withToolResult(executionResult);
+        }
     }
 
     private AgentNextAction runInvestmentAgent(

@@ -412,7 +412,52 @@ class InvestmentHarnessTest {
     }
 
     @Test
-    void runFailsWhenAgentRequestsSecondToolAction() {
+    void runCompletesAfterAgentUsesMultipleToolResults() {
+        InvestmentHarness multipleToolHarness = new InvestmentHarness(
+                riskGuard,
+                tradeExecutor,
+                portfolioService,
+                marketService,
+                harnessRunHistoryService,
+                new MultipleToolResultUsingInvestmentAgent(),
+                new HarnessProperties(3),
+                harnessToolAuthorizer,
+                harnessToolExecutor
+        );
+
+        HarnessRunResult result = multipleToolHarness.run();
+
+        assertThat(result.status()).isEqualTo(HarnessRunStatus.COMPLETED);
+        assertThat(result.decision().action()).isEqualTo(InvestmentAction.HOLD);
+        assertThat(result.decision().reason()).isEqualTo(
+                "Multiple tool results received. cashAmountKrw="
+                + result.portfolioSnapshot().cashAmountKrw()
+                + ", market="
+                + result.marketSnapshot().market()
+        );
+        assertThat(result.steps())
+                .extracting(HarnessStepResult::type)
+                .containsExactly(
+                        HarnessStepType.LOAD_PORTFOLIO,
+                        HarnessStepType.LOAD_MARKET,
+                        HarnessStepType.CHECK_STEP_LIMIT,
+                        HarnessStepType.RUN_INVESTMENT_AGENT,
+                        HarnessStepType.AUTHORIZE_TOOL_REQUEST,
+                        HarnessStepType.EXECUTE_TOOL_REQUEST,
+                        HarnessStepType.CHECK_STEP_LIMIT,
+                        HarnessStepType.RUN_INVESTMENT_AGENT,
+                        HarnessStepType.AUTHORIZE_TOOL_REQUEST,
+                        HarnessStepType.EXECUTE_TOOL_REQUEST,
+                        HarnessStepType.CHECK_STEP_LIMIT,
+                        HarnessStepType.RUN_INVESTMENT_AGENT,
+                        HarnessStepType.VALIDATE_DECISION,
+                        HarnessStepType.EXECUTE_TRADE,
+                        HarnessStepType.LOAD_FINAL_PORTFOLIO
+                );
+    }
+
+    @Test
+    void runFailsWhenAgentKeepsRequestingToolsUntilStepLimit() {
         InvestmentHarness toolRequestingHarness = new InvestmentHarness(
                 riskGuard,
                 tradeExecutor,
@@ -420,7 +465,7 @@ class InvestmentHarnessTest {
                 marketService,
                 harnessRunHistoryService,
                 new ToolRequestingInvestmentAgent(),
-                harnessProperties,
+                new HarnessProperties(2),
                 harnessToolAuthorizer,
                 harnessToolExecutor
         );
@@ -439,13 +484,16 @@ class InvestmentHarnessTest {
                         HarnessStepType.EXECUTE_TOOL_REQUEST,
                         HarnessStepType.CHECK_STEP_LIMIT,
                         HarnessStepType.RUN_INVESTMENT_AGENT,
+                        HarnessStepType.AUTHORIZE_TOOL_REQUEST,
+                        HarnessStepType.EXECUTE_TOOL_REQUEST,
+                        HarnessStepType.CHECK_STEP_LIMIT,
                         HarnessStepType.RUN_FAILED
                 );
 
-        HarnessStepResult failedStep = result.steps().getLast();
+        HarnessStepResult failedLimitStep = result.steps().get(10);
 
-        assertThat(failedStep.status()).isEqualTo(HarnessStepStatus.FAILED);
-        assertThat(failedStep.message()).isEqualTo(multiplePortfolioToolRequestsMessage());
+        assertThat(failedLimitStep.status()).isEqualTo(HarnessStepStatus.FAILED);
+        assertThat(failedLimitStep.message()).isEqualTo("Agent step limit exceeded. used=2, max=2");
     }
 
     private static class BuyingInvestmentAgent extends InvestmentAgent {
@@ -529,7 +577,34 @@ class InvestmentHarnessTest {
         }
     }
 
-    private String multiplePortfolioToolRequestsMessage() {
-        return "Multiple tool requests are not supported yet. type=" + HarnessToolType.GET_PORTFOLIO;
+    private static class MultipleToolResultUsingInvestmentAgent extends InvestmentAgent {
+        @Override
+        public AgentNextAction next(HarnessRunContext context) {
+            if (context.toolResults().isEmpty()) {
+                return AgentNextAction.requestTool(
+                        new HarnessToolRequest(HarnessToolType.GET_PORTFOLIO)
+                );
+            }
+
+            if (context.toolResults().size() == 1) {
+                return AgentNextAction.requestTool(
+                        new HarnessToolRequest(HarnessToolType.GET_MARKET)
+                );
+            }
+
+            HarnessToolExecutionResult portfolioResult = context.toolResults().get(0);
+            HarnessToolExecutionResult marketResult = context.toolResults().get(1);
+
+            return AgentNextAction.finalDecision(new InvestmentDecision(
+                    InvestmentAction.HOLD,
+                    null,
+                    null,
+                    null,
+                    "Multiple tool results received. cashAmountKrw="
+                    + portfolioResult.output().portfolioSnapshot().cashAmountKrw()
+                    + ", market="
+                    + marketResult.output().marketSnapshot().market()
+            ));
+        }
     }
 }
