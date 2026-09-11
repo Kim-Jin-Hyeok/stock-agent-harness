@@ -1,9 +1,12 @@
 package com.stock.harness.persistence;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
 
 @Component
 @RequiredArgsConstructor
@@ -42,6 +45,14 @@ public class HarnessRunSnapshotJsonConverter {
         }
     }
 
+    public String toToolExecutionsJson(List<HarnessToolExecutionSnapshot> snapshots) {
+        try {
+            return objectMapper.writeValueAsString(snapshots);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Failed to serialize tool execution snapshots.", e);
+        }
+    }
+
     public HarnessDecisionSnapshot toDecisionSnapshot(String json) {
         try {
             return objectMapper.readValue(json, HarnessDecisionSnapshot.class);
@@ -71,6 +82,18 @@ public class HarnessRunSnapshotJsonConverter {
             return objectMapper.readValue(json, HarnessMarketSnapshot.class);
         } catch (JsonProcessingException e) {
             throw new IllegalArgumentException("Failed to deserialize market snapshot json.", e);
+        }
+    }
+
+    public List<HarnessToolExecutionSnapshot> toToolExecutionSnapshots(String json) {
+        try {
+            List<HarnessToolExecutionSnapshot> snapshots = objectMapper.readValue(
+                    json,
+                    new TypeReference<>() {}
+            );
+            return List.copyOf(snapshots);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Failed to deserialize tool execution snapshots json.", e);
         }
     }
 }

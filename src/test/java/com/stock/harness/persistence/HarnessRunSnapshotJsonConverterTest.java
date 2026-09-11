@@ -2,6 +2,9 @@ package com.stock.harness.persistence;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.agent.InvestmentAction;
+import com.stock.harness.tool.HarnessToolExecutionReasonCode;
+import com.stock.harness.tool.HarnessToolExecutionStatus;
+import com.stock.harness.tool.HarnessToolType;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskReasonCode;
 import org.junit.jupiter.api.Test;
@@ -85,6 +88,39 @@ class HarnessRunSnapshotJsonConverterTest {
         assertThat(restored.market()).isEqualTo("KR");
         assertThat(restored.marketOpen()).isTrue();
         assertThat(restored.description()).isEqualTo("Korean market is open.");
+    }
+
+    @Test
+    void convertsToolExecutionSnapshotsToJsonAndBack() {
+        List<HarnessToolExecutionSnapshot> snapshots = List.of(
+                new HarnessToolExecutionSnapshot(
+                        HarnessToolExecutionStatus.EXECUTED,
+                        HarnessToolType.GET_PORTFOLIO,
+                        HarnessToolExecutionReasonCode.TOOL_EXECUTED,
+                        "Harness tool execution completed.",
+                        portfolioSnapshot(),
+                        null
+                ),
+                new HarnessToolExecutionSnapshot(
+                        HarnessToolExecutionStatus.EXECUTED,
+                        HarnessToolType.GET_MARKET,
+                        HarnessToolExecutionReasonCode.TOOL_EXECUTED,
+                        "Harness tool execution completed.",
+                        null,
+                        marketSnapshot()
+                )
+        );
+
+        String json = converter.toToolExecutionsJson(snapshots);
+        List<HarnessToolExecutionSnapshot> restored = converter.toToolExecutionSnapshots(json);
+
+        assertThat(restored).isEqualTo(snapshots);
+        assertThat(restored)
+                .extracting(HarnessToolExecutionSnapshot::type)
+                .containsExactly(
+                        HarnessToolType.GET_PORTFOLIO,
+                        HarnessToolType.GET_MARKET
+                );
     }
 
     private HarnessDecisionSnapshot decisionSnapshot() {
