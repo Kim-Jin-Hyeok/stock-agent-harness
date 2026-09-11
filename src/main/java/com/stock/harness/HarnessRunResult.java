@@ -1,6 +1,7 @@
 package com.stock.harness;
 
 import com.stock.agent.InvestmentDecision;
+import com.stock.harness.tool.HarnessToolExecutionResult;
 import com.stock.market.MarketSnapshot;
 import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.risk.RiskCheckResult;
@@ -15,18 +16,25 @@ public record HarnessRunResult(
         LocalDateTime startedAt,
         LocalDateTime finishedAt,
         List<HarnessStepResult> steps,
+        List<HarnessToolExecutionResult> toolResults,
         InvestmentDecision decision,
         RiskCheckResult riskCheckResult,
         TradeResult tradeResult,
         PortfolioSnapshot portfolioSnapshot,
         MarketSnapshot marketSnapshot
 ) {
+    public HarnessRunResult {
+        steps = List.copyOf(steps);
+        toolResults = List.copyOf(toolResults);
+    }
+
     public static HarnessRunResult of(
             String runId,
             HarnessRunStatus status,
             LocalDateTime startedAt,
             LocalDateTime finishedAt,
             List<HarnessStepResult> steps,
+            List<HarnessToolExecutionResult> toolResults,
             InvestmentDecision decision,
             RiskCheckResult riskCheckResult,
             TradeResult tradeResult,
@@ -39,6 +47,34 @@ public record HarnessRunResult(
                 startedAt,
                 finishedAt,
                 steps,
+                toolResults,
+                decision,
+                riskCheckResult,
+                tradeResult,
+                portfolioSnapshot,
+                marketSnapshot
+        );
+    }
+
+    public static HarnessRunResult of(
+            String runId,
+            HarnessRunStatus status,
+            LocalDateTime startedAt,
+            LocalDateTime finishedAt,
+            List<HarnessStepResult> steps,
+            InvestmentDecision decision,
+            RiskCheckResult riskCheckResult,
+            TradeResult tradeResult,
+            PortfolioSnapshot portfolioSnapshot,
+            MarketSnapshot marketSnapshot
+    ) {
+        return of(
+                runId,
+                status,
+                startedAt,
+                finishedAt,
+                steps,
+                List.of(),
                 decision,
                 riskCheckResult,
                 tradeResult,
@@ -59,6 +95,7 @@ public record HarnessRunResult(
                 startedAt,
                 finishedAt,
                 steps,
+                List.of(),
                 null,
                 null,
                 null,

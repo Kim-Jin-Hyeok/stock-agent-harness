@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 class InvestmentHarnessTest {
@@ -87,6 +88,7 @@ class InvestmentHarnessTest {
         assertThat(result.decision().action()).isEqualTo(InvestmentAction.HOLD);
         assertThat(result.riskCheckResult().status()).isEqualTo(RiskCheckStatus.APPROVED);
         assertThat(result.tradeResult().status()).isEqualTo(TradeStatus.SKIPPED);
+        assertThat(result.toolResults()).isEmpty();
         assertThat(result.steps().size()).isEqualTo(7);
 
         List<HarnessStepType> stepTypes = result.steps().stream()
@@ -361,6 +363,14 @@ class InvestmentHarnessTest {
                 "Portfolio tool result received. cashAmountKrw="
                 + result.portfolioSnapshot().cashAmountKrw()
         );
+        assertThat(result.toolResults())
+                .singleElement()
+                .satisfies(toolResult -> {
+                    assertThat(toolResult.type()).isEqualTo(HarnessToolType.GET_PORTFOLIO);
+                    assertThat(toolResult.output().portfolioSnapshot()).isNotNull();
+                });
+        assertThatThrownBy(() -> result.toolResults().add(result.toolResults().getFirst()))
+                .isInstanceOf(UnsupportedOperationException.class);
         assertThat(result.steps())
                 .extracting(HarnessStepResult::type)
                 .containsExactly(
@@ -443,6 +453,12 @@ class InvestmentHarnessTest {
                 + ", market="
                 + result.marketSnapshot().market()
         );
+        assertThat(result.toolResults())
+                .extracting(HarnessToolExecutionResult::type)
+                .containsExactly(
+                        HarnessToolType.GET_PORTFOLIO,
+                        HarnessToolType.GET_MARKET
+                );
         assertThat(result.steps())
                 .extracting(HarnessStepResult::type)
                 .containsExactly(

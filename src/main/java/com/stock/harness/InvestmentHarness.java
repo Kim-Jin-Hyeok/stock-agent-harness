@@ -4,6 +4,7 @@ import com.stock.agent.AgentNextAction;
 import com.stock.agent.AgentNextActionType;
 import com.stock.agent.InvestmentAgent;
 import com.stock.agent.InvestmentDecision;
+import com.stock.harness.execution.HarnessAgentLoopResult;
 import com.stock.harness.execution.limit.HarnessAgentStepBudget;
 import com.stock.harness.execution.limit.HarnessToolCallBudget;
 import com.stock.harness.tool.*;
@@ -71,12 +72,13 @@ public class InvestmentHarness {
                     context.limits().maxToolCalls()
             );
 
-            InvestmentDecision decision = resolveInvestmentDecision(
+            HarnessAgentLoopResult agentLoopResult = resolveInvestmentDecision(
                     context,
                     stepRecorder,
                     agentStepBudget,
                     toolCallBudget
             );
+            InvestmentDecision decision = agentLoopResult.decision();
 
             RiskCheckResult riskCheckResult = stepRecorder.record(
                     HarnessStepType.VALIDATE_DECISION,
@@ -130,6 +132,7 @@ public class InvestmentHarness {
                     startedAt,
                     finishedAt,
                     steps,
+                    agentLoopResult.toolResults(),
                     decision,
                     riskCheckResult,
                     tradeResult,
@@ -218,7 +221,7 @@ public class InvestmentHarness {
         );
     }
 
-    private InvestmentDecision resolveInvestmentDecision(
+    private HarnessAgentLoopResult resolveInvestmentDecision(
             HarnessRunContext context,
             HarnessStepRecorder stepRecorder,
             HarnessAgentStepBudget agentStepBudget,
@@ -234,7 +237,10 @@ public class InvestmentHarness {
             );
 
             if (action.type() == AgentNextActionType.FINAL_DECISION) {
-                return action.investmentDecision();
+                return new HarnessAgentLoopResult(
+                        action.investmentDecision(),
+                        currentContext.toolResults()
+                );
             }
 
             HarnessAllowedTools allowedTools = currentContext.allowedTools();
