@@ -50,7 +50,7 @@ class HarnessRunContextTest {
     private HarnessRunContext runContext(List<HarnessToolExecutionResult> toolResults) {
         return new HarnessRunContext(
                 "run-1",
-                new HarnessRunLimits(10),
+                new HarnessRunLimits(10, 5),
                 HarnessAllowedTools.readOnly(),
                 portfolioSnapshot(),
                 marketSnapshot(),

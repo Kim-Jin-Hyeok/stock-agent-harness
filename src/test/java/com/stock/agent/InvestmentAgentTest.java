@@ -67,7 +67,7 @@ class InvestmentAgentTest {
     }
 
     private HarnessRunLimits runLimits() {
-        return new HarnessRunLimits(10);
+        return new HarnessRunLimits(10, 5);
     }
 
     private HarnessAllowedTools allowedTools() {

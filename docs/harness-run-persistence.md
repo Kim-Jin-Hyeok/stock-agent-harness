@@ -490,6 +490,7 @@ LOAD_MARKET
 CHECK_STEP_LIMIT
 RUN_INVESTMENT_AGENT
 AUTHORIZE_TOOL_REQUEST
+CHECK_TOOL_CALL_LIMIT
 EXECUTE_TOOL_REQUEST
 CHECK_STEP_LIMIT
 RUN_INVESTMENT_AGENT
@@ -501,6 +502,15 @@ LOAD_FINAL_PORTFOLIO
 현재 Tool 실행기는 `GET_PORTFOLIO`, `GET_MARKET` 조회 Tool을 실행할 수 있다. 실행 결과는 `HarnessRunContext.toolResults`에 추가되고, Harness는 갱신된 Context로 Agent를 다시 실행한다. Agent가 `FINAL_DECISION`을 반환하면 기존 Risk Guard와 Trade Executor 흐름으로 진행한다.
 
 Agent가 다시 `REQUEST_TOOL`을 반환하면 같은 흐름을 반복한다. 반복 횟수는 `HarnessAgentStepBudget`이 제한하며, Budget을 모두 사용하면 다음 Agent를 호출하지 않고 Run을 실패로 종료한다.
+
+`CHECK_TOOL_CALL_LIMIT`는 권한 검사를 통과한 Tool을 실제로 실행하기 직전에 Tool Call Budget을 확인한 결과다. 권한이 거절된 요청은 Tool 실행으로 이어지지 않으므로 Budget을 소비하지 않는다.
+
+Tool 실행을 시도하면 성공 여부와 관계없이 Budget을 소비한다. 외부 API를 호출한 뒤 실패할 수도 있으므로 성공한 결과만 계산하면 실제 호출 비용을 제한할 수 없기 때문이다.
+
+```text
+Tool call allowed. used={usedCalls}, max={maxCalls}
+Tool call limit exceeded. used={usedCalls}, max={maxCalls}
+```
 
 `LOAD_PORTFOLIO`는 Agent 판단에 사용될 초기 포트폴리오 상태를 조회한다.
 
@@ -530,10 +540,11 @@ Agent step limit exceeded. used={usedSteps}, max={maxSteps}
 src/main/java/com/stock/harness/HarnessRunLimits.java
 ```
 
-현재는 다음 값만 가진다.
+현재는 다음 값을 가진다.
 
 ```text
 maxSteps
+maxToolCalls
 ```
 
 현재 `maxSteps`는 전체 `HarnessStepResult` 개수가 아니라 한 Run에서 Agent가 판단할 수 있는 최대 횟수다.
@@ -548,23 +559,27 @@ maxSteps = 2
 
 `HarnessProperties.maxSteps`는 애플리케이션의 기본 설정값이다.
 
-`HarnessRunLimits.maxSteps`는 Run 시작 시점에 확정되어 해당 Run에 적용되는 제한값이다.
+`HarnessProperties.maxToolCalls`는 한 Run에서 실행을 시도할 수 있는 최대 Tool 호출 횟수다. `0`이면 Agent 판단은 허용하지만 Tool 실행은 허용하지 않는다.
+
+`HarnessRunLimits.maxSteps`, `HarnessRunLimits.maxToolCalls`는 Run 시작 시점에 확정되어 해당 Run에 적용되는 제한값이다.
 
 현재 흐름은 다음과 같다.
 
 ```text
 application.yml
--> HarnessProperties(maxSteps)
+-> HarnessProperties(maxSteps, maxToolCalls)
 -> InvestmentHarness.createContext()
--> HarnessRunLimits(maxSteps)
+-> HarnessRunLimits(maxSteps, maxToolCalls)
 -> HarnessRunContext(limits)
 -> HarnessAgentStepBudget(maxSteps)
+-> HarnessToolCallBudget(maxToolCalls)
 ```
 
-`HarnessAgentStepBudget`의 패키지 경로는 다음과 같다.
+Budget 클래스의 패키지 경로는 다음과 같다.
 
 ```text
 src/main/java/com/stock/harness/execution/limit/HarnessAgentStepBudget.java
+src/main/java/com/stock/harness/execution/limit/HarnessToolCallBudget.java
 ```
 
 Budget은 사용 횟수를 가지는 Run 전용 객체다. Spring Bean으로 등록하지 않고 `InvestmentHarness.run()`에서 매번 새로 생성하므로 서로 다른 Run이 상태를 공유하지 않는다.
@@ -581,13 +596,13 @@ HarnessRunContext
 -> toolResults
 ```
 
-이 구조를 통해 나중에 `apiCallLimit`, `toolCallLimit` 같은 Run 단위 실행 제한이 생기더라도 `HarnessRunContext`에 개별 필드를 계속 추가하지 않고 `HarnessRunLimits` 안에서 관리할 수 있다.
+이 구조를 통해 나중에 `apiCallLimit` 같은 Run 단위 실행 제한이 생기더라도 `HarnessRunContext`에 개별 필드를 계속 추가하지 않고 `HarnessRunLimits` 안에서 관리할 수 있다.
 
 단, 현재 `HarnessRunLimits`는 DB에 저장하지 않는다.
 
-아직 Run별 override, Tool 호출 제한, Broker API 호출 제한이 없기 때문에 저장 컬럼을 먼저 만들면 과한 구조가 될 수 있다.
+아직 Run별 override와 Broker API 호출 제한이 없기 때문에 저장 컬럼을 먼저 만들면 과한 구조가 될 수 있다.
 
-현재는 각 `CHECK_STEP_LIMIT`의 message에 사용한 Agent Step 수와 최대 Agent Step 수가 남는다.
+현재는 `CHECK_STEP_LIMIT`에 Agent Step 사용량이, `CHECK_TOOL_CALL_LIMIT`에 Tool 호출 사용량이 남는다.
 
 ## Harness Tool Types
 
@@ -897,7 +912,8 @@ InvestmentAgent.next(context) 있음
 InvestmentHarness는 investmentAgent.next(context)를 호출함
 FINAL_DECISION은 기존 Risk Guard / Trade 흐름으로 연결됨
 REQUEST_TOOL은 HarnessToolAuthorizer로 권한 판정한 뒤 AUTHORIZE_TOOL_REQUEST Step을 기록함
-권한이 허용되면 HarnessToolExecutor로 실행을 시도하고 EXECUTE_TOOL_REQUEST Step을 기록함
+권한이 허용되면 HarnessToolCallBudget을 확인하고 CHECK_TOOL_CALL_LIMIT Step을 기록함
+Tool Call Budget을 통과하면 HarnessToolExecutor로 실행을 시도하고 EXECUTE_TOOL_REQUEST Step을 기록함
 HarnessToolExecutor는 GET_PORTFOLIO와 GET_MARKET 조회 Tool을 실행함
 HarnessToolExecutionResult 모델 있음
 Tool 실행 결과를 HarnessRunContext에 추가하고 Agent Step Budget 안에서 재판단을 반복함
@@ -991,7 +1007,7 @@ HarnessToolExecutionResult
 
 `FINAL_DECISION`이 반환되면 기존처럼 `InvestmentDecision`을 꺼내 Risk Guard와 Trade Executor 흐름으로 진행한다.
 
-`REQUEST_TOOL`이 반환되면 Harness는 `HarnessToolAuthorizer`로 권한을 판정하고 `AUTHORIZE_TOOL_REQUEST` Step을 기록한다. 권한이 허용되면 `HarnessToolExecutor`로 Tool을 실행하고 `EXECUTE_TOOL_REQUEST` Step을 기록한다. 실행 결과는 새 Context에 추가되고 Agent의 다음 판단 입력으로 전달된다.
+`REQUEST_TOOL`이 반환되면 Harness는 `HarnessToolAuthorizer`로 권한을 판정하고 `AUTHORIZE_TOOL_REQUEST` Step을 기록한다. 권한이 허용되면 `CHECK_TOOL_CALL_LIMIT`를 수행한 뒤 `HarnessToolExecutor`로 Tool을 실행하고 `EXECUTE_TOOL_REQUEST` Step을 기록한다. 실행 결과는 새 Context에 추가되고 Agent의 다음 판단 입력으로 전달된다.
 
 권한 판정 결과는 Step status와 message로 남는다.
 
@@ -1023,6 +1039,9 @@ FAILED
 AUTHORIZE_TOOL_REQUEST
 -> Harness tool authorization allowed.
 
+CHECK_TOOL_CALL_LIMIT
+-> Tool call allowed. used={usedCalls}, max={maxCalls}
+
 EXECUTE_TOOL_REQUEST
 -> Harness tool execution completed.
 
@@ -1030,13 +1049,13 @@ RUN_INVESTMENT_AGENT
 -> Agent의 최종 판단 사유
 ```
 
-Agent Loop는 `FINAL_DECISION`이 반환되거나 Agent Step Budget이 소진될 때까지 반복된다. `FINAL_DECISION`이 반환되면 Risk Guard와 Trade Executor 흐름으로 진행하고, Budget이 소진되면 `Agent step limit exceeded.` 메시지와 함께 Run을 실패로 종료한다.
+Agent Loop는 `FINAL_DECISION`이 반환되거나 실행 Budget이 소진될 때까지 반복된다. `FINAL_DECISION`이 반환되면 Risk Guard와 Trade Executor 흐름으로 진행한다. Agent Step Budget이 소진되면 다음 Agent 호출 전에 중단하고, Tool Call Budget이 소진되면 다음 Tool 실행 전에 중단한다.
 
 판단해야 할 질문은 다음과 같다.
 
 ```text
 1. Tool 실행 실패를 Agent에게 전달해 재판단하게 할 것인가, Harness가 즉시 실패시킬 것인가?
-2. Agent Step과 별도로 Tool 호출 횟수를 제한할 것인가?
+2. 논리적인 Tool 호출 횟수와 실제 Broker API 호출 횟수를 별도 Budget으로 관리할 것인가?
 3. Tool 실행 결과를 Run 상세 이력에 어떤 형태로 저장할 것인가?
 ```
 
@@ -1046,6 +1065,7 @@ Agent Loop는 `FINAL_DECISION`이 반환되거나 Agent Step Budget이 소진될
 
 ```text
 maxSteps
+maxToolCalls
 ```
 
 `RiskProperties`는 현재 다음 값을 가진다.
@@ -1061,7 +1081,7 @@ maxPositionRatio
 enabled
 ```
 
-`maxSteps`는 Harness 실행 통제 값이고, `maxOrderRatio`, `maxPositionRatio`는 Risk Guard 정책 값이다.
+`maxSteps`, `maxToolCalls`는 Harness 실행 통제 값이고, `maxOrderRatio`, `maxPositionRatio`는 Risk Guard 정책 값이다.
 
 `enabled`는 Scheduler가 주기적으로 `InvestmentHarness`를 실행할지 결정하는 Scheduler 실행 설정 값이다.
 
@@ -1073,4 +1093,4 @@ enabled
 
 현재 추천 방향은 바로 실제 Broker API Tool을 만들지 않는 것이다.
 
-다음 구현 단계는 Agent Step과 별도로 Tool 호출 Budget을 추가하는 것이다. Agent가 최종 결정을 내리지 않은 채 Tool만 반복 호출하는 상황을 독립적으로 제한하고, 이후 Broker API 호출 Budget과 Cache 정책으로 확장할 수 있다.
+다음 구현 단계는 여러 Tool 실행 결과를 Run 상세 이력에서 확인할 수 있도록 저장 모델을 확장하는 것이다. 현재 Step에는 Tool 실행 성공 여부와 메시지만 남고 실제 Tool 출력은 `HarnessRunContext` 안에서만 사용된다.

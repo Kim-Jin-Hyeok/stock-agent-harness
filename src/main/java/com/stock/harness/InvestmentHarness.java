@@ -5,6 +5,7 @@ import com.stock.agent.AgentNextActionType;
 import com.stock.agent.InvestmentAgent;
 import com.stock.agent.InvestmentDecision;
 import com.stock.harness.execution.limit.HarnessAgentStepBudget;
+import com.stock.harness.execution.limit.HarnessToolCallBudget;
 import com.stock.harness.tool.*;
 import com.stock.market.MarketService;
 import com.stock.market.MarketSnapshot;
@@ -66,11 +67,15 @@ public class InvestmentHarness {
             HarnessAgentStepBudget agentStepBudget = new HarnessAgentStepBudget(
                     context.limits().maxSteps()
             );
+            HarnessToolCallBudget toolCallBudget = new HarnessToolCallBudget(
+                    context.limits().maxToolCalls()
+            );
 
             InvestmentDecision decision = resolveInvestmentDecision(
                     context,
                     stepRecorder,
-                    agentStepBudget
+                    agentStepBudget,
+                    toolCallBudget
             );
 
             RiskCheckResult riskCheckResult = stepRecorder.record(
@@ -155,7 +160,8 @@ public class InvestmentHarness {
             MarketSnapshot marketSnapshot
     ) {
         HarnessRunLimits limits = new HarnessRunLimits(
-                harnessProperties.maxSteps()
+                harnessProperties.maxSteps(),
+                harnessProperties.maxToolCalls()
         );
 
         HarnessAllowedTools allowedTools = HarnessAllowedTools.readOnly();
@@ -215,7 +221,8 @@ public class InvestmentHarness {
     private InvestmentDecision resolveInvestmentDecision(
             HarnessRunContext context,
             HarnessStepRecorder stepRecorder,
-            HarnessAgentStepBudget agentStepBudget
+            HarnessAgentStepBudget agentStepBudget,
+            HarnessToolCallBudget toolCallBudget
     ) {
         HarnessRunContext currentContext = context;
 
@@ -253,6 +260,8 @@ public class InvestmentHarness {
                 );
             }
 
+            consumeToolCallBudget(stepRecorder, toolCallBudget);
+
             HarnessToolExecutionResult executionResult = stepRecorder.record(
                     HarnessStepType.EXECUTE_TOOL_REQUEST,
                     () -> harnessToolExecutor.execute(action.toolRequest()),
@@ -270,6 +279,29 @@ public class InvestmentHarness {
 
             currentContext = currentContext.withToolResult(executionResult);
         }
+    }
+
+    private void consumeToolCallBudget(
+            HarnessStepRecorder stepRecorder,
+            HarnessToolCallBudget toolCallBudget
+    ) {
+        if (!toolCallBudget.tryConsume()) {
+            String message = "Tool call limit exceeded. used="
+                    + toolCallBudget.usedCalls()
+                    + ", max="
+                    + toolCallBudget.maxCalls();
+
+            stepRecorder.failed(HarnessStepType.CHECK_TOOL_CALL_LIMIT, message);
+            throw new IllegalStateException(message);
+        }
+
+        stepRecorder.completed(
+                HarnessStepType.CHECK_TOOL_CALL_LIMIT,
+                "Tool call allowed. used="
+                + toolCallBudget.usedCalls()
+                + ", max="
+                + toolCallBudget.maxCalls()
+        );
     }
 
     private AgentNextAction runInvestmentAgent(
