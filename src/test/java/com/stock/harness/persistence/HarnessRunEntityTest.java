@@ -3,6 +3,9 @@ package com.stock.harness.persistence;
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
 import com.stock.harness.*;
+import com.stock.harness.tool.HarnessToolExecutionReasonCode;
+import com.stock.harness.tool.HarnessToolExecutionStatus;
+import com.stock.harness.tool.HarnessToolType;
 import com.stock.market.MarketSnapshot;
 import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.risk.RiskCheckResult;
@@ -60,6 +63,46 @@ class HarnessRunEntityTest {
         assertThat(entity.getRiskCheckSnapshotJson()).isEqualTo(riskCheckSnapshotJson());
         assertThat(entity.getPortfolioSnapshotJson()).isEqualTo(portfolioSnapshotJson());
         assertThat(entity.getMarketSnapshotJson()).isEqualTo(marketSnapshotJson());
+    }
+
+    @Test
+    void fromCreatesEntityWithToolExecutionSnapshotsJson() {
+        HarnessRunEntity entity = HarnessRunEntity.from(
+                completedRunResult("run-1"),
+                decisionSnapshotJson(),
+                riskCheckSnapshotJson(),
+                portfolioSnapshotJson(),
+                marketSnapshotJson(),
+                toolExecutionSnapshotsJson()
+        );
+
+        assertThat(entity.getToolExecutionSnapshotsJson())
+                .isEqualTo(toolExecutionSnapshotsJson());
+    }
+
+    @Test
+    void toDetailIncludesToolExecutionSnapshots() {
+        HarnessRunEntity entity = HarnessRunEntity.from(
+                completedRunResult("run-1"),
+                decisionSnapshotJson(),
+                riskCheckSnapshotJson(),
+                portfolioSnapshotJson(),
+                marketSnapshotJson(),
+                toolExecutionSnapshotsJson()
+        );
+        List<HarnessToolExecutionSnapshot> snapshots = List.of(toolExecutionSnapshot());
+
+        HarnessRunDetail detail = entity.toDetail(
+                null,
+                null,
+                null,
+                null,
+                snapshots,
+                List.of(),
+                List.of()
+        );
+
+        assertThat(detail.toolExecutionSnapshots()).containsExactlyElementsOf(snapshots);
     }
 
     @Test
@@ -186,5 +229,20 @@ class HarnessRunEntityTest {
 
     private String marketSnapshotJson() {
         return "{\"market\":\"KR\",\"marketOpen\":true,\"description\":\"Korean market is open.\"}";
+    }
+
+    private String toolExecutionSnapshotsJson() {
+        return "[{\"type\":\"GET_PORTFOLIO\"}]";
+    }
+
+    private HarnessToolExecutionSnapshot toolExecutionSnapshot() {
+        return new HarnessToolExecutionSnapshot(
+                HarnessToolExecutionStatus.EXECUTED,
+                HarnessToolType.GET_PORTFOLIO,
+                HarnessToolExecutionReasonCode.TOOL_EXECUTED,
+                "Harness tool execution completed.",
+                null,
+                null
+        );
     }
 }

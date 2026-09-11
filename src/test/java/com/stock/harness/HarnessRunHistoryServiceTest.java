@@ -10,6 +10,9 @@ import com.stock.harness.persistence.HarnessRunRepository;
 import com.stock.harness.persistence.HarnessRunSnapshotJsonConverter;
 import com.stock.harness.persistence.HarnessStepEntity;
 import com.stock.harness.persistence.HarnessStepRepository;
+import com.stock.harness.persistence.HarnessToolExecutionSnapshot;
+import com.stock.harness.tool.HarnessToolExecutionResult;
+import com.stock.harness.tool.HarnessToolOutput;
 import com.stock.market.MarketSnapshot;
 import com.stock.portfolio.PortfolioPosition;
 import com.stock.portfolio.PortfolioSnapshot;
@@ -102,6 +105,48 @@ class HarnessRunHistoryServiceTest {
     }
 
     @Test
+    void recordStoresToolExecutionSnapshotsJson() {
+        HarnessToolExecutionResult toolResult = portfolioToolExecutionResult();
+        HarnessRunResult result = completedBuyRunWithToolResults(
+                "run-1",
+                List.of(toolResult)
+        );
+        String toolExecutionSnapshotsJson = "[{\"type\":\"GET_PORTFOLIO\"}]";
+        when(harnessRunSnapshotJsonConverter.toToolExecutionsJson(any()))
+                .thenReturn(toolExecutionSnapshotsJson);
+
+        harnessRunHistoryService.record(result);
+
+        ArgumentCaptor<HarnessRunEntity> entityCaptor = ArgumentCaptor.forClass(
+                HarnessRunEntity.class
+        );
+        verify(harnessRunRepository).save(entityCaptor.capture());
+
+        assertThat(entityCaptor.getValue().getToolExecutionSnapshotsJson())
+                .isEqualTo(toolExecutionSnapshotsJson);
+        verify(harnessRunSnapshotJsonConverter).toToolExecutionsJson(
+                List.of(HarnessToolExecutionSnapshot.from(toolResult))
+        );
+    }
+
+    @Test
+    void recordStoresEmptyToolExecutionSnapshotsJsonWhenToolWasNotCalled() {
+        HarnessRunResult result = completedBuyRun("run-1");
+        when(harnessRunSnapshotJsonConverter.toToolExecutionsJson(List.of()))
+                .thenReturn("[]");
+
+        harnessRunHistoryService.record(result);
+
+        ArgumentCaptor<HarnessRunEntity> entityCaptor = ArgumentCaptor.forClass(
+                HarnessRunEntity.class
+        );
+        verify(harnessRunRepository).save(entityCaptor.capture());
+
+        assertThat(entityCaptor.getValue().getToolExecutionSnapshotsJson()).isEqualTo("[]");
+        verify(harnessRunSnapshotJsonConverter).toToolExecutionsJson(List.of());
+    }
+
+    @Test
     void getRunDetailReturnsPortfolioSnapshot() {
         String runId = "run-1";
         HarnessRunEntity entity = HarnessRunEntity.of(
@@ -164,6 +209,60 @@ class HarnessRunHistoryServiceTest {
         assertThat(result.get().marketSnapshot().marketOpen()).isTrue();
 
         verify(harnessRunSnapshotJsonConverter).toMarketSnapshot(marketSnapshotJson());
+    }
+
+    @Test
+    void getRunDetailReturnsToolExecutionSnapshots() {
+        String runId = "run-1";
+        String toolExecutionSnapshotsJson = "[{\"type\":\"GET_PORTFOLIO\"}]";
+        List<HarnessToolExecutionSnapshot> snapshots = List.of(
+                HarnessToolExecutionSnapshot.from(portfolioToolExecutionResult())
+        );
+        HarnessRunEntity entity = HarnessRunEntity.of(
+                runId,
+                HarnessRunStatus.COMPLETED,
+                startedAt(),
+                finishedAt(),
+                null,
+                null,
+                null,
+                null,
+                toolExecutionSnapshotsJson
+        );
+        when(harnessRunRepository.findByRunId(runId))
+                .thenReturn(Optional.of(entity));
+        when(harnessStepRepository.findAllByRunIdOrderByStepOrderAsc(runId))
+                .thenReturn(List.of());
+        when(harnessRunSnapshotJsonConverter.toToolExecutionSnapshots(toolExecutionSnapshotsJson))
+                .thenReturn(snapshots);
+
+        Optional<HarnessRunDetail> result = harnessRunHistoryService.getRunDetail(
+                runId,
+                List.of()
+        );
+
+        assertThat(result).isPresent();
+        assertThat(result.get().toolExecutionSnapshots()).containsExactlyElementsOf(snapshots);
+        verify(harnessRunSnapshotJsonConverter).toToolExecutionSnapshots(toolExecutionSnapshotsJson);
+    }
+
+    @Test
+    void getRunDetailReturnsEmptyToolExecutionsWhenJsonIsNull() {
+        String runId = "run-1";
+        HarnessRunEntity entity = completedRunEntity(runId);
+        when(harnessRunRepository.findByRunId(runId))
+                .thenReturn(Optional.of(entity));
+        when(harnessStepRepository.findAllByRunIdOrderByStepOrderAsc(runId))
+                .thenReturn(List.of());
+
+        Optional<HarnessRunDetail> result = harnessRunHistoryService.getRunDetail(
+                runId,
+                List.of()
+        );
+
+        assertThat(result).isPresent();
+        assertThat(result.get().toolExecutionSnapshots()).isEmpty();
+        verify(harnessRunSnapshotJsonConverter, never()).toToolExecutionSnapshots(any());
     }
 
     @Test
@@ -303,6 +402,31 @@ class HarnessRunHistoryServiceTest {
                 null,
                 null,
                 marketSnapshot()
+        );
+    }
+
+    private HarnessRunResult completedBuyRunWithToolResults(
+            String runId,
+            List<HarnessToolExecutionResult> toolResults
+    ) {
+        return HarnessRunResult.of(
+                runId,
+                HarnessRunStatus.COMPLETED,
+                startedAt(),
+                finishedAt(),
+                List.of(completedStep()),
+                toolResults,
+                buyDecision(),
+                approvedRiskCheckResult(),
+                null,
+                portfolioSnapshot(),
+                marketSnapshot()
+        );
+    }
+
+    private HarnessToolExecutionResult portfolioToolExecutionResult() {
+        return HarnessToolExecutionResult.executed(
+                HarnessToolOutput.portfolio(portfolioSnapshot())
         );
     }
 

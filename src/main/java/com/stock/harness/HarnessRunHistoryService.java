@@ -42,12 +42,19 @@ public class HarnessRunHistoryService {
                         HarnessMarketSnapshot.from(result.marketSnapshot())
                 );
 
+        String toolExecutionSnapshotsJson = harnessRunSnapshotJsonConverter.toToolExecutionsJson(
+                result.toolResults().stream()
+                        .map(HarnessToolExecutionSnapshot::from)
+                        .toList()
+        );
+
         harnessRunRepository.save(HarnessRunEntity.from(
                 result,
                 decisionSnapshotJson,
                 riskCheckSnapshotJson,
                 portfolioSnapshotJson,
-                marketSnapshotJson
+                marketSnapshotJson,
+                toolExecutionSnapshotsJson
         ));
 
         List<HarnessStepEntity> stepEntities = IntStream.range(0, result.steps().size())
@@ -96,6 +103,7 @@ public class HarnessRunHistoryService {
         HarnessRiskCheckSnapshot riskCheckSnapshot = getRiskCheckSnapshot(entity);
         HarnessPortfolioSnapshot portfolioSnapshot = getPortfolioSnapshot(entity);
         HarnessMarketSnapshot marketSnapshot = getMarketSnapshot(entity);
+        List<HarnessToolExecutionSnapshot> toolExecutionSnapshots = getToolExecutionSnapshots(entity);
         List<HarnessStepResult> steps = getStepsByRunId(runId);
 
         HarnessRunDetail detail = entity.toDetail(
@@ -103,6 +111,7 @@ public class HarnessRunHistoryService {
                 riskCheckSnapshot,
                 portfolioSnapshot,
                 marketSnapshot,
+                toolExecutionSnapshots,
                 steps,
                 tradeRecords
         );
@@ -152,6 +161,16 @@ public class HarnessRunHistoryService {
 
         return harnessRunSnapshotJsonConverter.toMarketSnapshot(
                 entity.getMarketSnapshotJson()
+        );
+    }
+
+    private List<HarnessToolExecutionSnapshot> getToolExecutionSnapshots(HarnessRunEntity entity) {
+        if (entity.getToolExecutionSnapshotsJson() == null) {
+            return List.of();
+        }
+
+        return harnessRunSnapshotJsonConverter.toToolExecutionSnapshots(
+                entity.getToolExecutionSnapshotsJson()
         );
     }
 }

@@ -219,6 +219,7 @@ class HarnessControllerTest {
                 riskCheckSnapshot(),
                 harnessPortfolioSnapshot(),
                 harnessMarketSnapshot(),
+                List.of(),
                 completedSteps(),
                 List.of(executedBuyTradeRecord(runId))
         );
