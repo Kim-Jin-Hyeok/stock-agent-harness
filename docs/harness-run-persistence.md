@@ -44,6 +44,10 @@ HarnessRunResult.portfolioSnapshot
 HarnessRunResult.marketSnapshot
 -> HarnessMarketSnapshot
 -> marketSnapshotJson
+
+HarnessRunResult.toolResults
+-> List<HarnessToolExecutionSnapshot>
+-> toolExecutionSnapshotsJson
 ```
 
 현재 조회 기준은 기능별로 다르다.
@@ -54,7 +58,8 @@ getRunSummaries()
 
 GET /api/harness/runs/{runId}
 -> DB에 저장된 Run 메타데이터, 판단 스냅샷, 리스크 스냅샷,
-   포트폴리오 스냅샷, 시장 스냅샷, Step 이력, Trade 이력을 조합한 HarnessRunDetail 조회
+   포트폴리오 스냅샷, 시장 스냅샷, Tool 실행 스냅샷,
+   Step 이력, Trade 이력을 조합한 HarnessRunDetail 조회
 
 getStepsByRunId(runId)
 -> DB 기반 HarnessStepResult 목록 조회
@@ -86,6 +91,7 @@ decisionSnapshotJson
 riskCheckSnapshotJson
 portfolioSnapshotJson
 marketSnapshotJson
+toolExecutionSnapshotsJson
 ```
 
 이 Entity는 Run 메타데이터와 Harness 관점에서 중요한 실행 당시 스냅샷을 저장한다.
@@ -97,6 +103,8 @@ marketSnapshotJson
 `portfolioSnapshotJson`은 Agent가 판단할 때 참조한 포트폴리오 상태를 저장한다.
 
 `marketSnapshotJson`은 Agent가 판단할 때 참조한 시장 상태를 저장한다.
+
+`toolExecutionSnapshotsJson`은 Run에서 발생한 Tool 실행 결과를 호출 순서대로 저장한다. 신규 Run에서 Tool 호출이 없으면 빈 JSON 배열을 저장하고, 저장 기능 추가 전 데이터처럼 값이 `null`이면 조회할 때 빈 목록으로 복원한다. Tool 출력은 커질 수 있으므로 이 필드는 `@Lob`으로 관리한다.
 
 이 값들은 현재 단계에서 조건 검색이나 통계 집계보다 Run 상세 확인 목적이 강하다. 그래서 별도 Entity로 분리하지 않고 JSON 문자열로 저장한다.
 
@@ -183,6 +191,29 @@ description
 
 이 스냅샷은 Run 당시 시장이 열려 있었는지, 어떤 시장 상태 설명을 Agent가 참고했는지 확인하기 위한 값이다.
 
+### HarnessToolExecutionSnapshot
+
+패키지 경로:
+
+```text
+src/main/java/com/stock/harness/persistence/HarnessToolExecutionSnapshot.java
+```
+
+현재 필드:
+
+```text
+status
+type
+reasonCode
+reason
+portfolioSnapshot
+marketSnapshot
+```
+
+이 객체는 JPA Entity가 아니라 `HarnessToolExecutionResult`를 JSON으로 저장하기 위한 영속화 스냅샷이다.
+
+Tool 출력은 타입에 따라 기존 `HarnessPortfolioSnapshot` 또는 `HarnessMarketSnapshot`으로 변환한다. 권한 거절이나 실행 실패처럼 출력이 없는 결과도 상태와 사유를 보존할 수 있도록 두 출력 필드는 null을 허용한다.
+
 ### HarnessRunSnapshotJsonConverter
 
 패키지 경로:
@@ -205,6 +236,9 @@ JSON -> HarnessPortfolioSnapshot
 
 HarnessMarketSnapshot -> JSON
 JSON -> HarnessMarketSnapshot
+
+List<HarnessToolExecutionSnapshot> -> JSON
+JSON -> List<HarnessToolExecutionSnapshot>
 ```
 
 Entity가 `ObjectMapper`나 converter를 직접 알지 않도록 JSON 변환 책임은 별도 컴포넌트로 둔다.
@@ -283,11 +317,12 @@ decisionSnapshot
 riskCheckSnapshot
 portfolioSnapshot
 marketSnapshot
+toolExecutionSnapshots
 steps
 tradeRecords
 ```
 
-`decisionSnapshot`, `riskCheckSnapshot`, `portfolioSnapshot`, `marketSnapshot`은 DB에 저장된 JSON 문자열을 다시 객체로 복원한 값이다.
+`decisionSnapshot`, `riskCheckSnapshot`, `portfolioSnapshot`, `marketSnapshot`, `toolExecutionSnapshots`는 DB에 저장된 JSON 문자열을 다시 객체로 복원한 값이다.
 
 `steps`는 `HarnessStepEntity` 목록에서 복원한 값이다.
 
@@ -301,7 +336,7 @@ tradeRecords
 POST /api/harness/run
 ```
 
-새 Harness Run을 실행하고, 방금 실행한 결과와 해당 Run의 거래 이력을 함께 반환한다.
+새 Harness Run을 실행하고, 방금 실행한 결과와 해당 Run의 거래 이력을 함께 반환한다. 런타임 Tool 실행 결과는 `HarnessRunResponse.toolResults`에 포함된다.
 
 응답 모델은 `HarnessRunResponse`이며, 런타임 결과인 `HarnessRunResult`를 API 응답으로 표현한다.
 
@@ -319,7 +354,7 @@ DB에 저장된 `HarnessRunEntity`를 기준으로 `HarnessRunSummary` 목록을
 GET /api/harness/runs/{runId}
 ```
 
-DB에 저장된 Run 메타데이터, 판단 스냅샷, 리스크 스냅샷, 포트폴리오 스냅샷, 시장 스냅샷, Step 이력, Trade 이력을 조합해 `HarnessRunDetail`을 반환한다.
+DB에 저장된 Run 메타데이터, 판단 스냅샷, 리스크 스냅샷, 포트폴리오 스냅샷, 시장 스냅샷, Tool 실행 스냅샷, Step 이력, Trade 이력을 조합해 `HarnessRunDetail`을 반환한다.
 
 주의사항:
 
@@ -338,6 +373,7 @@ decisionSnapshot
 riskCheckSnapshot
 portfolioSnapshot
 marketSnapshot
+toolExecutionSnapshots
 steps
 tradeRecords
 ```
@@ -383,11 +419,11 @@ HarnessRunResult.tradeResult
 
 이 객체를 그대로 영속화하면 초기에는 빠르지만, 이후 구조 변경과 조회 요구가 생길 때 관리가 어려워진다.
 
-현재는 메타데이터, Step, Trade, 판단 스냅샷, 리스크 스냅샷, 포트폴리오 스냅샷, 시장 스냅샷처럼 저장 책임과 조회 목적을 설명할 수 있는 값부터 분리한다.
+현재는 메타데이터, Step, Trade, 판단 스냅샷, 리스크 스냅샷, 포트폴리오 스냅샷, 시장 스냅샷, Tool 실행 스냅샷처럼 저장 책임과 조회 목적을 설명할 수 있는 값부터 분리한다.
 
 ### Snapshot JSON으로 저장하는 이유
 
-`decision`, `riskCheckResult`, `portfolioSnapshot`, `marketSnapshot`은 Run 당시 Agent와 Harness가 어떤 상태를 보고 판단했는지 보여준다.
+`decision`, `riskCheckResult`, `portfolioSnapshot`, `marketSnapshot`, `toolResults`는 Run 당시 Agent와 Harness가 어떤 상태를 보고 판단했는지 보여준다.
 
 이 값들은 실패 분석과 전략 비교에서 가치가 높다.
 
@@ -441,6 +477,16 @@ Agent가 어떤 판단을 했는지보다 먼저 확인해야 할 것은 Harness
 
 두 모델을 분리하는 이유는 아직 `HarnessRunResult` 전체를 DB에서 복원하지 않기 때문이다. 런타임 결과와 저장 이력 조회 결과를 같은 모델로 표현하면 어떤 필드가 영속화된 값인지 구분하기 어렵다.
 
+Tool 결과도 같은 원칙을 따른다.
+
+```text
+POST HarnessRunResponse.toolResults
+-> 런타임 HarnessToolExecutionResult
+
+GET HarnessRunDetail.toolExecutionSnapshots
+-> DB에서 복원한 HarnessToolExecutionSnapshot
+```
+
 ## Open Questions
 
 다음 설계 단계에서 결정해야 할 질문은 다음과 같다.
@@ -492,6 +538,7 @@ RUN_INVESTMENT_AGENT
 AUTHORIZE_TOOL_REQUEST
 CHECK_TOOL_CALL_LIMIT
 EXECUTE_TOOL_REQUEST
+VALIDATE_TOOL_RESULT
 CHECK_STEP_LIMIT
 RUN_INVESTMENT_AGENT
 VALIDATE_DECISION
@@ -499,7 +546,9 @@ EXECUTE_TRADE
 LOAD_FINAL_PORTFOLIO
 ```
 
-현재 Tool 실행기는 `GET_PORTFOLIO`, `GET_MARKET` 조회 Tool을 실행할 수 있다. 실행 결과는 `HarnessRunContext.toolResults`에 추가되고, Harness는 갱신된 Context로 Agent를 다시 실행한다. Agent가 `FINAL_DECISION`을 반환하면 기존 Risk Guard와 Trade Executor 흐름으로 진행한다.
+현재 Tool 실행기는 `GET_PORTFOLIO`, `GET_MARKET` 조회 Tool을 실행할 수 있다. 실행에 성공한 결과는 계약 검증을 통과한 뒤 `HarnessRunContext.toolResults`에 추가되고, Harness는 갱신된 Context로 Agent를 다시 실행한다. Agent가 `FINAL_DECISION`을 반환하면 기존 Risk Guard와 Trade Executor 흐름으로 진행한다.
+
+Run 이력용 Tool 결과 목록은 Agent Context와 목적이 다르다. Agent Context에는 검증을 통과한 성공 결과만 들어가지만, Run 이력에는 성공 결과뿐 아니라 실행 실패와 권한 거절 결과도 남는다. 따라서 Run이 중간에 실패해도 실패 전에 수집된 Tool 결과를 저장하고 API에서 확인할 수 있다.
 
 Agent가 다시 `REQUEST_TOOL`을 반환하면 같은 흐름을 반복한다. 반복 횟수는 `HarnessAgentStepBudget`이 제한하며, Budget을 모두 사용하면 다음 Agent를 호출하지 않고 Run을 실패로 종료한다.
 
@@ -612,9 +661,7 @@ HarnessRunContext
 src/main/java/com/stock/harness/tool/HarnessToolType.java
 ```
 
-현재 단계에서는 실제 Tool Calling을 구현하지 않는다.
-
-먼저 Agent에게 열 수 있는 Tool의 경계를 코드로 정의한다.
+현재 Harness에는 조회 Tool 요청을 권한 검사하고 실행하는 Tool Calling 흐름이 구현되어 있다. `HarnessToolType`은 이 흐름에서 Agent에게 열 수 있는 Tool의 경계를 정의한다.
 
 현재 허용 후보는 읽기 전용 Tool만 둔다.
 
@@ -657,7 +704,7 @@ HarnessAllowedTools.readOnly()
 
 `InvestmentHarness`는 "기본 읽기 전용 Tool을 허용한다"는 의도만 표현하고, 실제 기본 목록은 `HarnessAllowedTools`가 관리한다.
 
-현재 `HarnessRunContext`는 Run 실행 제한과 허용 Tool 목록을 함께 가진다.
+현재 `HarnessRunContext`는 Run 실행 제한, 허용 Tool 목록, 검증된 Tool 실행 결과를 함께 가진다.
 
 ```text
 HarnessRunContext
@@ -666,9 +713,10 @@ HarnessRunContext
 -> allowedTools
 -> portfolioSnapshot
 -> marketSnapshot
+-> toolResults
 ```
 
-`InvestmentAgent`는 아직 Tool을 직접 호출하지 않는다.
+기본 `InvestmentAgent` 구현은 아직 Tool 요청을 만들지 않는다.
 
 현재는 `context.allowedTools().types()`를 읽어 판단 reason에 남기는 수준이다.
 
@@ -676,7 +724,7 @@ HarnessRunContext
 allowedTools=[GET_PORTFOLIO, GET_MARKET]
 ```
 
-이는 실제 Tool Calling 구현 전, Harness가 정한 Tool 권한 목록이 Agent까지 전달되는지 확인하기 위한 연결 단계다.
+다만 Harness의 Tool Calling 실행 구조는 이미 마련되어 있으므로, 테스트용 Agent가 `REQUEST_TOOL`을 반환하면 권한 검사, Budget 검사, Tool 실행, 결과 검증, 재판단 흐름이 동작한다.
 
 ## HarnessAllowedTools Immutability
 
@@ -916,7 +964,11 @@ REQUEST_TOOL은 HarnessToolAuthorizer로 권한 판정한 뒤 AUTHORIZE_TOOL_REQ
 Tool Call Budget을 통과하면 HarnessToolExecutor로 실행을 시도하고 EXECUTE_TOOL_REQUEST Step을 기록함
 HarnessToolExecutor는 GET_PORTFOLIO와 GET_MARKET 조회 Tool을 실행함
 HarnessToolExecutionResult 모델 있음
-Tool 실행 결과를 HarnessRunContext에 추가하고 Agent Step Budget 안에서 재판단을 반복함
+HarnessToolResultValidator가 실행 결과 계약을 검증하고 VALIDATE_TOOL_RESULT Step을 기록함
+검증을 통과한 성공 결과만 HarnessRunContext에 추가함
+성공, 실행 실패, 권한 거절 결과는 HarnessRunResult와 Run 상세 이력에 저장함
+POST 응답은 HarnessRunResponse.toolResults로 런타임 결과를 제공함
+GET 상세 응답은 HarnessRunDetail.toolExecutionSnapshots로 저장 결과를 제공함
 Tool Calling 기반 Agent Loop 있음
 ```
 
@@ -995,6 +1047,43 @@ HarnessToolExecutionResult
 -> Tool 실행이 어떻게 끝났는가?
 ```
 
+## Harness Tool Result Validation
+
+Tool 실행 성공만으로 Agent에게 결과를 전달하지 않는다. Harness는 실행 결과가 요청한 Tool의 계약을 지키는지 별도로 검증한다.
+
+패키지 경로:
+
+```text
+src/main/java/com/stock/harness/tool/validation/HarnessToolResultValidator.java
+src/main/java/com/stock/harness/tool/validation/HarnessToolResultValidationResult.java
+src/main/java/com/stock/harness/tool/validation/HarnessToolResultValidationStatus.java
+src/main/java/com/stock/harness/tool/validation/HarnessToolResultValidationReasonCode.java
+```
+
+현재 검증 순서는 다음과 같다.
+
+```text
+request.type == result.type
+output != null
+request.type == output.type
+GET_PORTFOLIO -> portfolioSnapshot != null
+GET_MARKET -> marketSnapshot != null
+```
+
+검증 사유 코드는 다음과 같다.
+
+```text
+TOOL_RESULT_VALID
+RESULT_TYPE_MISMATCH
+OUTPUT_MISSING
+OUTPUT_TYPE_MISMATCH
+OUTPUT_PAYLOAD_MISSING
+```
+
+Tool 실행 상태가 `EXECUTED`일 때만 `VALIDATE_TOOL_RESULT` 단계로 진행한다. 실행 자체가 실패하면 실행 실패 결과를 이력에 남기고 검증 전 Run을 종료한다.
+
+계약 검증이 실패하면 `VALIDATE_TOOL_RESULT` Step을 `FAILED`로 기록하고 Run을 종료한다. 이때 원래 Tool 실행 결과는 Run 이력에 남지만 Agent Context에는 추가하지 않으므로, Agent가 잘못된 결과를 근거로 다시 판단하지 않는다.
+
 ## Agent Loop
 
 현재 Harness는 Agent Step Budget 안에서 Tool 실행 결과를 Agent에게 반복해서 전달할 수 있다.
@@ -1007,7 +1096,7 @@ HarnessToolExecutionResult
 
 `FINAL_DECISION`이 반환되면 기존처럼 `InvestmentDecision`을 꺼내 Risk Guard와 Trade Executor 흐름으로 진행한다.
 
-`REQUEST_TOOL`이 반환되면 Harness는 `HarnessToolAuthorizer`로 권한을 판정하고 `AUTHORIZE_TOOL_REQUEST` Step을 기록한다. 권한이 허용되면 `CHECK_TOOL_CALL_LIMIT`를 수행한 뒤 `HarnessToolExecutor`로 Tool을 실행하고 `EXECUTE_TOOL_REQUEST` Step을 기록한다. 실행 결과는 새 Context에 추가되고 Agent의 다음 판단 입력으로 전달된다.
+`REQUEST_TOOL`이 반환되면 Harness는 `HarnessToolAuthorizer`로 권한을 판정하고 `AUTHORIZE_TOOL_REQUEST` Step을 기록한다. 권한이 허용되면 `CHECK_TOOL_CALL_LIMIT`를 수행한 뒤 `HarnessToolExecutor`로 Tool을 실행하고 `EXECUTE_TOOL_REQUEST` Step을 기록한다. 실행 결과가 성공하면 `HarnessToolResultValidator`가 계약을 검사하고 `VALIDATE_TOOL_RESULT` Step을 기록한다. 검증까지 통과한 결과만 새 Context에 추가되어 Agent의 다음 판단 입력으로 전달된다.
 
 권한 판정 결과는 Step status와 message로 남는다.
 
@@ -1045,18 +1134,22 @@ CHECK_TOOL_CALL_LIMIT
 EXECUTE_TOOL_REQUEST
 -> Harness tool execution completed.
 
+VALIDATE_TOOL_RESULT
+-> Harness tool result is valid.
+
 RUN_INVESTMENT_AGENT
 -> Agent의 최종 판단 사유
 ```
 
 Agent Loop는 `FINAL_DECISION`이 반환되거나 실행 Budget이 소진될 때까지 반복된다. `FINAL_DECISION`이 반환되면 Risk Guard와 Trade Executor 흐름으로 진행한다. Agent Step Budget이 소진되면 다음 Agent 호출 전에 중단하고, Tool Call Budget이 소진되면 다음 Tool 실행 전에 중단한다.
 
-판단해야 할 질문은 다음과 같다.
+현재 Tool 실행 또는 결과 검증이 실패하면 Harness는 Agent에게 실패 결과를 다시 전달하지 않고 Run을 즉시 실패시킨다.
+
+이후 판단해야 할 질문은 다음과 같다.
 
 ```text
-1. Tool 실행 실패를 Agent에게 전달해 재판단하게 할 것인가, Harness가 즉시 실패시킬 것인가?
+1. 일시적인 Tool 실행 실패를 재시도하거나 Agent에게 전달하는 정책이 필요한가?
 2. 논리적인 Tool 호출 횟수와 실제 Broker API 호출 횟수를 별도 Budget으로 관리할 것인가?
-3. Tool 실행 결과를 Run 상세 이력에 어떤 형태로 저장할 것인가?
 ```
 
 설정 책임은 현재 다음처럼 분리되어 있다.
@@ -1091,6 +1184,6 @@ enabled
 
 `harness.scheduler.fixed-delay-ms`는 현재 `@Scheduled(fixedDelayString = "${harness.scheduler.fixed-delay-ms}")` 속성에서 직접 참조한다. `@Scheduled`는 어노테이션 속성으로 스케줄 간격을 받아야 하므로, 이 단계에서는 `fixed-delay-ms`를 별도 record 필드로 옮기지 않는다.
 
-현재 추천 방향은 바로 실제 Broker API Tool을 만들지 않는 것이다.
+현재 Tool 실행 결과의 계약 검증, Run 결과 포함, JSON 저장, 상세 조회까지 구현되어 있다.
 
-다음 구현 단계는 여러 Tool 실행 결과를 Run 상세 이력에서 확인할 수 있도록 저장 모델을 확장하는 것이다. 현재 Step에는 Tool 실행 성공 여부와 메시지만 남고 실제 Tool 출력은 `HarnessRunContext` 안에서만 사용된다.
+실제 Broker API Tool을 바로 추가하기보다 동일 요청 중복 처리와 Cache 경계, 실제 외부 API 호출 Budget, Tool 실패 재시도 정책을 먼저 설계하는 방향을 유지한다.
