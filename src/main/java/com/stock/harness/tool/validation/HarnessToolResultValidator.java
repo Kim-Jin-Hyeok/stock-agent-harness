@@ -67,6 +67,16 @@ public class HarnessToolResultValidator {
             );
         }
 
+        if (requestedType == HarnessToolType.GET_CURRENT_PRICE
+                && output.currentPriceSnapshot().priceKrw() <= 0) {
+            return HarnessToolResultValidationResult.invalid(
+                    requestedType,
+                    HarnessToolResultValidationReasonCode.OUTPUT_PRICE_INVALID,
+                    "Current price must be greater than zero. actual="
+                    + output.currentPriceSnapshot().priceKrw()
+            );
+        }
+
         return HarnessToolResultValidationResult.valid(requestedType);
     }
 

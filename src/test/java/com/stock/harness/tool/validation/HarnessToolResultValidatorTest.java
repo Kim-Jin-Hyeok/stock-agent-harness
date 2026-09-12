@@ -86,6 +86,59 @@ class HarnessToolResultValidatorTest {
     }
 
     @Test
+    void rejectsZeroCurrentPrice() {
+        HarnessToolResultValidationResult result = validator.validate(
+                HarnessToolRequest.currentPrice("005930"),
+                HarnessToolExecutionResult.executed(
+                        HarnessToolOutput.currentPrice(
+                                new CurrentPriceSnapshot("005930", 0L)
+                        )
+                )
+        );
+
+        assertThat(result.status()).isEqualTo(HarnessToolResultValidationStatus.INVALID);
+        assertThat(result.reasonCode()).isEqualTo(
+                HarnessToolResultValidationReasonCode.OUTPUT_PRICE_INVALID
+        );
+        assertThat(result.reason()).contains("actual=0");
+    }
+
+    @Test
+    void rejectsNegativeCurrentPrice() {
+        HarnessToolResultValidationResult result = validator.validate(
+                HarnessToolRequest.currentPrice("005930"),
+                HarnessToolExecutionResult.executed(
+                        HarnessToolOutput.currentPrice(
+                                new CurrentPriceSnapshot("005930", -1L)
+                        )
+                )
+        );
+
+        assertThat(result.status()).isEqualTo(HarnessToolResultValidationStatus.INVALID);
+        assertThat(result.reasonCode()).isEqualTo(
+                HarnessToolResultValidationReasonCode.OUTPUT_PRICE_INVALID
+        );
+        assertThat(result.reason()).contains("actual=-1");
+    }
+
+    @Test
+    void rejectsMismatchedSymbolBeforeInvalidCurrentPrice() {
+        HarnessToolResultValidationResult result = validator.validate(
+                HarnessToolRequest.currentPrice("005930"),
+                HarnessToolExecutionResult.executed(
+                        HarnessToolOutput.currentPrice(
+                                new CurrentPriceSnapshot("000660", 0L)
+                        )
+                )
+        );
+
+        assertThat(result.status()).isEqualTo(HarnessToolResultValidationStatus.INVALID);
+        assertThat(result.reasonCode()).isEqualTo(
+                HarnessToolResultValidationReasonCode.OUTPUT_SYMBOL_MISMATCH
+        );
+    }
+
+    @Test
     void rejectsCurrentPriceResultWithDifferentSymbol() {
         HarnessToolResultValidationResult result = validator.validate(
                 HarnessToolRequest.currentPrice("005930"),
