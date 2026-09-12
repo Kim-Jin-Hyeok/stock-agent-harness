@@ -12,6 +12,9 @@ import com.stock.harness.execution.limit.HarnessAgentStepBudget;
 import com.stock.harness.execution.limit.HarnessToolCallBudget;
 import com.stock.harness.execution.tool.HarnessToolRequestTracker;
 import com.stock.harness.tool.*;
+import com.stock.harness.tool.validation.HarnessToolRequestValidationResult;
+import com.stock.harness.tool.validation.HarnessToolRequestValidationStatus;
+import com.stock.harness.tool.validation.HarnessToolRequestValidator;
 import com.stock.harness.tool.validation.HarnessToolResultValidationResult;
 import com.stock.harness.tool.validation.HarnessToolResultValidationStatus;
 import com.stock.harness.tool.validation.HarnessToolResultValidator;
@@ -49,6 +52,7 @@ public class InvestmentHarness {
     private final HarnessToolExecutor harnessToolExecutor;
     private final HarnessToolResultValidator harnessToolResultValidator;
     private final HarnessAgentActionValidator harnessAgentActionValidator;
+    private final HarnessToolRequestValidator harnessToolRequestValidator;
 
     public HarnessRunResult run() {
         LocalDateTime startedAt = LocalDateTime.now();
@@ -275,6 +279,23 @@ public class InvestmentHarness {
                 return new HarnessAgentLoopResult(
                         action.investmentDecision(),
                         recordedToolResults
+                );
+            }
+
+            HarnessToolRequestValidationResult requestValidationResult = stepRecorder.record(
+                    HarnessStepType.VALIDATE_TOOL_REQUEST,
+                    () -> harnessToolRequestValidator.validate(action.toolRequest()),
+                    result -> result.status() == HarnessToolRequestValidationStatus.VALID
+                            ? HarnessStepStatus.COMPLETED
+                            : HarnessStepStatus.FAILED,
+                    HarnessToolRequestValidationResult::reason
+            );
+
+            if (requestValidationResult.status() != HarnessToolRequestValidationStatus.VALID) {
+                throw new IllegalStateException(
+                        requestValidationResult.reason()
+                        + " reasonCode="
+                        + requestValidationResult.reasonCode()
                 );
             }
 
