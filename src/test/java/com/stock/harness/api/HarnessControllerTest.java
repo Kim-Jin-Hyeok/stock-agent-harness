@@ -17,6 +17,8 @@ import com.stock.harness.persistence.HarnessMarketSnapshot;
 import com.stock.harness.persistence.HarnessPortfolioPositionSnapshot;
 import com.stock.harness.persistence.HarnessPortfolioSnapshot;
 import com.stock.harness.persistence.HarnessRiskCheckSnapshot;
+import com.stock.harness.tool.HarnessToolExecutionResult;
+import com.stock.harness.tool.HarnessToolOutput;
 import com.stock.market.MarketSnapshot;
 import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.risk.RiskCheckResult;
@@ -74,6 +76,11 @@ class HarnessControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.runId").value(runId))
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.toolResults[0].status").value("EXECUTED"))
+                .andExpect(jsonPath("$.toolResults[0].type").value("GET_PORTFOLIO"))
+                .andExpect(jsonPath("$.toolResults[0].reasonCode").value("TOOL_EXECUTED"))
+                .andExpect(jsonPath("$.toolResults[0].output.portfolioSnapshot.cashAmountKrw")
+                        .value(9_300_000L))
                 .andExpect(jsonPath("$.tradeRecords[0].runId").value(runId))
                 .andExpect(jsonPath("$.tradeRecords[0].status").value("EXECUTED"));
 
@@ -186,11 +193,18 @@ class HarnessControllerTest {
                 startedAt,
                 finishedAt,
                 List.of(completedStep()),
+                List.of(portfolioToolExecutionResult()),
                 buyDecision(),
                 approvedRiskCheckResult(),
                 executedBuyTradeResult(),
                 portfolioSnapshot(),
                 marketSnapshot()
+        );
+    }
+
+    private HarnessToolExecutionResult portfolioToolExecutionResult() {
+        return HarnessToolExecutionResult.executed(
+                HarnessToolOutput.portfolio(portfolioSnapshot())
         );
     }
 

@@ -4,6 +4,7 @@ import com.stock.agent.InvestmentDecision;
 import com.stock.harness.HarnessRunResult;
 import com.stock.harness.HarnessRunStatus;
 import com.stock.harness.HarnessStepResult;
+import com.stock.harness.tool.HarnessToolExecutionResult;
 import com.stock.market.MarketSnapshot;
 import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.risk.RiskCheckResult;
@@ -19,6 +20,7 @@ public record HarnessRunResponse(
         LocalDateTime startedAt,
         LocalDateTime finishedAt,
         List<HarnessStepResult> steps,
+        List<HarnessToolExecutionResult> toolResults,
         InvestmentDecision decision,
         RiskCheckResult riskCheckResult,
         TradeResult tradeResult,
@@ -33,6 +35,7 @@ public record HarnessRunResponse(
                 result.startedAt(),
                 result.finishedAt(),
                 result.steps(),
+                result.toolResults(),
                 result.decision(),
                 result.riskCheckResult(),
                 result.tradeResult(),
