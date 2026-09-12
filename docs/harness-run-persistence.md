@@ -523,6 +523,7 @@ LOAD_PORTFOLIO
 LOAD_MARKET
 CHECK_STEP_LIMIT
 RUN_INVESTMENT_AGENT
+VALIDATE_AGENT_ACTION
 VALIDATE_DECISION
 EXECUTE_TRADE
 LOAD_FINAL_PORTFOLIO
@@ -535,12 +536,14 @@ LOAD_PORTFOLIO
 LOAD_MARKET
 CHECK_STEP_LIMIT
 RUN_INVESTMENT_AGENT
+VALIDATE_AGENT_ACTION
 AUTHORIZE_TOOL_REQUEST
 CHECK_TOOL_CALL_LIMIT
 EXECUTE_TOOL_REQUEST
 VALIDATE_TOOL_RESULT
 CHECK_STEP_LIMIT
 RUN_INVESTMENT_AGENT
+VALIDATE_AGENT_ACTION
 VALIDATE_DECISION
 EXECUTE_TRADE
 LOAD_FINAL_PORTFOLIO
@@ -933,6 +936,65 @@ AgentNextAction.finalDecision(InvestmentDecision)
 -> investmentDecision = InvestmentDecision
 ```
 
+## Harness Agent Action Validation
+
+Agent가 `AgentNextAction`을 반환했다고 해서 Harness가 그 구조를 바로 신뢰하지 않는다. Action 타입과 실제 payload 조합이 계약에 맞는지 확인한 뒤 Tool 요청 또는 최종 판단 흐름으로 분기한다.
+
+패키지 경로:
+
+```text
+src/main/java/com/stock/harness/agent/validation/HarnessAgentActionValidator.java
+src/main/java/com/stock/harness/agent/validation/HarnessAgentActionValidationResult.java
+src/main/java/com/stock/harness/agent/validation/HarnessAgentActionValidationStatus.java
+src/main/java/com/stock/harness/agent/validation/HarnessAgentActionValidationReasonCode.java
+```
+
+현재 검증 규칙은 다음과 같다.
+
+```text
+AgentNextAction != null
+AgentNextAction.type != null
+
+REQUEST_TOOL
+-> toolRequest != null
+-> investmentDecision == null
+
+FINAL_DECISION
+-> investmentDecision != null
+-> toolRequest == null
+```
+
+검증 상태는 다음 두 가지다.
+
+```text
+VALID
+INVALID
+```
+
+검증 사유 코드는 다음과 같다.
+
+```text
+AGENT_ACTION_VALID
+ACTION_MISSING
+ACTION_TYPE_MISSING
+TOOL_REQUEST_MISSING
+UNEXPECTED_INVESTMENT_DECISION
+INVESTMENT_DECISION_MISSING
+UNEXPECTED_TOOL_REQUEST
+```
+
+`InvestmentHarness`는 `RUN_INVESTMENT_AGENT` 직후 `VALIDATE_AGENT_ACTION` Step을 기록한다. 검증이 실패하면 Tool 권한 검사, Tool 실행, Risk Guard 검증으로 진행하지 않고 Run을 실패로 종료한다.
+
+`VALIDATE_AGENT_ACTION`과 `VALIDATE_DECISION`의 책임은 다르다.
+
+```text
+VALIDATE_AGENT_ACTION
+-> Agent가 반환한 다음 행동의 구조가 올바른지 검증
+
+VALIDATE_DECISION
+-> FINAL_DECISION에 포함된 투자 판단을 Risk Guard가 검증
+```
+
 현재 `InvestmentAgent`는 `next(context)` 메서드를 제공한다.
 
 패키지 경로:
@@ -958,6 +1020,8 @@ InvestmentAgent.next(context)
 AgentNextAction 모델 있음
 InvestmentAgent.next(context) 있음
 InvestmentHarness는 investmentAgent.next(context)를 호출함
+HarnessAgentActionValidator가 AgentNextAction 계약을 검증함
+VALIDATE_AGENT_ACTION Step을 Agent 실행 직후 기록함
 FINAL_DECISION은 기존 Risk Guard / Trade 흐름으로 연결됨
 REQUEST_TOOL은 HarnessToolAuthorizer로 권한 판정한 뒤 AUTHORIZE_TOOL_REQUEST Step을 기록함
 권한이 허용되면 HarnessToolCallBudget을 확인하고 CHECK_TOOL_CALL_LIMIT Step을 기록함
@@ -1094,9 +1158,9 @@ Tool 실행 상태가 `EXECUTED`일 때만 `VALIDATE_TOOL_RESULT` 단계로 진�
 
 `InvestmentHarness`는 `RUN_INVESTMENT_AGENT` Step에서 `investmentAgent.next(context)`를 호출한다.
 
-`FINAL_DECISION`이 반환되면 기존처럼 `InvestmentDecision`을 꺼내 Risk Guard와 Trade Executor 흐름으로 진행한다.
+반환된 Action은 `HarnessAgentActionValidator`로 검증하고 `VALIDATE_AGENT_ACTION` Step에 결과를 기록한다. 유효한 `FINAL_DECISION`이면 기존처럼 `InvestmentDecision`을 꺼내 Risk Guard와 Trade Executor 흐름으로 진행한다.
 
-`REQUEST_TOOL`이 반환되면 Harness는 `HarnessToolAuthorizer`로 권한을 판정하고 `AUTHORIZE_TOOL_REQUEST` Step을 기록한다. 권한이 허용되면 `CHECK_TOOL_CALL_LIMIT`를 수행한 뒤 `HarnessToolExecutor`로 Tool을 실행하고 `EXECUTE_TOOL_REQUEST` Step을 기록한다. 실행 결과가 성공하면 `HarnessToolResultValidator`가 계약을 검사하고 `VALIDATE_TOOL_RESULT` Step을 기록한다. 검증까지 통과한 결과만 새 Context에 추가되어 Agent의 다음 판단 입력으로 전달된다.
+유효한 `REQUEST_TOOL`이면 Harness는 `HarnessToolAuthorizer`로 권한을 판정하고 `AUTHORIZE_TOOL_REQUEST` Step을 기록한다. 권한이 허용되면 `CHECK_TOOL_CALL_LIMIT`를 수행한 뒤 `HarnessToolExecutor`로 Tool을 실행하고 `EXECUTE_TOOL_REQUEST` Step을 기록한다. 실행 결과가 성공하면 `HarnessToolResultValidator`가 계약을 검사하고 `VALIDATE_TOOL_RESULT` Step을 기록한다. 검증까지 통과한 결과만 새 Context에 추가되어 Agent의 다음 판단 입력으로 전달된다.
 
 권한 판정 결과는 Step status와 message로 남는다.
 
@@ -1125,6 +1189,12 @@ FAILED
 현재 `HarnessToolExecutor`는 `GET_PORTFOLIO`, `GET_MARKET` 조회 Tool을 실행한다. Tool 실행에 성공하면 이력에는 다음처럼 남는다.
 
 ```text
+RUN_INVESTMENT_AGENT
+-> Agent가 Tool 요청을 반환함
+
+VALIDATE_AGENT_ACTION
+-> Harness agent action is valid.
+
 AUTHORIZE_TOOL_REQUEST
 -> Harness tool authorization allowed.
 
@@ -1139,6 +1209,9 @@ VALIDATE_TOOL_RESULT
 
 RUN_INVESTMENT_AGENT
 -> Agent의 최종 판단 사유
+
+VALIDATE_AGENT_ACTION
+-> Harness agent action is valid.
 ```
 
 Agent Loop는 `FINAL_DECISION`이 반환되거나 실행 Budget이 소진될 때까지 반복된다. `FINAL_DECISION`이 반환되면 Risk Guard와 Trade Executor 흐름으로 진행한다. Agent Step Budget이 소진되면 다음 Agent 호출 전에 중단하고, Tool Call Budget이 소진되면 다음 Tool 실행 전에 중단한다.
