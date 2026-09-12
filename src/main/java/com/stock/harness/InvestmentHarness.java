@@ -10,6 +10,7 @@ import com.stock.harness.agent.validation.HarnessAgentActionValidator;
 import com.stock.harness.execution.HarnessAgentLoopResult;
 import com.stock.harness.execution.limit.HarnessAgentStepBudget;
 import com.stock.harness.execution.limit.HarnessToolCallBudget;
+import com.stock.harness.execution.tool.HarnessToolRequestTracker;
 import com.stock.harness.tool.*;
 import com.stock.harness.tool.validation.HarnessToolResultValidationResult;
 import com.stock.harness.tool.validation.HarnessToolResultValidationStatus;
@@ -80,12 +81,14 @@ public class InvestmentHarness {
             HarnessToolCallBudget toolCallBudget = new HarnessToolCallBudget(
                     context.limits().maxToolCalls()
             );
+            HarnessToolRequestTracker toolRequestTracker = new HarnessToolRequestTracker();
 
             HarnessAgentLoopResult agentLoopResult = resolveInvestmentDecision(
                     context,
                     stepRecorder,
                     agentStepBudget,
                     toolCallBudget,
+                    toolRequestTracker,
                     recordedToolResults
             );
             InvestmentDecision decision = agentLoopResult.decision();
@@ -239,6 +242,7 @@ public class InvestmentHarness {
             HarnessStepRecorder stepRecorder,
             HarnessAgentStepBudget agentStepBudget,
             HarnessToolCallBudget toolCallBudget,
+            HarnessToolRequestTracker toolRequestTracker,
             List<HarnessToolExecutionResult> recordedToolResults
     ) {
         HarnessRunContext currentContext = context;
@@ -298,6 +302,13 @@ public class InvestmentHarness {
                 );
             }
 
+            checkDuplicateToolRequest(
+                    stepRecorder,
+                    toolRequestTracker,
+                    action.toolRequest(),
+                    recordedToolResults
+            );
+
             consumeToolCallBudget(stepRecorder, toolCallBudget);
 
             HarnessToolExecutionResult executionResult = stepRecorder.record(
@@ -338,6 +349,28 @@ public class InvestmentHarness {
 
             currentContext = currentContext.withToolResult(executionResult);
         }
+    }
+
+    private void checkDuplicateToolRequest(
+            HarnessStepRecorder stepRecorder,
+            HarnessToolRequestTracker toolRequestTracker,
+            HarnessToolRequest request,
+            List<HarnessToolExecutionResult> recordedToolResults
+    ) {
+        if (!toolRequestTracker.tryRegister(request)) {
+            HarnessToolExecutionResult executionResult =
+                    HarnessToolExecutionResult.duplicateRequest(request.type());
+            recordedToolResults.add(executionResult);
+
+            String message = executionResult.reason() + " type=" + request.type();
+            stepRecorder.failed(HarnessStepType.CHECK_DUPLICATE_TOOL_REQUEST, message);
+            throw new IllegalStateException(message);
+        }
+
+        stepRecorder.completed(
+                HarnessStepType.CHECK_DUPLICATE_TOOL_REQUEST,
+                "Tool request is not duplicate. type=" + request.type()
+        );
     }
 
     private void consumeToolCallBudget(

@@ -36,4 +36,14 @@ public record HarnessToolExecutionResult(
                 null
         );
     }
+
+    public static HarnessToolExecutionResult duplicateRequest(HarnessToolType type) {
+        return new HarnessToolExecutionResult(
+                HarnessToolExecutionStatus.SKIPPED,
+                type,
+                HarnessToolExecutionReasonCode.DUPLICATE_TOOL_REQUEST,
+                "Duplicate tool request was skipped.",
+                null
+        );
+    }
 }

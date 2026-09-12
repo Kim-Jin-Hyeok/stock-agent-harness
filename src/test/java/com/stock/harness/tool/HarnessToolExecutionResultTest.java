@@ -42,6 +42,21 @@ class HarnessToolExecutionResultTest {
         assertThat(result.output()).isNull();
     }
 
+    @Test
+    void createsDuplicateRequestResult() {
+        HarnessToolExecutionResult result = HarnessToolExecutionResult.duplicateRequest(
+                HarnessToolType.GET_PORTFOLIO
+        );
+
+        assertThat(result.status()).isEqualTo(HarnessToolExecutionStatus.SKIPPED);
+        assertThat(result.type()).isEqualTo(HarnessToolType.GET_PORTFOLIO);
+        assertThat(result.reasonCode()).isEqualTo(
+                HarnessToolExecutionReasonCode.DUPLICATE_TOOL_REQUEST
+        );
+        assertThat(result.reason()).isEqualTo("Duplicate tool request was skipped.");
+        assertThat(result.output()).isNull();
+    }
+
     private HarnessToolExecutionResult executedPortfolioToolResult() {
         return HarnessToolExecutionResult.executed(portfolioToolOutput());
     }
