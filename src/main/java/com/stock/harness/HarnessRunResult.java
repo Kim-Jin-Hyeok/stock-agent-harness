@@ -87,7 +87,8 @@ public record HarnessRunResult(
             String runId,
             LocalDateTime startedAt,
             LocalDateTime finishedAt,
-            List<HarnessStepResult> steps
+            List<HarnessStepResult> steps,
+            List<HarnessToolExecutionResult> toolResults
     ) {
         return new HarnessRunResult(
                 runId,
@@ -95,12 +96,27 @@ public record HarnessRunResult(
                 startedAt,
                 finishedAt,
                 steps,
-                List.of(),
+                toolResults,
                 null,
                 null,
                 null,
                 null,
                 null
+        );
+    }
+
+    public static HarnessRunResult failed(
+            String runId,
+            LocalDateTime startedAt,
+            LocalDateTime finishedAt,
+            List<HarnessStepResult> steps
+    ) {
+        return failed(
+                runId,
+                startedAt,
+                finishedAt,
+                steps,
+                List.of()
         );
     }
 }

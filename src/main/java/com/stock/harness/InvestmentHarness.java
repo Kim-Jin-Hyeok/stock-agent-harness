@@ -47,6 +47,7 @@ public class InvestmentHarness {
 
         String runId = UUID.randomUUID().toString();
         HarnessStepRecorder stepRecorder = new HarnessStepRecorder();
+        List<HarnessToolExecutionResult> recordedToolResults = new ArrayList<>();
 
         try {
             PortfolioSnapshot portfolioSnapshot = stepRecorder.record(
@@ -76,7 +77,8 @@ public class InvestmentHarness {
                     context,
                     stepRecorder,
                     agentStepBudget,
-                    toolCallBudget
+                    toolCallBudget,
+                    recordedToolResults
             );
             InvestmentDecision decision = agentLoopResult.decision();
 
@@ -148,7 +150,8 @@ public class InvestmentHarness {
                     runId,
                     startedAt,
                     e,
-                    stepRecorder.steps()
+                    stepRecorder.steps(),
+                    recordedToolResults
             );
 
             harnessRunHistoryService.record(result);
@@ -192,7 +195,8 @@ public class InvestmentHarness {
             String runId,
             LocalDateTime startedAt,
             Exception e,
-            List<HarnessStepResult> recordedSteps
+            List<HarnessStepResult> recordedSteps,
+            List<HarnessToolExecutionResult> recordedToolResults
     ) {
         LocalDateTime finishedAt = LocalDateTime.now();
 
@@ -217,7 +221,8 @@ public class InvestmentHarness {
                 runId,
                 startedAt,
                 finishedAt,
-                steps
+                steps,
+                recordedToolResults
         );
     }
 
@@ -225,7 +230,8 @@ public class InvestmentHarness {
             HarnessRunContext context,
             HarnessStepRecorder stepRecorder,
             HarnessAgentStepBudget agentStepBudget,
-            HarnessToolCallBudget toolCallBudget
+            HarnessToolCallBudget toolCallBudget,
+            List<HarnessToolExecutionResult> recordedToolResults
     ) {
         HarnessRunContext currentContext = context;
 
@@ -239,7 +245,7 @@ public class InvestmentHarness {
             if (action.type() == AgentNextActionType.FINAL_DECISION) {
                 return new HarnessAgentLoopResult(
                         action.investmentDecision(),
-                        currentContext.toolResults()
+                        recordedToolResults
                 );
             }
 
@@ -260,6 +266,7 @@ public class InvestmentHarness {
                 HarnessToolExecutionResult executionResult = HarnessToolExecutionResult.authorizationDenied(
                         authorizationResult.type()
                 );
+                recordedToolResults.add(executionResult);
 
                 throw new IllegalStateException(
                         executionResult.reason() + " type=" + executionResult.type()
@@ -276,6 +283,7 @@ public class InvestmentHarness {
                             : HarnessStepStatus.FAILED,
                     HarnessToolExecutionResult::reason
             );
+            recordedToolResults.add(executionResult);
 
             if (executionResult.status() != HarnessToolExecutionStatus.EXECUTED) {
                 throw new IllegalStateException(

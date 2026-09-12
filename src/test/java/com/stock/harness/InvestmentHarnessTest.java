@@ -7,9 +7,13 @@ import com.stock.agent.InvestmentDecision;
 import com.stock.harness.persistence.HarnessRunRepository;
 import com.stock.harness.persistence.HarnessRunSnapshotJsonConverter;
 import com.stock.harness.persistence.HarnessStepRepository;
+import com.stock.harness.tool.HarnessToolAuthorizationReasonCode;
+import com.stock.harness.tool.HarnessToolAuthorizationResult;
 import com.stock.harness.tool.HarnessToolAuthorizer;
 import com.stock.harness.tool.HarnessToolExecutor;
+import com.stock.harness.tool.HarnessToolExecutionReasonCode;
 import com.stock.harness.tool.HarnessToolExecutionResult;
+import com.stock.harness.tool.HarnessToolExecutionStatus;
 import com.stock.harness.tool.HarnessToolRequest;
 import com.stock.harness.tool.HarnessToolType;
 import com.stock.market.MarketService;
@@ -29,7 +33,9 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class InvestmentHarnessTest {
 
@@ -184,6 +190,9 @@ class InvestmentHarnessTest {
 
         assertThat(failedLimitStep.status()).isEqualTo(HarnessStepStatus.FAILED);
         assertThat(failedLimitStep.message()).isEqualTo("Agent step limit exceeded. used=1, max=1");
+        assertThat(result.toolResults())
+                .extracting(HarnessToolExecutionResult::type)
+                .containsExactly(HarnessToolType.GET_PORTFOLIO);
     }
 
     @Test
@@ -526,6 +535,79 @@ class InvestmentHarnessTest {
                 .extracting(HarnessStepResult::type)
                 .filteredOn(HarnessStepType.EXECUTE_TOOL_REQUEST::equals)
                 .hasSize(1);
+        assertThat(result.toolResults())
+                .extracting(HarnessToolExecutionResult::type)
+                .containsExactly(HarnessToolType.GET_PORTFOLIO);
+    }
+
+    @Test
+    void runPreservesAuthorizationDeniedToolResult() {
+        HarnessToolAuthorizer deniedAuthorizer = mock(HarnessToolAuthorizer.class);
+        when(deniedAuthorizer.authorize(any(), any()))
+                .thenReturn(HarnessToolAuthorizationResult.denied(
+                        HarnessToolType.GET_PORTFOLIO,
+                        HarnessToolAuthorizationReasonCode.TOOL_NOT_ALLOWED,
+                        "Harness tool is not allowed."
+                ));
+        InvestmentHarness deniedHarness = new InvestmentHarness(
+                riskGuard,
+                tradeExecutor,
+                portfolioService,
+                marketService,
+                harnessRunHistoryService,
+                new ToolResultUsingInvestmentAgent(),
+                harnessProperties,
+                deniedAuthorizer,
+                harnessToolExecutor
+        );
+
+        HarnessRunResult result = deniedHarness.run();
+
+        assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
+        assertThat(result.toolResults())
+                .singleElement()
+                .satisfies(toolResult -> {
+                    assertThat(toolResult.status()).isEqualTo(HarnessToolExecutionStatus.FAILED);
+                    assertThat(toolResult.type()).isEqualTo(HarnessToolType.GET_PORTFOLIO);
+                    assertThat(toolResult.reasonCode()).isEqualTo(
+                            HarnessToolExecutionReasonCode.TOOL_AUTHORIZATION_DENIED
+                    );
+                    assertThat(toolResult.output()).isNull();
+                });
+    }
+
+    @Test
+    void runPreservesFailedToolExecutionResult() {
+        HarnessToolExecutor failingToolExecutor = mock(HarnessToolExecutor.class);
+        when(failingToolExecutor.execute(any()))
+                .thenReturn(HarnessToolExecutionResult.notSupported(
+                        HarnessToolType.GET_PORTFOLIO
+                ));
+        InvestmentHarness failingToolHarness = new InvestmentHarness(
+                riskGuard,
+                tradeExecutor,
+                portfolioService,
+                marketService,
+                harnessRunHistoryService,
+                new ToolResultUsingInvestmentAgent(),
+                harnessProperties,
+                harnessToolAuthorizer,
+                failingToolExecutor
+        );
+
+        HarnessRunResult result = failingToolHarness.run();
+
+        assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
+        assertThat(result.toolResults())
+                .singleElement()
+                .satisfies(toolResult -> {
+                    assertThat(toolResult.status()).isEqualTo(HarnessToolExecutionStatus.FAILED);
+                    assertThat(toolResult.type()).isEqualTo(HarnessToolType.GET_PORTFOLIO);
+                    assertThat(toolResult.reasonCode()).isEqualTo(
+                            HarnessToolExecutionReasonCode.TOOL_NOT_SUPPORTED
+                    );
+                    assertThat(toolResult.output()).isNull();
+                });
     }
 
     @Test
