@@ -4,6 +4,9 @@ import com.stock.agent.AgentNextAction;
 import com.stock.agent.AgentNextActionType;
 import com.stock.agent.InvestmentAgent;
 import com.stock.agent.InvestmentDecision;
+import com.stock.harness.agent.validation.HarnessAgentActionValidationResult;
+import com.stock.harness.agent.validation.HarnessAgentActionValidationStatus;
+import com.stock.harness.agent.validation.HarnessAgentActionValidator;
 import com.stock.harness.execution.HarnessAgentLoopResult;
 import com.stock.harness.execution.limit.HarnessAgentStepBudget;
 import com.stock.harness.execution.limit.HarnessToolCallBudget;
@@ -44,6 +47,7 @@ public class InvestmentHarness {
     private final HarnessToolAuthorizer harnessToolAuthorizer;
     private final HarnessToolExecutor harnessToolExecutor;
     private final HarnessToolResultValidator harnessToolResultValidator;
+    private final HarnessAgentActionValidator harnessAgentActionValidator;
 
     public HarnessRunResult run() {
         LocalDateTime startedAt = LocalDateTime.now();
@@ -246,6 +250,23 @@ public class InvestmentHarness {
                     agentStepBudget
             );
 
+            HarnessAgentActionValidationResult actionValidationResult = stepRecorder.record(
+                    HarnessStepType.VALIDATE_AGENT_ACTION,
+                    () -> harnessAgentActionValidator.validate(action),
+                    result -> result.status() == HarnessAgentActionValidationStatus.VALID
+                            ? HarnessStepStatus.COMPLETED
+                            : HarnessStepStatus.FAILED,
+                    HarnessAgentActionValidationResult::reason
+            );
+
+            if (actionValidationResult.status() != HarnessAgentActionValidationStatus.VALID) {
+                throw new IllegalStateException(
+                        actionValidationResult.reason()
+                        + " reasonCode="
+                        + actionValidationResult.reasonCode()
+                );
+            }
+
             if (action.type() == AgentNextActionType.FINAL_DECISION) {
                 return new HarnessAgentLoopResult(
                         action.investmentDecision(),
@@ -373,10 +394,18 @@ public class InvestmentHarness {
     }
 
     private String agentNextActionMessage(AgentNextAction action) {
-        if (action.type() == AgentNextActionType.FINAL_DECISION) {
-            return action.investmentDecision().reason();
+        if (action == null || action.type() == null) {
+            return "Investment agent returned an invalid action.";
         }
 
-        return "Requested tool. type=" + action.toolRequest().type();
+        if (action.type() == AgentNextActionType.FINAL_DECISION) {
+            return action.investmentDecision() == null
+                    ? "Investment agent returned an invalid final decision action."
+                    : action.investmentDecision().reason();
+        }
+
+        return action.toolRequest() == null
+                ? "Investment agent returned an invalid tool request action."
+                : "Requested tool. type=" + action.toolRequest().type();
     }
 }

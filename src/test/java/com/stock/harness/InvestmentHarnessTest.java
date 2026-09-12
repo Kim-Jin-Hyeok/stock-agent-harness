@@ -1,9 +1,12 @@
 package com.stock.harness;
 
 import com.stock.agent.AgentNextAction;
+import com.stock.agent.AgentNextActionType;
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentAgent;
 import com.stock.agent.InvestmentDecision;
+import com.stock.harness.agent.validation.HarnessAgentActionValidationReasonCode;
+import com.stock.harness.agent.validation.HarnessAgentActionValidator;
 import com.stock.harness.persistence.HarnessRunRepository;
 import com.stock.harness.persistence.HarnessRunSnapshotJsonConverter;
 import com.stock.harness.persistence.HarnessStepRepository;
@@ -38,6 +41,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -78,6 +82,7 @@ class InvestmentHarnessTest {
             marketService
     );
     private final HarnessToolResultValidator harnessToolResultValidator = new HarnessToolResultValidator();
+    private final HarnessAgentActionValidator harnessAgentActionValidator = new HarnessAgentActionValidator();
 
     private final InvestmentHarness investmentHarness = new InvestmentHarness(
             riskGuard,
@@ -89,7 +94,8 @@ class InvestmentHarnessTest {
             harnessProperties,
             harnessToolAuthorizer,
             harnessToolExecutor,
-            harnessToolResultValidator
+            harnessToolResultValidator,
+            harnessAgentActionValidator
     );
 
     @Test
@@ -101,7 +107,7 @@ class InvestmentHarnessTest {
         assertThat(result.riskCheckResult().status()).isEqualTo(RiskCheckStatus.APPROVED);
         assertThat(result.tradeResult().status()).isEqualTo(TradeStatus.SKIPPED);
         assertThat(result.toolResults()).isEmpty();
-        assertThat(result.steps().size()).isEqualTo(7);
+        assertThat(result.steps().size()).isEqualTo(8);
 
         List<HarnessStepType> stepTypes = result.steps().stream()
                 .map(HarnessStepResult::type)
@@ -112,6 +118,7 @@ class InvestmentHarnessTest {
                 HarnessStepType.LOAD_MARKET,
                 HarnessStepType.CHECK_STEP_LIMIT,
                 HarnessStepType.RUN_INVESTMENT_AGENT,
+                HarnessStepType.VALIDATE_AGENT_ACTION,
                 HarnessStepType.VALIDATE_DECISION,
                 HarnessStepType.EXECUTE_TRADE,
                 HarnessStepType.LOAD_FINAL_PORTFOLIO
@@ -133,7 +140,13 @@ class InvestmentHarnessTest {
         assertThat(agentStep.type()).isEqualTo(HarnessStepType.RUN_INVESTMENT_AGENT);
         assertThat(agentStep.message()).contains("allowedTools=[GET_PORTFOLIO, GET_MARKET]");
 
-        HarnessStepResult validateDecisionStep = result.steps().get(4);
+        HarnessStepResult validateActionStep = result.steps().get(4);
+
+        assertThat(validateActionStep.type()).isEqualTo(HarnessStepType.VALIDATE_AGENT_ACTION);
+        assertThat(validateActionStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
+        assertThat(validateActionStep.message()).isEqualTo("Harness agent action is valid.");
+
+        HarnessStepResult validateDecisionStep = result.steps().get(5);
 
         assertThat(validateDecisionStep.type()).isEqualTo(HarnessStepType.VALIDATE_DECISION);
         assertThat(validateDecisionStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
@@ -142,7 +155,7 @@ class InvestmentHarnessTest {
         assertThat(validateDecisionStep.finishedAt()).isNotNull();
         assertThat(validateDecisionStep.startedAt()).isBeforeOrEqualTo(validateDecisionStep.finishedAt());
 
-        HarnessStepResult executeTradeStep = result.steps().get(5);
+        HarnessStepResult executeTradeStep = result.steps().get(6);
 
         assertThat(executeTradeStep.type()).isEqualTo(HarnessStepType.EXECUTE_TRADE);
         assertThat(executeTradeStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
@@ -151,7 +164,7 @@ class InvestmentHarnessTest {
         assertThat(executeTradeStep.finishedAt()).isNotNull();
         assertThat(executeTradeStep.startedAt()).isBeforeOrEqualTo(executeTradeStep.finishedAt());
 
-        HarnessStepResult finalPortfolioStep = result.steps().get(6);
+        HarnessStepResult finalPortfolioStep = result.steps().get(7);
 
         assertThat(finalPortfolioStep.type()).isEqualTo(HarnessStepType.LOAD_FINAL_PORTFOLIO);
         assertThat(finalPortfolioStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
@@ -173,7 +186,8 @@ class InvestmentHarnessTest {
                 new HarnessProperties(1, 1),
                 harnessToolAuthorizer,
                 harnessToolExecutor,
-                harnessToolResultValidator
+                harnessToolResultValidator,
+                harnessAgentActionValidator
         );
 
         HarnessRunResult result = limitedHarness.run();
@@ -186,6 +200,7 @@ class InvestmentHarnessTest {
                         HarnessStepType.LOAD_MARKET,
                         HarnessStepType.CHECK_STEP_LIMIT,
                         HarnessStepType.RUN_INVESTMENT_AGENT,
+                        HarnessStepType.VALIDATE_AGENT_ACTION,
                         HarnessStepType.AUTHORIZE_TOOL_REQUEST,
                         HarnessStepType.CHECK_TOOL_CALL_LIMIT,
                         HarnessStepType.EXECUTE_TOOL_REQUEST,
@@ -194,7 +209,7 @@ class InvestmentHarnessTest {
                         HarnessStepType.RUN_FAILED
                 );
 
-        HarnessStepResult failedLimitStep = result.steps().get(8);
+        HarnessStepResult failedLimitStep = result.steps().get(9);
 
         assertThat(failedLimitStep.status()).isEqualTo(HarnessStepStatus.FAILED);
         assertThat(failedLimitStep.message()).isEqualTo("Agent step limit exceeded. used=1, max=1");
@@ -215,7 +230,8 @@ class InvestmentHarnessTest {
                 harnessProperties,
                 harnessToolAuthorizer,
                 harnessToolExecutor,
-                harnessToolResultValidator
+                harnessToolResultValidator,
+                harnessAgentActionValidator
         );
 
         HarnessRunResult result = failingHarness.run();
@@ -242,6 +258,52 @@ class InvestmentHarnessTest {
     }
 
     @Test
+    void runFailsBeforeToolExecutionWhenAgentReturnsInvalidToolRequestAction() {
+        InvestmentAgent invalidActionAgent = mock(InvestmentAgent.class);
+        when(invalidActionAgent.next(any())).thenReturn(new AgentNextAction(
+                AgentNextActionType.REQUEST_TOOL,
+                null,
+                null
+        ));
+        HarnessToolExecutor unusedToolExecutor = mock(HarnessToolExecutor.class);
+        InvestmentHarness validatingHarness = new InvestmentHarness(
+                riskGuard,
+                tradeExecutor,
+                portfolioService,
+                marketService,
+                harnessRunHistoryService,
+                invalidActionAgent,
+                harnessProperties,
+                harnessToolAuthorizer,
+                unusedToolExecutor,
+                harnessToolResultValidator,
+                harnessAgentActionValidator
+        );
+
+        HarnessRunResult result = validatingHarness.run();
+
+        assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
+        assertThat(result.steps())
+                .extracting(HarnessStepResult::type)
+                .containsExactly(
+                        HarnessStepType.LOAD_PORTFOLIO,
+                        HarnessStepType.LOAD_MARKET,
+                        HarnessStepType.CHECK_STEP_LIMIT,
+                        HarnessStepType.RUN_INVESTMENT_AGENT,
+                        HarnessStepType.VALIDATE_AGENT_ACTION,
+                        HarnessStepType.RUN_FAILED
+                );
+        assertThat(result.steps().get(4).status()).isEqualTo(HarnessStepStatus.FAILED);
+        assertThat(result.steps().get(4).message()).isEqualTo(
+                "Tool request is missing for REQUEST_TOOL action."
+        );
+        assertThat(result.steps().getLast().message()).contains(
+                HarnessAgentActionValidationReasonCode.TOOL_REQUEST_MISSING.name()
+        );
+        verify(unusedToolExecutor, never()).execute(any());
+    }
+
+    @Test
     void runCompletesWhenAgentDecidesBuy() {
         InvestmentHarness successHarness = new InvestmentHarness(
                 riskGuard,
@@ -253,7 +315,8 @@ class InvestmentHarnessTest {
                 harnessProperties,
                 harnessToolAuthorizer,
                 harnessToolExecutor,
-                harnessToolResultValidator
+                harnessToolResultValidator,
+                harnessAgentActionValidator
         );
 
         HarnessRunResult result = successHarness.run();
@@ -270,7 +333,7 @@ class InvestmentHarnessTest {
                 );
         assertThat(hasCompletedExecuteTradeStep).isTrue();
 
-        HarnessStepResult executeTradeStep = result.steps().get(5);
+        HarnessStepResult executeTradeStep = result.steps().get(6);
 
         assertThat(executeTradeStep.type()).isEqualTo(HarnessStepType.EXECUTE_TRADE);
         assertThat(executeTradeStep.message()).isEqualTo("BUY execution is complete.");
@@ -295,7 +358,8 @@ class InvestmentHarnessTest {
                 harnessProperties,
                 harnessToolAuthorizer,
                 harnessToolExecutor,
-                harnessToolResultValidator
+                harnessToolResultValidator,
+                harnessAgentActionValidator
         );
 
         HarnessRunResult result = deniedHarness.run();
@@ -303,7 +367,7 @@ class InvestmentHarnessTest {
         assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
         assertThat(result.riskCheckResult().status()).isEqualTo(RiskCheckStatus.DENIED);
 
-        HarnessStepResult validateDecisionStep = result.steps().get(4);
+        HarnessStepResult validateDecisionStep = result.steps().get(5);
 
         assertThat(validateDecisionStep.type()).isEqualTo(HarnessStepType.VALIDATE_DECISION);
         assertThat(validateDecisionStep.status()).isEqualTo(HarnessStepStatus.FAILED);
@@ -312,7 +376,7 @@ class InvestmentHarnessTest {
         assertThat(validateDecisionStep.finishedAt()).isNotNull();
         assertThat(validateDecisionStep.startedAt()).isBeforeOrEqualTo(validateDecisionStep.finishedAt());
 
-        HarnessStepResult executeTradeStep = result.steps().get(5);
+        HarnessStepResult executeTradeStep = result.steps().get(6);
 
         assertThat(executeTradeStep.type()).isEqualTo(HarnessStepType.EXECUTE_TRADE);
         assertThat(executeTradeStep.status()).isEqualTo(HarnessStepStatus.FAILED);
@@ -346,7 +410,8 @@ class InvestmentHarnessTest {
                 harnessProperties,
                 harnessToolAuthorizer,
                 harnessToolExecutor,
-                harnessToolResultValidator
+                harnessToolResultValidator,
+                harnessAgentActionValidator
         );
 
         HarnessRunResult result = sellHarness.run();
@@ -374,7 +439,8 @@ class InvestmentHarnessTest {
                 new HarnessProperties(2, 1),
                 harnessToolAuthorizer,
                 harnessToolExecutor,
-                harnessToolResultValidator
+                harnessToolResultValidator,
+                harnessAgentActionValidator
         );
 
         HarnessRunResult result = toolRequestingHarness.run();
@@ -400,12 +466,14 @@ class InvestmentHarnessTest {
                         HarnessStepType.LOAD_MARKET,
                         HarnessStepType.CHECK_STEP_LIMIT,
                         HarnessStepType.RUN_INVESTMENT_AGENT,
+                        HarnessStepType.VALIDATE_AGENT_ACTION,
                         HarnessStepType.AUTHORIZE_TOOL_REQUEST,
                         HarnessStepType.CHECK_TOOL_CALL_LIMIT,
                         HarnessStepType.EXECUTE_TOOL_REQUEST,
                         HarnessStepType.VALIDATE_TOOL_RESULT,
                         HarnessStepType.CHECK_STEP_LIMIT,
                         HarnessStepType.RUN_INVESTMENT_AGENT,
+                        HarnessStepType.VALIDATE_AGENT_ACTION,
                         HarnessStepType.VALIDATE_DECISION,
                         HarnessStepType.EXECUTE_TRADE,
                         HarnessStepType.LOAD_FINAL_PORTFOLIO
@@ -423,35 +491,35 @@ class InvestmentHarnessTest {
                 "Requested tool. type=GET_PORTFOLIO"
         );
 
-        HarnessStepResult authorizationStep = result.steps().get(4);
+        HarnessStepResult authorizationStep = result.steps().get(5);
 
         assertThat(authorizationStep.type()).isEqualTo(HarnessStepType.AUTHORIZE_TOOL_REQUEST);
         assertThat(authorizationStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
         assertThat(authorizationStep.message()).isEqualTo("Harness tool authorization allowed.");
 
-        HarnessStepResult toolLimitStep = result.steps().get(5);
+        HarnessStepResult toolLimitStep = result.steps().get(6);
 
         assertThat(toolLimitStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
         assertThat(toolLimitStep.message()).isEqualTo("Tool call allowed. used=1, max=1");
 
-        HarnessStepResult executeToolStep = result.steps().get(6);
+        HarnessStepResult executeToolStep = result.steps().get(7);
 
         assertThat(executeToolStep.type()).isEqualTo(HarnessStepType.EXECUTE_TOOL_REQUEST);
         assertThat(executeToolStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
         assertThat(executeToolStep.message()).isEqualTo("Harness tool execution completed.");
 
-        HarnessStepResult validationStep = result.steps().get(7);
+        HarnessStepResult validationStep = result.steps().get(8);
 
         assertThat(validationStep.type()).isEqualTo(HarnessStepType.VALIDATE_TOOL_RESULT);
         assertThat(validationStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
         assertThat(validationStep.message()).isEqualTo("Harness tool result is valid.");
 
-        HarnessStepResult secondLimitStep = result.steps().get(8);
+        HarnessStepResult secondLimitStep = result.steps().get(9);
 
         assertThat(secondLimitStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
         assertThat(secondLimitStep.message()).isEqualTo("Agent step allowed. used=2, max=2");
 
-        HarnessStepResult secondAgentStep = result.steps().get(9);
+        HarnessStepResult secondAgentStep = result.steps().get(10);
 
         assertThat(secondAgentStep.type()).isEqualTo(HarnessStepType.RUN_INVESTMENT_AGENT);
         assertThat(secondAgentStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
@@ -470,7 +538,8 @@ class InvestmentHarnessTest {
                 new HarnessProperties(3, 2),
                 harnessToolAuthorizer,
                 harnessToolExecutor,
-                harnessToolResultValidator
+                harnessToolResultValidator,
+                harnessAgentActionValidator
         );
 
         HarnessRunResult result = multipleToolHarness.run();
@@ -496,18 +565,21 @@ class InvestmentHarnessTest {
                         HarnessStepType.LOAD_MARKET,
                         HarnessStepType.CHECK_STEP_LIMIT,
                         HarnessStepType.RUN_INVESTMENT_AGENT,
+                        HarnessStepType.VALIDATE_AGENT_ACTION,
                         HarnessStepType.AUTHORIZE_TOOL_REQUEST,
                         HarnessStepType.CHECK_TOOL_CALL_LIMIT,
                         HarnessStepType.EXECUTE_TOOL_REQUEST,
                         HarnessStepType.VALIDATE_TOOL_RESULT,
                         HarnessStepType.CHECK_STEP_LIMIT,
                         HarnessStepType.RUN_INVESTMENT_AGENT,
+                        HarnessStepType.VALIDATE_AGENT_ACTION,
                         HarnessStepType.AUTHORIZE_TOOL_REQUEST,
                         HarnessStepType.CHECK_TOOL_CALL_LIMIT,
                         HarnessStepType.EXECUTE_TOOL_REQUEST,
                         HarnessStepType.VALIDATE_TOOL_RESULT,
                         HarnessStepType.CHECK_STEP_LIMIT,
                         HarnessStepType.RUN_INVESTMENT_AGENT,
+                        HarnessStepType.VALIDATE_AGENT_ACTION,
                         HarnessStepType.VALIDATE_DECISION,
                         HarnessStepType.EXECUTE_TRADE,
                         HarnessStepType.LOAD_FINAL_PORTFOLIO
@@ -526,7 +598,8 @@ class InvestmentHarnessTest {
                 new HarnessProperties(3, 1),
                 harnessToolAuthorizer,
                 harnessToolExecutor,
-                harnessToolResultValidator
+                harnessToolResultValidator,
+                harnessAgentActionValidator
         );
 
         HarnessRunResult result = limitedToolHarness.run();
@@ -539,18 +612,20 @@ class InvestmentHarnessTest {
                         HarnessStepType.LOAD_MARKET,
                         HarnessStepType.CHECK_STEP_LIMIT,
                         HarnessStepType.RUN_INVESTMENT_AGENT,
+                        HarnessStepType.VALIDATE_AGENT_ACTION,
                         HarnessStepType.AUTHORIZE_TOOL_REQUEST,
                         HarnessStepType.CHECK_TOOL_CALL_LIMIT,
                         HarnessStepType.EXECUTE_TOOL_REQUEST,
                         HarnessStepType.VALIDATE_TOOL_RESULT,
                         HarnessStepType.CHECK_STEP_LIMIT,
                         HarnessStepType.RUN_INVESTMENT_AGENT,
+                        HarnessStepType.VALIDATE_AGENT_ACTION,
                         HarnessStepType.AUTHORIZE_TOOL_REQUEST,
                         HarnessStepType.CHECK_TOOL_CALL_LIMIT,
                         HarnessStepType.RUN_FAILED
                 );
 
-        HarnessStepResult failedToolLimitStep = result.steps().get(11);
+        HarnessStepResult failedToolLimitStep = result.steps().get(13);
 
         assertThat(failedToolLimitStep.status()).isEqualTo(HarnessStepStatus.FAILED);
         assertThat(failedToolLimitStep.message()).isEqualTo(
@@ -584,7 +659,8 @@ class InvestmentHarnessTest {
                 harnessProperties,
                 deniedAuthorizer,
                 harnessToolExecutor,
-                harnessToolResultValidator
+                harnessToolResultValidator,
+                harnessAgentActionValidator
         );
 
         HarnessRunResult result = deniedHarness.run();
@@ -619,7 +695,8 @@ class InvestmentHarnessTest {
                 harnessProperties,
                 harnessToolAuthorizer,
                 failingToolExecutor,
-                harnessToolResultValidator
+                harnessToolResultValidator,
+                harnessAgentActionValidator
         );
 
         HarnessRunResult result = failingToolHarness.run();
@@ -667,7 +744,8 @@ class InvestmentHarnessTest {
                 harnessProperties,
                 harnessToolAuthorizer,
                 malformedExecutor,
-                harnessToolResultValidator
+                harnessToolResultValidator,
+                harnessAgentActionValidator
         );
 
         HarnessRunResult result = validatingHarness.run();
@@ -681,6 +759,7 @@ class InvestmentHarnessTest {
                         HarnessStepType.LOAD_MARKET,
                         HarnessStepType.CHECK_STEP_LIMIT,
                         HarnessStepType.RUN_INVESTMENT_AGENT,
+                        HarnessStepType.VALIDATE_AGENT_ACTION,
                         HarnessStepType.AUTHORIZE_TOOL_REQUEST,
                         HarnessStepType.CHECK_TOOL_CALL_LIMIT,
                         HarnessStepType.EXECUTE_TOOL_REQUEST,
@@ -688,7 +767,7 @@ class InvestmentHarnessTest {
                         HarnessStepType.RUN_FAILED
                 );
 
-        HarnessStepResult validationStep = result.steps().get(7);
+        HarnessStepResult validationStep = result.steps().get(8);
         assertThat(validationStep.status()).isEqualTo(HarnessStepStatus.FAILED);
         assertThat(validationStep.message()).isEqualTo(
                 "Expected tool output payload is missing. type=GET_PORTFOLIO"
@@ -711,7 +790,8 @@ class InvestmentHarnessTest {
                 new HarnessProperties(2, 2),
                 harnessToolAuthorizer,
                 harnessToolExecutor,
-                harnessToolResultValidator
+                harnessToolResultValidator,
+                harnessAgentActionValidator
         );
 
         HarnessRunResult result = toolRequestingHarness.run();
@@ -724,12 +804,14 @@ class InvestmentHarnessTest {
                         HarnessStepType.LOAD_MARKET,
                         HarnessStepType.CHECK_STEP_LIMIT,
                         HarnessStepType.RUN_INVESTMENT_AGENT,
+                        HarnessStepType.VALIDATE_AGENT_ACTION,
                         HarnessStepType.AUTHORIZE_TOOL_REQUEST,
                         HarnessStepType.CHECK_TOOL_CALL_LIMIT,
                         HarnessStepType.EXECUTE_TOOL_REQUEST,
                         HarnessStepType.VALIDATE_TOOL_RESULT,
                         HarnessStepType.CHECK_STEP_LIMIT,
                         HarnessStepType.RUN_INVESTMENT_AGENT,
+                        HarnessStepType.VALIDATE_AGENT_ACTION,
                         HarnessStepType.AUTHORIZE_TOOL_REQUEST,
                         HarnessStepType.CHECK_TOOL_CALL_LIMIT,
                         HarnessStepType.EXECUTE_TOOL_REQUEST,
@@ -738,7 +820,7 @@ class InvestmentHarnessTest {
                         HarnessStepType.RUN_FAILED
                 );
 
-        HarnessStepResult failedLimitStep = result.steps().get(14);
+        HarnessStepResult failedLimitStep = result.steps().get(16);
 
         assertThat(failedLimitStep.status()).isEqualTo(HarnessStepStatus.FAILED);
         assertThat(failedLimitStep.message()).isEqualTo("Agent step limit exceeded. used=2, max=2");
