@@ -208,11 +208,21 @@ reasonCode
 reason
 portfolioSnapshot
 marketSnapshot
+currentPriceSnapshot
 ```
 
 이 객체는 JPA Entity가 아니라 `HarnessToolExecutionResult`를 JSON으로 저장하기 위한 영속화 스냅샷이다.
 
-Tool 출력은 타입에 따라 기존 `HarnessPortfolioSnapshot` 또는 `HarnessMarketSnapshot`으로 변환한다. 권한 거절이나 실행 실패처럼 출력이 없는 결과도 상태와 사유를 보존할 수 있도록 두 출력 필드는 null을 허용한다.
+Tool 출력은 타입에 따라 `HarnessPortfolioSnapshot`, `HarnessMarketSnapshot`, `HarnessCurrentPriceSnapshot`으로 변환한다. 권한 거절이나 실행 실패처럼 출력이 없는 결과도 상태와 사유를 보존할 수 있도록 출력 필드는 null을 허용한다.
+
+`HarnessCurrentPriceSnapshot`은 현재가 조회 당시의 종목 코드와 가격을 저장한다.
+
+```text
+src/main/java/com/stock/harness/persistence/HarnessCurrentPriceSnapshot.java
+
+symbol
+priceKrw
+```
 
 ### HarnessRunSnapshotJsonConverter
 
@@ -551,7 +561,7 @@ EXECUTE_TRADE
 LOAD_FINAL_PORTFOLIO
 ```
 
-현재 Tool 실행기는 `GET_PORTFOLIO`, `GET_MARKET` 조회 Tool을 실행할 수 있다. 실행에 성공한 결과는 계약 검증을 통과한 뒤 `HarnessRunContext.toolResults`에 추가되고, Harness는 갱신된 Context로 Agent를 다시 실행한다. Agent가 `FINAL_DECISION`을 반환하면 기존 Risk Guard와 Trade Executor 흐름으로 진행한다.
+현재 Tool 실행기는 `GET_PORTFOLIO`, `GET_MARKET`, `GET_CURRENT_PRICE` 조회 Tool을 실행할 수 있다. 실행에 성공한 결과는 계약 검증을 통과한 뒤 `HarnessRunContext.toolResults`에 추가되고, Harness는 갱신된 Context로 Agent를 다시 실행한다. Agent가 `FINAL_DECISION`을 반환하면 기존 Risk Guard와 Trade Executor 흐름으로 진행한다.
 
 Run 이력용 Tool 결과 목록은 Agent Context와 목적이 다르다. Agent Context에는 검증을 통과한 성공 결과만 들어가지만, Run 이력에는 성공 결과뿐 아니라 실행 실패, 권한 거절, 중복으로 건너뛴 결과도 남는다. 따라서 Run이 중간에 실패해도 실패 전에 수집된 Tool 결과를 저장하고 API에서 확인할 수 있다.
 
@@ -673,6 +683,7 @@ src/main/java/com/stock/harness/tool/HarnessToolType.java
 ```text
 GET_PORTFOLIO
 GET_MARKET
+GET_CURRENT_PRICE
 ```
 
 `BUY`, `SELL`, `EXECUTE_TRADE`는 아직 Tool 타입에 넣지 않는다.
@@ -703,6 +714,7 @@ types
 HarnessAllowedTools.readOnly()
 -> GET_PORTFOLIO
 -> GET_MARKET
+-> GET_CURRENT_PRICE
 ```
 
 이렇게 두는 이유는 `InvestmentHarness`가 구체적인 Tool enum 목록을 직접 만들지 않도록 하기 위해서다.
@@ -726,7 +738,7 @@ HarnessRunContext
 현재는 `context.allowedTools().types()`를 읽어 판단 reason에 남기는 수준이다.
 
 ```text
-allowedTools=[GET_PORTFOLIO, GET_MARKET]
+allowedTools=[GET_PORTFOLIO, GET_MARKET, GET_CURRENT_PRICE]
 ```
 
 다만 Harness의 Tool Calling 실행 구조는 이미 마련되어 있으므로, 테스트용 Agent가 `REQUEST_TOOL`을 반환하면 권한 검사, Budget 검사, Tool 실행, 결과 검증, 재판단 흐름이 동작한다.
@@ -743,7 +755,7 @@ allowedTools=[GET_PORTFOLIO, GET_MARKET]
 
 다만 현재는 중복 Tool이나 빈 Tool 목록은 별도로 막지 않는다.
 
-현재 기본 생성 흐름은 `HarnessAllowedTools.readOnly()`로 고정되어 있고, Tool 목록도 읽기 전용 Tool 두 개뿐이기 때문이다.
+현재 기본 생성 흐름은 `HarnessAllowedTools.readOnly()`로 고정되어 있고, Tool 목록도 읽기 전용 Tool로만 구성되기 때문이다.
 
 ## Harness Tool Request
 
@@ -753,10 +765,11 @@ allowedTools=[GET_PORTFOLIO, GET_MARKET]
 src/main/java/com/stock/harness/tool/HarnessToolRequest.java
 ```
 
-현재는 다음 값만 가진다.
+현재는 다음 값을 가진다.
 
 ```text
 type
+symbol
 ```
 
 `HarnessAllowedTools`와 `HarnessToolRequest`는 서로 다른 의미를 가진다.
@@ -769,14 +782,22 @@ HarnessToolRequest
 -> 이번에 무엇을 호출하고 싶은가
 ```
 
-현재 `HarnessToolRequest`는 Tool 실행 입력값으로 사용된다.
+현재 `HarnessToolRequest`는 Tool 실행 입력값으로 사용된다. `symbol`은 `GET_CURRENT_PRICE`처럼 종목을 지정해야 하는 Tool의 인자다. `GET_PORTFOLIO`와 `GET_MARKET`은 symbol을 사용하지 않는다.
 
-다만 아직 요청 인자는 `type` 하나뿐이다. 실제 조회 Tool이 구현되면 symbol, market, period 같은 Tool별 입력값을 어떻게 표현할지 별도로 설계해야 한다.
+요청 의도를 명확하게 표현하기 위해 다음 정적 팩토리를 제공한다.
+
+```text
+HarnessToolRequest.portfolio()
+HarnessToolRequest.market()
+HarnessToolRequest.currentPrice(symbol)
+```
+
+기존 1인자 생성자는 symbol을 사용하지 않던 호출부와의 호환성을 위해 남아 있다. 새 요청 코드는 정적 팩토리를 기본으로 사용한다.
 
 이 요청은 계약 검증을 통과한 뒤 `HarnessToolAuthorizer`에서 `HarnessAllowedTools.allows(request.type())`로 판정한다.
 
 ```text
-HarnessToolRequest(type)
+HarnessToolRequest(type, symbol)
 -> HarnessToolRequestValidator.validate(...)
 -> HarnessToolAuthorizer.authorize(...)
 -> HarnessToolAuthorizationResult
@@ -802,6 +823,7 @@ src/main/java/com/stock/harness/tool/validation/HarnessToolRequestValidationReas
 ```text
 HarnessToolRequest != null
 HarnessToolRequest.type != null
+GET_CURRENT_PRICE -> symbol != null && !symbol.isBlank()
 ```
 
 검증 상태는 다음 두 가지다.
@@ -817,6 +839,7 @@ INVALID
 TOOL_REQUEST_VALID
 REQUEST_MISSING
 TOOL_TYPE_MISSING
+SYMBOL_MISSING
 ```
 
 `InvestmentHarness`는 유효한 `REQUEST_TOOL` Action을 받은 뒤 `VALIDATE_TOOL_REQUEST` Step을 기록한다. 검증에 실패하면 `HarnessToolAuthorizer`, 중복 검사, Tool Call Budget, `HarnessToolExecutor`로 진행하지 않고 Run을 실패로 종료한다.
@@ -977,15 +1000,18 @@ src/main/java/com/stock/harness/execution/tool/HarnessToolRequestTracker.java
 
 `HarnessToolRequestTracker`는 처리된 요청을 `Set<HarnessToolRequest>`에 등록하고 `tryRegister(request)` 결과로 최초 요청과 중복 요청을 구분한다.
 
-현재 `HarnessToolRequest`는 `type`만 가진 record이므로 같은 Tool 타입을 요청하면 같은 요청으로 판단한다.
+`HarnessToolRequestTracker`는 record의 값 동등성을 사용하므로 `type`과 `symbol`이 모두 같은 요청만 중복으로 판단한다.
 
 ```text
 GET_PORTFOLIO -> 최초 요청, 허용
 GET_MARKET    -> 다른 요청, 허용
 GET_PORTFOLIO -> 중복 요청, 차단
+GET_CURRENT_PRICE(005930) -> 최초 요청, 허용
+GET_CURRENT_PRICE(000660) -> symbol이 다른 요청, 허용
+GET_CURRENT_PRICE(005930) -> 중복 요청, 차단
 ```
 
-나중에 `symbol`, `market`, `period` 같은 요청 필드가 추가되면 record의 값 동등성에 따라 모든 필드가 같은 요청만 중복으로 판단된다.
+나중에 `market`, `period` 같은 요청 필드가 더 추가되어도 같은 원칙에 따라 모든 필드가 같은 요청만 중복으로 판단한다.
 
 Tracker는 Spring Bean으로 등록하지 않는다. 처리된 요청 목록은 애플리케이션 전체가 아니라 Run 하나에만 필요한 상태이므로 `InvestmentHarness.run()`이 실행될 때마다 새로 생성한다.
 
@@ -1144,7 +1170,7 @@ REQUEST_TOOL이면 HarnessToolRequestValidator가 요청 계약을 검증하고 
 권한이 허용되면 HarnessToolRequestTracker로 중복 여부를 확인하고 CHECK_DUPLICATE_TOOL_REQUEST Step을 기록함
 중복 검사를 통과하면 HarnessToolCallBudget을 확인하고 CHECK_TOOL_CALL_LIMIT Step을 기록함
 Tool Call Budget을 통과하면 HarnessToolExecutor로 실행을 시도하고 EXECUTE_TOOL_REQUEST Step을 기록함
-HarnessToolExecutor는 GET_PORTFOLIO와 GET_MARKET 조회 Tool을 실행함
+HarnessToolExecutor는 GET_PORTFOLIO, GET_MARKET, GET_CURRENT_PRICE 조회 Tool을 실행함
 HarnessToolExecutionResult 모델 있음
 HarnessToolResultValidator가 실행 결과 계약을 검증하고 VALIDATE_TOOL_RESULT Step을 기록함
 검증을 통과한 성공 결과만 HarnessRunContext에 추가함
@@ -1221,7 +1247,14 @@ HarnessToolExecutionResult.duplicateRequest(type)
 
 이 모델은 `HarnessToolExecutor`가 Tool 실행 결과를 Harness에 돌려줄 때 사용하는 값 객체다.
 
-현재 `HarnessToolExecutor`는 `GET_PORTFOLIO` 요청에 `PortfolioSnapshot`을, `GET_MARKET` 요청에 `MarketSnapshot`을 담은 실행 결과를 반환한다.
+현재 `HarnessToolExecutor`는 `GET_PORTFOLIO` 요청에 `PortfolioSnapshot`을, `GET_MARKET` 요청에 `MarketSnapshot`을 담은 실행 결과를 반환한다. `GET_CURRENT_PRICE` 요청은 symbol을 `CurrentPriceService`에 전달하고 `CurrentPriceSnapshot`을 반환한다.
+
+현재 `CurrentPriceService`는 Broker API 연동 전 Harness 흐름을 검증하기 위한 고정 로컬 가격을 반환한다. 따라서 이 결과를 실제 시장 가격으로 사용해서는 안 된다.
+
+```text
+src/main/java/com/stock/market/price/CurrentPriceService.java
+src/main/java/com/stock/market/price/CurrentPriceSnapshot.java
+```
 
 `notSupported` 결과 생성 메서드는 지원하지 않는 Tool 타입이 추가될 경우를 표현하기 위해 남아 있다.
 
@@ -1256,6 +1289,9 @@ output != null
 request.type == output.type
 GET_PORTFOLIO -> portfolioSnapshot != null
 GET_MARKET -> marketSnapshot != null
+GET_CURRENT_PRICE -> currentPriceSnapshot != null
+GET_CURRENT_PRICE -> request.symbol == currentPriceSnapshot.symbol
+GET_CURRENT_PRICE -> currentPriceSnapshot.priceKrw > 0
 ```
 
 검증 사유 코드는 다음과 같다.
@@ -1266,7 +1302,11 @@ RESULT_TYPE_MISMATCH
 OUTPUT_MISSING
 OUTPUT_TYPE_MISMATCH
 OUTPUT_PAYLOAD_MISSING
+OUTPUT_SYMBOL_MISMATCH
+OUTPUT_PRICE_INVALID
 ```
+
+현재가 결과는 payload 존재, symbol 일치, 가격 유효성 순서로 검증한다. 여러 오류가 동시에 있으면 먼저 발견된 계약 위반 하나를 반환해 실패 이유를 결정적으로 유지한다.
 
 Tool 실행 상태가 `EXECUTED`일 때만 `VALIDATE_TOOL_RESULT` 단계로 진행한다. 실행 자체가 실패하면 실행 실패 결과를 이력에 남기고 검증 전 Run을 종료한다.
 
@@ -1310,7 +1350,7 @@ FAILED
 -> message = Tool 실행 실패 사유
 ```
 
-현재 `HarnessToolExecutor`는 `GET_PORTFOLIO`, `GET_MARKET` 조회 Tool을 실행한다. Tool 실행에 성공하면 이력에는 다음처럼 남는다.
+현재 `HarnessToolExecutor`는 `GET_PORTFOLIO`, `GET_MARKET`, `GET_CURRENT_PRICE` 조회 Tool을 실행한다. Tool 실행에 성공하면 이력에는 다음처럼 남는다.
 
 ```text
 RUN_INVESTMENT_AGENT
@@ -1387,7 +1427,7 @@ enabled
 
 `harness.scheduler.fixed-delay-ms`는 현재 `@Scheduled(fixedDelayString = "${harness.scheduler.fixed-delay-ms}")` 속성에서 직접 참조한다. `@Scheduled`는 어노테이션 속성으로 스케줄 간격을 받아야 하므로, 이 단계에서는 `fixed-delay-ms`를 별도 record 필드로 옮기지 않는다.
 
-현재 Tool 실행 결과의 계약 검증, Run 결과 포함, JSON 저장, 상세 조회까지 구현되어 있다.
+현재 Tool 실행 결과의 계약 검증, Run 결과 포함, JSON 저장, 상세 조회까지 구현되어 있다. `GET_CURRENT_PRICE`는 요청 symbol 필수 검증과 응답 symbol 및 양수 가격 검증까지 포함한다.
 
 동일 Run의 중복 Tool 요청 차단까지 구현되어 있다.
 
