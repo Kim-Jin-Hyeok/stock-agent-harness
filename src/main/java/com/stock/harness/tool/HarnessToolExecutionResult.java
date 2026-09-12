@@ -17,6 +17,19 @@ public record HarnessToolExecutionResult(
         );
     }
 
+    public static HarnessToolExecutionResult executionFailed(
+            HarnessToolType type,
+            String cause
+    ) {
+        return new HarnessToolExecutionResult(
+                HarnessToolExecutionStatus.FAILED,
+                type,
+                HarnessToolExecutionReasonCode.TOOL_EXECUTION_FAILED,
+                "Tool execution failed. cause=" + cause,
+                null
+        );
+    }
+
     public static HarnessToolExecutionResult notSupported(HarnessToolType type) {
         return new HarnessToolExecutionResult(
                 HarnessToolExecutionStatus.FAILED,

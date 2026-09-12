@@ -14,18 +14,25 @@ public class HarnessToolExecutor {
     private final CurrentPriceService currentPriceService;
 
     public HarnessToolExecutionResult execute(HarnessToolRequest request) {
-        return switch (request.type()) {
-            case GET_PORTFOLIO -> HarnessToolExecutionResult.executed(
-                    HarnessToolOutput.portfolio(portfolioService.getCurrentSnapshot())
+        try {
+            return switch (request.type()) {
+                case GET_PORTFOLIO -> HarnessToolExecutionResult.executed(
+                        HarnessToolOutput.portfolio(portfolioService.getCurrentSnapshot())
+                );
+                case GET_MARKET -> HarnessToolExecutionResult.executed(
+                        HarnessToolOutput.market(marketService.getCurrentSnapshot())
+                );
+                case GET_CURRENT_PRICE -> HarnessToolExecutionResult.executed(
+                        HarnessToolOutput.currentPrice(
+                                currentPriceService.getCurrentPrice(request.symbol())
+                        )
+                );
+            };
+        } catch (RuntimeException e) {
+            return HarnessToolExecutionResult.executionFailed(
+                    request.type(),
+                    e.getMessage()
             );
-            case GET_MARKET -> HarnessToolExecutionResult.executed(
-                    HarnessToolOutput.market(marketService.getCurrentSnapshot())
-            );
-            case GET_CURRENT_PRICE -> HarnessToolExecutionResult.executed(
-                    HarnessToolOutput.currentPrice(
-                            currentPriceService.getCurrentPrice(request.symbol())
-                    )
-            );
-        };
+        }
     }
 }

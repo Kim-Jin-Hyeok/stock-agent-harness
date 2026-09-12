@@ -32,6 +32,22 @@ class HarnessToolExecutionResultTest {
     }
 
     @Test
+    void executionFailedCreatesFailedResult() {
+        HarnessToolExecutionResult result = HarnessToolExecutionResult.executionFailed(
+                HarnessToolType.GET_CURRENT_PRICE,
+                "Broker timeout"
+        );
+
+        assertThat(result.status()).isEqualTo(HarnessToolExecutionStatus.FAILED);
+        assertThat(result.type()).isEqualTo(HarnessToolType.GET_CURRENT_PRICE);
+        assertThat(result.reasonCode()).isEqualTo(
+                HarnessToolExecutionReasonCode.TOOL_EXECUTION_FAILED
+        );
+        assertThat(result.reason()).isEqualTo("Tool execution failed. cause=Broker timeout");
+        assertThat(result.output()).isNull();
+    }
+
+    @Test
     void createsAuthorizationDeniedResult() {
         HarnessToolExecutionResult result = authorizationDeniedPortfolioToolResult();
 

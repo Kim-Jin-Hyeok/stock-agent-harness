@@ -10,6 +10,8 @@ import com.stock.portfolio.PortfolioSnapshotStore;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class HarnessToolExecutorTest {
 
@@ -53,11 +55,34 @@ class HarnessToolExecutorTest {
         assertThat(result.output().marketSnapshot()).isNull();
     }
 
+    @Test
+    void returnsFailedResultWhenToolServiceThrowsException() {
+        CurrentPriceService failingService = mock(CurrentPriceService.class);
+        when(failingService.getCurrentPrice("005930"))
+                .thenThrow(new IllegalStateException("Broker timeout"));
+
+        HarnessToolExecutionResult result = executor(failingService).execute(
+                HarnessToolRequest.currentPrice("005930")
+        );
+
+        assertThat(result.status()).isEqualTo(HarnessToolExecutionStatus.FAILED);
+        assertThat(result.type()).isEqualTo(HarnessToolType.GET_CURRENT_PRICE);
+        assertThat(result.reasonCode()).isEqualTo(
+                HarnessToolExecutionReasonCode.TOOL_EXECUTION_FAILED
+        );
+        assertThat(result.reason()).isEqualTo("Tool execution failed. cause=Broker timeout");
+        assertThat(result.output()).isNull();
+    }
+
     private HarnessToolExecutor executor() {
+        return executor(currentPriceService());
+    }
+
+    private HarnessToolExecutor executor(CurrentPriceService currentPriceService) {
         return new HarnessToolExecutor(
                 portfolioService(),
                 marketService(),
-                currentPriceService()
+                currentPriceService
         );
     }
 
