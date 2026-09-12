@@ -55,6 +55,18 @@ public class HarnessToolResultValidator {
             );
         }
 
+        if (requestedType == HarnessToolType.GET_CURRENT_PRICE
+                && !request.symbol().equals(output.currentPriceSnapshot().symbol())) {
+            return HarnessToolResultValidationResult.invalid(
+                    requestedType,
+                    HarnessToolResultValidationReasonCode.OUTPUT_SYMBOL_MISMATCH,
+                    "Current price symbol does not match request. requested="
+                    + request.symbol()
+                    + ", actual="
+                    + output.currentPriceSnapshot().symbol()
+            );
+        }
+
         return HarnessToolResultValidationResult.valid(requestedType);
     }
 

@@ -86,6 +86,26 @@ class HarnessToolResultValidatorTest {
     }
 
     @Test
+    void rejectsCurrentPriceResultWithDifferentSymbol() {
+        HarnessToolResultValidationResult result = validator.validate(
+                HarnessToolRequest.currentPrice("005930"),
+                HarnessToolExecutionResult.executed(
+                        HarnessToolOutput.currentPrice(
+                                new CurrentPriceSnapshot("000660", 200_000L)
+                        )
+                )
+        );
+
+        assertThat(result.status()).isEqualTo(HarnessToolResultValidationStatus.INVALID);
+        assertThat(result.reasonCode()).isEqualTo(
+                HarnessToolResultValidationReasonCode.OUTPUT_SYMBOL_MISMATCH
+        );
+        assertThat(result.reason())
+                .contains("requested=005930")
+                .contains("actual=000660");
+    }
+
+    @Test
     void rejectsMismatchedResultType() {
         HarnessToolExecutionResult executionResult = executedResult(
                 HarnessToolType.GET_MARKET,
