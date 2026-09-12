@@ -537,6 +537,7 @@ LOAD_MARKET
 CHECK_STEP_LIMIT
 RUN_INVESTMENT_AGENT
 VALIDATE_AGENT_ACTION
+VALIDATE_TOOL_REQUEST
 AUTHORIZE_TOOL_REQUEST
 CHECK_DUPLICATE_TOOL_REQUEST
 CHECK_TOOL_CALL_LIMIT
@@ -772,15 +773,76 @@ HarnessToolRequest
 
 다만 아직 요청 인자는 `type` 하나뿐이다. 실제 조회 Tool이 구현되면 symbol, market, period 같은 Tool별 입력값을 어떻게 표현할지 별도로 설계해야 한다.
 
-이 요청은 `HarnessToolAuthorizer`에서 `HarnessAllowedTools.allows(request.type())`로 판정한다.
+이 요청은 계약 검증을 통과한 뒤 `HarnessToolAuthorizer`에서 `HarnessAllowedTools.allows(request.type())`로 판정한다.
 
 ```text
 HarnessToolRequest(type)
+-> HarnessToolRequestValidator.validate(...)
 -> HarnessToolAuthorizer.authorize(...)
 -> HarnessToolAuthorizationResult
 -> HarnessToolExecutor.execute(...)
 -> HarnessToolExecutionResult
 ```
+
+## Harness Tool Request Validation
+
+Agent가 `HarnessToolRequest`를 반환했다고 해서 Harness가 요청 내용을 바로 권한 검사나 실행에 사용하지 않는다. 먼저 요청 객체와 Tool 타입이 실행 가능한 형태인지 검증한다.
+
+패키지 경로:
+
+```text
+src/main/java/com/stock/harness/tool/validation/HarnessToolRequestValidator.java
+src/main/java/com/stock/harness/tool/validation/HarnessToolRequestValidationResult.java
+src/main/java/com/stock/harness/tool/validation/HarnessToolRequestValidationStatus.java
+src/main/java/com/stock/harness/tool/validation/HarnessToolRequestValidationReasonCode.java
+```
+
+현재 검증 규칙은 다음과 같다.
+
+```text
+HarnessToolRequest != null
+HarnessToolRequest.type != null
+```
+
+검증 상태는 다음 두 가지다.
+
+```text
+VALID
+INVALID
+```
+
+검증 사유 코드는 다음과 같다.
+
+```text
+TOOL_REQUEST_VALID
+REQUEST_MISSING
+TOOL_TYPE_MISSING
+```
+
+`InvestmentHarness`는 유효한 `REQUEST_TOOL` Action을 받은 뒤 `VALIDATE_TOOL_REQUEST` Step을 기록한다. 검증에 실패하면 `HarnessToolAuthorizer`, 중복 검사, Tool Call Budget, `HarnessToolExecutor`로 진행하지 않고 Run을 실패로 종료한다.
+
+Agent Action 검증과 Tool 요청 검증의 책임은 다르다.
+
+```text
+VALIDATE_AGENT_ACTION
+-> REQUEST_TOOL Action에 toolRequest가 존재하는지 확인
+-> Action 타입과 payload 조합을 확인
+
+VALIDATE_TOOL_REQUEST
+-> toolRequest 내부에 실행에 필요한 값이 있는지 확인
+```
+
+Tool 요청 검증과 권한 검사도 서로 다른 판단이다.
+
+```text
+Tool request validation
+-> 요청 형식이 올바른가?
+
+Tool authorization
+-> 올바른 요청이 이번 Run에서 허용됐는가?
+```
+
+예를 들어 `type == null`은 허용되지 않은 Tool이 아니라 실행할 Tool 종류가 없는 잘못된 요청이므로 `TOOL_TYPE_MISSING`으로 실패한다.
 
 ## Harness Tool Authorization
 
@@ -863,6 +925,7 @@ src/main/java/com/stock/harness/HarnessStepType.java
 현재 Step 타입 목록에는 다음 값이 포함된다.
 
 ```text
+VALIDATE_TOOL_REQUEST
 AUTHORIZE_TOOL_REQUEST
 CHECK_DUPLICATE_TOOL_REQUEST
 CHECK_TOOL_CALL_LIMIT
@@ -929,6 +992,7 @@ Tracker는 Spring Bean으로 등록하지 않는다. 처리된 요청 목록은 
 중복 검사는 다음 순서에 위치한다.
 
 ```text
+VALIDATE_TOOL_REQUEST
 AUTHORIZE_TOOL_REQUEST
 CHECK_DUPLICATE_TOOL_REQUEST
 CHECK_TOOL_CALL_LIMIT
@@ -1075,7 +1139,8 @@ InvestmentHarness는 investmentAgent.next(context)를 호출함
 HarnessAgentActionValidator가 AgentNextAction 계약을 검증함
 VALIDATE_AGENT_ACTION Step을 Agent 실행 직후 기록함
 FINAL_DECISION은 기존 Risk Guard / Trade 흐름으로 연결됨
-REQUEST_TOOL은 HarnessToolAuthorizer로 권한 판정한 뒤 AUTHORIZE_TOOL_REQUEST Step을 기록함
+REQUEST_TOOL이면 HarnessToolRequestValidator가 요청 계약을 검증하고 VALIDATE_TOOL_REQUEST Step을 기록함
+요청 검증을 통과하면 HarnessToolAuthorizer로 권한을 판정하고 AUTHORIZE_TOOL_REQUEST Step을 기록함
 권한이 허용되면 HarnessToolRequestTracker로 중복 여부를 확인하고 CHECK_DUPLICATE_TOOL_REQUEST Step을 기록함
 중복 검사를 통과하면 HarnessToolCallBudget을 확인하고 CHECK_TOOL_CALL_LIMIT Step을 기록함
 Tool Call Budget을 통과하면 HarnessToolExecutor로 실행을 시도하고 EXECUTE_TOOL_REQUEST Step을 기록함
@@ -1219,7 +1284,7 @@ Tool 실행 상태가 `EXECUTED`일 때만 `VALIDATE_TOOL_RESULT` 단계로 진�
 
 반환된 Action은 `HarnessAgentActionValidator`로 검증하고 `VALIDATE_AGENT_ACTION` Step에 결과를 기록한다. 유효한 `FINAL_DECISION`이면 기존처럼 `InvestmentDecision`을 꺼내 Risk Guard와 Trade Executor 흐름으로 진행한다.
 
-유효한 `REQUEST_TOOL`이면 Harness는 `HarnessToolAuthorizer`로 권한을 판정하고 `AUTHORIZE_TOOL_REQUEST` Step을 기록한다. 권한이 허용되면 `CHECK_DUPLICATE_TOOL_REQUEST`, `CHECK_TOOL_CALL_LIMIT`를 순서대로 수행한 뒤 `HarnessToolExecutor`로 Tool을 실행하고 `EXECUTE_TOOL_REQUEST` Step을 기록한다. 실행 결과가 성공하면 `HarnessToolResultValidator`가 계약을 검사하고 `VALIDATE_TOOL_RESULT` Step을 기록한다. 검증까지 통과한 결과만 새 Context에 추가되어 Agent의 다음 판단 입력으로 전달된다.
+유효한 `REQUEST_TOOL`이면 Harness는 `HarnessToolRequestValidator`로 요청 계약을 검사하고 `VALIDATE_TOOL_REQUEST` Step을 기록한다. 요청 검증을 통과하면 `HarnessToolAuthorizer`로 권한을 판정하고 `AUTHORIZE_TOOL_REQUEST` Step을 기록한다. 권한이 허용되면 `CHECK_DUPLICATE_TOOL_REQUEST`, `CHECK_TOOL_CALL_LIMIT`를 순서대로 수행한 뒤 `HarnessToolExecutor`로 Tool을 실행하고 `EXECUTE_TOOL_REQUEST` Step을 기록한다. 실행 결과가 성공하면 `HarnessToolResultValidator`가 계약을 검사하고 `VALIDATE_TOOL_RESULT` Step을 기록한다. 검증까지 통과한 결과만 새 Context에 추가되어 Agent의 다음 판단 입력으로 전달된다.
 
 권한 판정 결과는 Step status와 message로 남는다.
 
@@ -1253,6 +1318,9 @@ RUN_INVESTMENT_AGENT
 
 VALIDATE_AGENT_ACTION
 -> Harness agent action is valid.
+
+VALIDATE_TOOL_REQUEST
+-> Harness tool request is valid.
 
 AUTHORIZE_TOOL_REQUEST
 -> Harness tool authorization allowed.
