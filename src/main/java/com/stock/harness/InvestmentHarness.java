@@ -8,6 +8,9 @@ import com.stock.harness.execution.HarnessAgentLoopResult;
 import com.stock.harness.execution.limit.HarnessAgentStepBudget;
 import com.stock.harness.execution.limit.HarnessToolCallBudget;
 import com.stock.harness.tool.*;
+import com.stock.harness.tool.validation.HarnessToolResultValidationResult;
+import com.stock.harness.tool.validation.HarnessToolResultValidationStatus;
+import com.stock.harness.tool.validation.HarnessToolResultValidator;
 import com.stock.market.MarketService;
 import com.stock.market.MarketSnapshot;
 import com.stock.portfolio.PortfolioService;
@@ -40,6 +43,7 @@ public class InvestmentHarness {
     private final HarnessProperties harnessProperties;
     private final HarnessToolAuthorizer harnessToolAuthorizer;
     private final HarnessToolExecutor harnessToolExecutor;
+    private final HarnessToolResultValidator harnessToolResultValidator;
 
     public HarnessRunResult run() {
         LocalDateTime startedAt = LocalDateTime.now();
@@ -288,6 +292,26 @@ public class InvestmentHarness {
             if (executionResult.status() != HarnessToolExecutionStatus.EXECUTED) {
                 throw new IllegalStateException(
                         executionResult.reason() + " type=" + executionResult.type()
+                );
+            }
+
+            HarnessToolResultValidationResult validationResult = stepRecorder.record(
+                    HarnessStepType.VALIDATE_TOOL_RESULT,
+                    () -> harnessToolResultValidator.validate(
+                            action.toolRequest(),
+                            executionResult
+                    ),
+                    result -> result.status() == HarnessToolResultValidationStatus.VALID
+                            ? HarnessStepStatus.COMPLETED
+                            : HarnessStepStatus.FAILED,
+                    HarnessToolResultValidationResult::reason
+            );
+
+            if (validationResult.status() != HarnessToolResultValidationStatus.VALID) {
+                throw new IllegalStateException(
+                        validationResult.reason()
+                        + " reasonCode="
+                        + validationResult.reasonCode()
                 );
             }
 
