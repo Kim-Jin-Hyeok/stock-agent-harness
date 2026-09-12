@@ -538,6 +538,7 @@ CHECK_STEP_LIMIT
 RUN_INVESTMENT_AGENT
 VALIDATE_AGENT_ACTION
 AUTHORIZE_TOOL_REQUEST
+CHECK_DUPLICATE_TOOL_REQUEST
 CHECK_TOOL_CALL_LIMIT
 EXECUTE_TOOL_REQUEST
 VALIDATE_TOOL_RESULT
@@ -551,11 +552,11 @@ LOAD_FINAL_PORTFOLIO
 
 현재 Tool 실행기는 `GET_PORTFOLIO`, `GET_MARKET` 조회 Tool을 실행할 수 있다. 실행에 성공한 결과는 계약 검증을 통과한 뒤 `HarnessRunContext.toolResults`에 추가되고, Harness는 갱신된 Context로 Agent를 다시 실행한다. Agent가 `FINAL_DECISION`을 반환하면 기존 Risk Guard와 Trade Executor 흐름으로 진행한다.
 
-Run 이력용 Tool 결과 목록은 Agent Context와 목적이 다르다. Agent Context에는 검증을 통과한 성공 결과만 들어가지만, Run 이력에는 성공 결과뿐 아니라 실행 실패와 권한 거절 결과도 남는다. 따라서 Run이 중간에 실패해도 실패 전에 수집된 Tool 결과를 저장하고 API에서 확인할 수 있다.
+Run 이력용 Tool 결과 목록은 Agent Context와 목적이 다르다. Agent Context에는 검증을 통과한 성공 결과만 들어가지만, Run 이력에는 성공 결과뿐 아니라 실행 실패, 권한 거절, 중복으로 건너뛴 결과도 남는다. 따라서 Run이 중간에 실패해도 실패 전에 수집된 Tool 결과를 저장하고 API에서 확인할 수 있다.
 
 Agent가 다시 `REQUEST_TOOL`을 반환하면 같은 흐름을 반복한다. 반복 횟수는 `HarnessAgentStepBudget`이 제한하며, Budget을 모두 사용하면 다음 Agent를 호출하지 않고 Run을 실패로 종료한다.
 
-`CHECK_TOOL_CALL_LIMIT`는 권한 검사를 통과한 Tool을 실제로 실행하기 직전에 Tool Call Budget을 확인한 결과다. 권한이 거절된 요청은 Tool 실행으로 이어지지 않으므로 Budget을 소비하지 않는다.
+`CHECK_TOOL_CALL_LIMIT`는 권한 검사와 중복 검사를 통과한 Tool을 실제로 실행하기 직전에 Tool Call Budget을 확인한 결과다. 권한이 거절되거나 중복으로 차단된 요청은 Tool 실행으로 이어지지 않으므로 Budget을 소비하지 않는다.
 
 Tool 실행을 시도하면 성공 여부와 관계없이 Budget을 소비한다. 외부 API를 호출한 뒤 실패할 수도 있으므로 성공한 결과만 계산하면 실제 호출 비용을 제한할 수 없기 때문이다.
 
@@ -837,7 +838,7 @@ reason = Harness tool is not allowed.
 
 이 정보는 이후 Agent가 다음 판단에 활용하거나, Run 상세 이력에서 실패 원인을 추적할 때 사용할 수 있다.
 
-현재 단계에서는 실제 Tool 실행을 하지 않는다.
+현재는 권한 판정을 통과한 요청만 중복 검사와 Tool Call Budget 검사를 거쳐 실제 Tool 실행으로 이어진다.
 
 권한 판정과 Tool 실행은 분리한다.
 
@@ -863,6 +864,8 @@ src/main/java/com/stock/harness/HarnessStepType.java
 
 ```text
 AUTHORIZE_TOOL_REQUEST
+CHECK_DUPLICATE_TOOL_REQUEST
+CHECK_TOOL_CALL_LIMIT
 EXECUTE_TOOL_REQUEST
 ```
 
@@ -879,7 +882,7 @@ HarnessToolRequest
 
 현재 `InvestmentHarness.run()`은 Agent가 `REQUEST_TOOL`을 반환한 경우 이 Step을 실제 실행 흐름에 기록한다.
 
-권한 판정이 허용되면 다음으로 `EXECUTE_TOOL_REQUEST` Step을 기록한다.
+권한 판정이 허용되면 `CHECK_DUPLICATE_TOOL_REQUEST`, `CHECK_TOOL_CALL_LIMIT`를 통과한 뒤 `EXECUTE_TOOL_REQUEST` Step을 기록한다.
 
 ```text
 HarnessToolRequest
@@ -893,11 +896,60 @@ HarnessToolRequest
 현재 단계에서 검증할 내용은 다음과 같다.
 
 ```text
-1. AUTHORIZE_TOOL_REQUEST Step 타입을 코드에 정의한다.
-2. EXECUTE_TOOL_REQUEST Step 타입을 코드에 정의한다.
-3. HarnessStepEntity가 두 Step 타입을 저장할 수 있다.
-4. HarnessStepRepository가 두 Step 타입을 조회할 수 있다.
-5. Tool 요청 Run에서 권한 확인과 실행 시도가 순서대로 Step에 남는다.
+1. Tool 요청 통제와 실행에 필요한 Step 타입을 코드에 정의한다.
+2. HarnessStepEntity가 각 Step 타입을 저장할 수 있다.
+3. HarnessStepRepository가 각 Step 타입을 조회할 수 있다.
+4. Tool 요청 Run에서 권한, 중복, Budget 확인과 실행 시도가 순서대로 Step에 남는다.
+```
+
+## Harness Tool Request Deduplication
+
+동일 Run에서 Agent가 완전히 같은 Tool 요청을 반복하면 Harness는 두 번째 요청을 실제로 실행하지 않는다. Agent Loop 오류가 외부 API 중복 호출로 이어지는 것을 막기 위한 Run 단위 실행 통제다.
+
+패키지 경로:
+
+```text
+src/main/java/com/stock/harness/execution/tool/HarnessToolRequestTracker.java
+```
+
+`HarnessToolRequestTracker`는 처리된 요청을 `Set<HarnessToolRequest>`에 등록하고 `tryRegister(request)` 결과로 최초 요청과 중복 요청을 구분한다.
+
+현재 `HarnessToolRequest`는 `type`만 가진 record이므로 같은 Tool 타입을 요청하면 같은 요청으로 판단한다.
+
+```text
+GET_PORTFOLIO -> 최초 요청, 허용
+GET_MARKET    -> 다른 요청, 허용
+GET_PORTFOLIO -> 중복 요청, 차단
+```
+
+나중에 `symbol`, `market`, `period` 같은 요청 필드가 추가되면 record의 값 동등성에 따라 모든 필드가 같은 요청만 중복으로 판단된다.
+
+Tracker는 Spring Bean으로 등록하지 않는다. 처리된 요청 목록은 애플리케이션 전체가 아니라 Run 하나에만 필요한 상태이므로 `InvestmentHarness.run()`이 실행될 때마다 새로 생성한다.
+
+중복 검사는 다음 순서에 위치한다.
+
+```text
+AUTHORIZE_TOOL_REQUEST
+CHECK_DUPLICATE_TOOL_REQUEST
+CHECK_TOOL_CALL_LIMIT
+EXECUTE_TOOL_REQUEST
+```
+
+권한이 없는 요청은 중복 여부와 관계없이 먼저 차단한다. 중복 요청은 실제 Tool 실행 전에 차단되므로 Tool Call Budget을 소비하지 않는다.
+
+최초 요청이면 `CHECK_DUPLICATE_TOOL_REQUEST`를 `COMPLETED`로 기록한다.
+
+```text
+Tool request is not duplicate. type={type}
+```
+
+중복 요청이면 해당 Step을 `FAILED`로 기록하고 Run을 종료한다. 실행되지 않은 요청도 시도 이력에서 확인할 수 있도록 다음 `HarnessToolExecutionResult`를 저장한다.
+
+```text
+status = SKIPPED
+reasonCode = DUPLICATE_TOOL_REQUEST
+reason = Duplicate tool request was skipped.
+output = null
 ```
 
 ## Agent Next Action
@@ -1024,13 +1076,14 @@ HarnessAgentActionValidator가 AgentNextAction 계약을 검증함
 VALIDATE_AGENT_ACTION Step을 Agent 실행 직후 기록함
 FINAL_DECISION은 기존 Risk Guard / Trade 흐름으로 연결됨
 REQUEST_TOOL은 HarnessToolAuthorizer로 권한 판정한 뒤 AUTHORIZE_TOOL_REQUEST Step을 기록함
-권한이 허용되면 HarnessToolCallBudget을 확인하고 CHECK_TOOL_CALL_LIMIT Step을 기록함
+권한이 허용되면 HarnessToolRequestTracker로 중복 여부를 확인하고 CHECK_DUPLICATE_TOOL_REQUEST Step을 기록함
+중복 검사를 통과하면 HarnessToolCallBudget을 확인하고 CHECK_TOOL_CALL_LIMIT Step을 기록함
 Tool Call Budget을 통과하면 HarnessToolExecutor로 실행을 시도하고 EXECUTE_TOOL_REQUEST Step을 기록함
 HarnessToolExecutor는 GET_PORTFOLIO와 GET_MARKET 조회 Tool을 실행함
 HarnessToolExecutionResult 모델 있음
 HarnessToolResultValidator가 실행 결과 계약을 검증하고 VALIDATE_TOOL_RESULT Step을 기록함
 검증을 통과한 성공 결과만 HarnessRunContext에 추가함
-성공, 실행 실패, 권한 거절 결과는 HarnessRunResult와 Run 상세 이력에 저장함
+성공, 실행 실패, 권한 거절, 중복 차단 결과는 HarnessRunResult와 Run 상세 이력에 저장함
 POST 응답은 HarnessRunResponse.toolResults로 런타임 결과를 제공함
 GET 상세 응답은 HarnessRunDetail.toolExecutionSnapshots로 저장 결과를 제공함
 Tool Calling 기반 Agent Loop 있음
@@ -1072,6 +1125,7 @@ SKIPPED
 TOOL_EXECUTED
 TOOL_NOT_SUPPORTED
 TOOL_AUTHORIZATION_DENIED
+DUPLICATE_TOOL_REQUEST
 ```
 
 현재 생성 흐름은 다음과 같다.
@@ -1093,6 +1147,11 @@ HarnessToolExecutionResult.authorizationDenied(type)
 -> status = FAILED
 -> reasonCode = TOOL_AUTHORIZATION_DENIED
 -> reason = Tool authorization denied.
+
+HarnessToolExecutionResult.duplicateRequest(type)
+-> status = SKIPPED
+-> reasonCode = DUPLICATE_TOOL_REQUEST
+-> reason = Duplicate tool request was skipped.
 ```
 
 이 모델은 `HarnessToolExecutor`가 Tool 실행 결과를 Harness에 돌려줄 때 사용하는 값 객체다.
@@ -1160,7 +1219,7 @@ Tool 실행 상태가 `EXECUTED`일 때만 `VALIDATE_TOOL_RESULT` 단계로 진�
 
 반환된 Action은 `HarnessAgentActionValidator`로 검증하고 `VALIDATE_AGENT_ACTION` Step에 결과를 기록한다. 유효한 `FINAL_DECISION`이면 기존처럼 `InvestmentDecision`을 꺼내 Risk Guard와 Trade Executor 흐름으로 진행한다.
 
-유효한 `REQUEST_TOOL`이면 Harness는 `HarnessToolAuthorizer`로 권한을 판정하고 `AUTHORIZE_TOOL_REQUEST` Step을 기록한다. 권한이 허용되면 `CHECK_TOOL_CALL_LIMIT`를 수행한 뒤 `HarnessToolExecutor`로 Tool을 실행하고 `EXECUTE_TOOL_REQUEST` Step을 기록한다. 실행 결과가 성공하면 `HarnessToolResultValidator`가 계약을 검사하고 `VALIDATE_TOOL_RESULT` Step을 기록한다. 검증까지 통과한 결과만 새 Context에 추가되어 Agent의 다음 판단 입력으로 전달된다.
+유효한 `REQUEST_TOOL`이면 Harness는 `HarnessToolAuthorizer`로 권한을 판정하고 `AUTHORIZE_TOOL_REQUEST` Step을 기록한다. 권한이 허용되면 `CHECK_DUPLICATE_TOOL_REQUEST`, `CHECK_TOOL_CALL_LIMIT`를 순서대로 수행한 뒤 `HarnessToolExecutor`로 Tool을 실행하고 `EXECUTE_TOOL_REQUEST` Step을 기록한다. 실행 결과가 성공하면 `HarnessToolResultValidator`가 계약을 검사하고 `VALIDATE_TOOL_RESULT` Step을 기록한다. 검증까지 통과한 결과만 새 Context에 추가되어 Agent의 다음 판단 입력으로 전달된다.
 
 권한 판정 결과는 Step status와 message로 남는다.
 
@@ -1197,6 +1256,9 @@ VALIDATE_AGENT_ACTION
 
 AUTHORIZE_TOOL_REQUEST
 -> Harness tool authorization allowed.
+
+CHECK_DUPLICATE_TOOL_REQUEST
+-> Tool request is not duplicate. type={type}
 
 CHECK_TOOL_CALL_LIMIT
 -> Tool call allowed. used={usedCalls}, max={maxCalls}
@@ -1259,4 +1321,6 @@ enabled
 
 현재 Tool 실행 결과의 계약 검증, Run 결과 포함, JSON 저장, 상세 조회까지 구현되어 있다.
 
-실제 Broker API Tool을 바로 추가하기보다 동일 요청 중복 처리와 Cache 경계, 실제 외부 API 호출 Budget, Tool 실패 재시도 정책을 먼저 설계하는 방향을 유지한다.
+동일 Run의 중복 Tool 요청 차단까지 구현되어 있다.
+
+실제 Broker API Tool을 바로 추가하기보다 Cache 경계, 실제 외부 API 호출 Budget, Tool 실패 재시도 정책을 먼저 설계하는 방향을 유지한다.
