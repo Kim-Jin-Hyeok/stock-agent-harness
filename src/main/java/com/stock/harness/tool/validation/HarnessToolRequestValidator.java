@@ -1,6 +1,7 @@
 package com.stock.harness.tool.validation;
 
 import com.stock.harness.tool.HarnessToolRequest;
+import com.stock.harness.tool.HarnessToolType;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -20,6 +21,15 @@ public class HarnessToolRequestValidator {
                     null,
                     HarnessToolRequestValidationReasonCode.TOOL_TYPE_MISSING,
                     "Tool request type is missing."
+            );
+        }
+
+        if (request.type() == HarnessToolType.GET_CURRENT_PRICE
+                && (request.symbol() == null || request.symbol().isBlank())) {
+            return HarnessToolRequestValidationResult.invalid(
+                    request.type(),
+                    HarnessToolRequestValidationReasonCode.SYMBOL_MISSING,
+                    "Symbol is required for current price request."
             );
         }
 

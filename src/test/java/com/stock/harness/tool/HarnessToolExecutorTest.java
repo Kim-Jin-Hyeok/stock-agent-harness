@@ -2,6 +2,8 @@ package com.stock.harness.tool;
 
 import com.stock.market.MarketService;
 import com.stock.market.MarketSnapshot;
+import com.stock.market.price.CurrentPriceService;
+import com.stock.market.price.CurrentPriceSnapshot;
 import com.stock.portfolio.PortfolioService;
 import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.portfolio.PortfolioSnapshotStore;
@@ -37,11 +39,30 @@ class HarnessToolExecutorTest {
         assertThat(result.output().marketSnapshot()).isEqualTo(marketSnapshot());
     }
 
+    @Test
+    void executesCurrentPriceToolRequest() {
+        HarnessToolExecutionResult result = executor().execute(
+                HarnessToolRequest.currentPrice("005930")
+        );
+
+        assertThat(result.status()).isEqualTo(executedStatus());
+        assertThat(result.type()).isEqualTo(HarnessToolType.GET_CURRENT_PRICE);
+        assertThat(result.output().currentPriceSnapshot())
+                .isEqualTo(new CurrentPriceSnapshot("005930", 100_000L));
+        assertThat(result.output().portfolioSnapshot()).isNull();
+        assertThat(result.output().marketSnapshot()).isNull();
+    }
+
     private HarnessToolExecutor executor() {
         return new HarnessToolExecutor(
                 portfolioService(),
-                marketService()
+                marketService(),
+                currentPriceService()
         );
+    }
+
+    private CurrentPriceService currentPriceService() {
+        return new CurrentPriceService();
     }
 
     private PortfolioService portfolioService() {

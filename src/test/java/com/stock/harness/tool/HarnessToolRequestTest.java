@@ -20,6 +20,14 @@ class HarnessToolRequestTest {
         assertThat(request.type()).isEqualTo(getMarketTool());
     }
 
+    @Test
+    void createsCurrentPriceRequestWithSymbol() {
+        HarnessToolRequest request = HarnessToolRequest.currentPrice("005930");
+
+        assertThat(request.type()).isEqualTo(HarnessToolType.GET_CURRENT_PRICE);
+        assertThat(request.symbol()).isEqualTo("005930");
+    }
+
     private HarnessToolRequest getPortfolioRequest() {
         return new HarnessToolRequest(getPortfolioTool());
     }

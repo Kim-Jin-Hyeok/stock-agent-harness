@@ -48,7 +48,7 @@ class InvestmentAgentTest {
         assertThat(action.investmentDecision().reason())
                 .contains("cashAmountKrw=1000000")
                 .contains("marketOpen=true")
-                .contains("allowedTools=[GET_PORTFOLIO, GET_MARKET]");
+                .contains("allowedTools=[GET_PORTFOLIO, GET_MARKET, GET_CURRENT_PRICE]");
     }
 
     private InvestmentAgent investmentAgent() {

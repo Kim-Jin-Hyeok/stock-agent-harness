@@ -11,7 +11,8 @@ class HarnessToolTypeTest {
         assertThat(HarnessToolType.values())
                 .containsExactly(
                         HarnessToolType.GET_PORTFOLIO,
-                        HarnessToolType.GET_MARKET
+                        HarnessToolType.GET_MARKET,
+                        HarnessToolType.GET_CURRENT_PRICE
                 );
     }
 }

@@ -25,6 +25,7 @@ import com.stock.harness.tool.validation.HarnessToolRequestValidator;
 import com.stock.harness.tool.validation.HarnessToolResultValidationReasonCode;
 import com.stock.harness.tool.validation.HarnessToolResultValidator;
 import com.stock.market.MarketService;
+import com.stock.market.price.CurrentPriceService;
 import com.stock.portfolio.PortfolioPosition;
 import com.stock.portfolio.PortfolioService;
 import com.stock.portfolio.PortfolioSnapshotStore;
@@ -73,6 +74,7 @@ class InvestmentHarnessTest {
             tradeHistoryService
     );
     private final MarketService marketService = new MarketService();
+    private final CurrentPriceService currentPriceService = new CurrentPriceService();
     private final HarnessRunHistoryService harnessRunHistoryService = new HarnessRunHistoryService(
             harnessRunSnapshotJsonConverter,
             harnessRunRepository,
@@ -82,7 +84,8 @@ class InvestmentHarnessTest {
     private final HarnessToolAuthorizer harnessToolAuthorizer = new HarnessToolAuthorizer();
     private final HarnessToolExecutor harnessToolExecutor = new HarnessToolExecutor(
             portfolioService,
-            marketService
+            marketService,
+            currentPriceService
     );
     private final HarnessToolResultValidator harnessToolResultValidator = new HarnessToolResultValidator();
     private final HarnessAgentActionValidator harnessAgentActionValidator = new HarnessAgentActionValidator();
@@ -143,7 +146,8 @@ class InvestmentHarnessTest {
         HarnessStepResult agentStep = result.steps().get(3);
 
         assertThat(agentStep.type()).isEqualTo(HarnessStepType.RUN_INVESTMENT_AGENT);
-        assertThat(agentStep.message()).contains("allowedTools=[GET_PORTFOLIO, GET_MARKET]");
+        assertThat(agentStep.message())
+                .contains("allowedTools=[GET_PORTFOLIO, GET_MARKET, GET_CURRENT_PRICE]");
 
         HarnessStepResult validateActionStep = result.steps().get(4);
 
@@ -664,6 +668,40 @@ class InvestmentHarnessTest {
     }
 
     @Test
+    void runCompletesAfterAgentUsesCurrentPriceResult() {
+        InvestmentHarness currentPriceHarness = new InvestmentHarness(
+                riskGuard,
+                tradeExecutor,
+                portfolioService,
+                marketService,
+                harnessRunHistoryService,
+                new CurrentPriceUsingInvestmentAgent(),
+                new HarnessProperties(2, 1),
+                harnessToolAuthorizer,
+                harnessToolExecutor,
+                harnessToolResultValidator,
+                harnessAgentActionValidator,
+                harnessToolRequestValidator
+        );
+
+        HarnessRunResult result = currentPriceHarness.run();
+
+        assertThat(result.status()).isEqualTo(HarnessRunStatus.COMPLETED);
+        assertThat(result.decision().reason()).isEqualTo(
+                "Current price received. symbol=005930, priceKrw=100000"
+        );
+        assertThat(result.toolResults())
+                .singleElement()
+                .satisfies(toolResult -> {
+                    assertThat(toolResult.type()).isEqualTo(HarnessToolType.GET_CURRENT_PRICE);
+                    assertThat(toolResult.output().currentPriceSnapshot().symbol())
+                            .isEqualTo("005930");
+                    assertThat(toolResult.output().currentPriceSnapshot().priceKrw())
+                            .isEqualTo(100_000L);
+                });
+    }
+
+    @Test
     void runFailsBeforeSecondToolExecutionWhenToolCallLimitExceeded() {
         InvestmentHarness limitedToolHarness = new InvestmentHarness(
                 riskGuard,
@@ -1047,6 +1085,33 @@ class InvestmentHarnessTest {
                     + portfolioResult.output().portfolioSnapshot().cashAmountKrw()
                     + ", market="
                     + marketResult.output().marketSnapshot().market()
+            ));
+        }
+    }
+
+    private static class CurrentPriceUsingInvestmentAgent extends InvestmentAgent {
+        @Override
+        public AgentNextAction next(HarnessRunContext context) {
+            if (context.toolResults().isEmpty()) {
+                return AgentNextAction.requestTool(
+                        HarnessToolRequest.currentPrice("005930")
+                );
+            }
+
+            var currentPrice = context.toolResults()
+                    .getFirst()
+                    .output()
+                    .currentPriceSnapshot();
+
+            return AgentNextAction.finalDecision(new InvestmentDecision(
+                    InvestmentAction.HOLD,
+                    null,
+                    null,
+                    null,
+                    "Current price received. symbol="
+                    + currentPrice.symbol()
+                    + ", priceKrw="
+                    + currentPrice.priceKrw()
             ));
         }
     }

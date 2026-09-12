@@ -15,6 +15,7 @@ class HarnessAllowedToolsTest {
 
         assertThat(allowedTools.allows(getPortfolioTool())).isTrue();
         assertThat(allowedTools.allows(getMarketTool())).isTrue();
+        assertThat(allowedTools.allows(getCurrentPriceTool())).isTrue();
     }
 
     @Test
@@ -40,5 +41,9 @@ class HarnessAllowedToolsTest {
 
     private HarnessToolType getMarketTool() {
         return HarnessToolType.GET_MARKET;
+    }
+
+    private HarnessToolType getCurrentPriceTool() {
+        return HarnessToolType.GET_CURRENT_PRICE;
     }
 }

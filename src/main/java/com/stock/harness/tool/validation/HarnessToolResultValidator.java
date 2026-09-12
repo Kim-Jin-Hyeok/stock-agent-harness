@@ -65,6 +65,7 @@ public class HarnessToolResultValidator {
         return switch (type) {
             case GET_PORTFOLIO -> output.portfolioSnapshot() == null;
             case GET_MARKET -> output.marketSnapshot() == null;
+            case GET_CURRENT_PRICE -> output.currentPriceSnapshot() == null;
         };
     }
 }

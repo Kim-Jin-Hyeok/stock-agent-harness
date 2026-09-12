@@ -6,6 +6,7 @@ import com.stock.harness.tool.HarnessToolExecutionStatus;
 import com.stock.harness.tool.HarnessToolOutput;
 import com.stock.harness.tool.HarnessToolType;
 import com.stock.market.MarketSnapshot;
+import com.stock.market.price.CurrentPriceSnapshot;
 import com.stock.portfolio.PortfolioSnapshot;
 import org.junit.jupiter.api.Test;
 
@@ -47,6 +48,24 @@ class HarnessToolExecutionSnapshotTest {
                 HarnessMarketSnapshot.from(marketSnapshot())
         );
         assertThat(snapshot.portfolioSnapshot()).isNull();
+    }
+
+    @Test
+    void fromConvertsCurrentPriceToolExecutionResult() {
+        CurrentPriceSnapshot currentPrice = new CurrentPriceSnapshot("005930", 70_000L);
+
+        HarnessToolExecutionSnapshot snapshot = HarnessToolExecutionSnapshot.from(
+                HarnessToolExecutionResult.executed(
+                        HarnessToolOutput.currentPrice(currentPrice)
+                )
+        );
+
+        assertThat(snapshot.type()).isEqualTo(HarnessToolType.GET_CURRENT_PRICE);
+        assertThat(snapshot.currentPriceSnapshot()).isEqualTo(
+                HarnessCurrentPriceSnapshot.from(currentPrice)
+        );
+        assertThat(snapshot.portfolioSnapshot()).isNull();
+        assertThat(snapshot.marketSnapshot()).isNull();
     }
 
     @Test

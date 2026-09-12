@@ -7,6 +7,7 @@ import com.stock.harness.tool.HarnessToolOutput;
 import com.stock.harness.tool.HarnessToolRequest;
 import com.stock.harness.tool.HarnessToolType;
 import com.stock.market.MarketSnapshot;
+import com.stock.market.price.CurrentPriceSnapshot;
 import com.stock.portfolio.PortfolioSnapshot;
 import org.junit.jupiter.api.Test;
 
@@ -44,6 +45,43 @@ class HarnessToolResultValidatorTest {
         assertThat(result.status()).isEqualTo(HarnessToolResultValidationStatus.VALID);
         assertThat(result.reasonCode()).isEqualTo(
                 HarnessToolResultValidationReasonCode.TOOL_RESULT_VALID
+        );
+    }
+
+    @Test
+    void allowsValidCurrentPriceResult() {
+        HarnessToolResultValidationResult result = validator.validate(
+                HarnessToolRequest.currentPrice("005930"),
+                HarnessToolExecutionResult.executed(
+                        HarnessToolOutput.currentPrice(
+                                new CurrentPriceSnapshot("005930", 70_000L)
+                        )
+                )
+        );
+
+        assertThat(result.status()).isEqualTo(HarnessToolResultValidationStatus.VALID);
+        assertThat(result.reasonCode()).isEqualTo(
+                HarnessToolResultValidationReasonCode.TOOL_RESULT_VALID
+        );
+    }
+
+    @Test
+    void rejectsMissingCurrentPricePayload() {
+        HarnessToolOutput output = new HarnessToolOutput(
+                HarnessToolType.GET_CURRENT_PRICE,
+                null,
+                null,
+                null
+        );
+
+        HarnessToolResultValidationResult result = validator.validate(
+                HarnessToolRequest.currentPrice("005930"),
+                executedResult(HarnessToolType.GET_CURRENT_PRICE, output)
+        );
+
+        assertThat(result.status()).isEqualTo(HarnessToolResultValidationStatus.INVALID);
+        assertThat(result.reasonCode()).isEqualTo(
+                HarnessToolResultValidationReasonCode.OUTPUT_PAYLOAD_MISSING
         );
     }
 

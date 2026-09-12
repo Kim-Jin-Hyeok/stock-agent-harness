@@ -17,7 +17,8 @@ public record HarnessAllowedTools(
         return new HarnessAllowedTools(
                 List.of(
                         HarnessToolType.GET_PORTFOLIO,
-                        HarnessToolType.GET_MARKET
+                        HarnessToolType.GET_MARKET,
+                        HarnessToolType.GET_CURRENT_PRICE
                 )
         );
     }

@@ -42,4 +42,28 @@ class HarnessToolRequestValidatorTest {
                 HarnessToolRequestValidationReasonCode.TOOL_TYPE_MISSING
         );
     }
+
+    @Test
+    void allowsCurrentPriceRequestWithSymbol() {
+        HarnessToolRequestValidationResult result = validator.validate(
+                HarnessToolRequest.currentPrice("005930")
+        );
+
+        assertThat(result.status()).isEqualTo(HarnessToolRequestValidationStatus.VALID);
+        assertThat(result.reasonCode()).isEqualTo(
+                HarnessToolRequestValidationReasonCode.TOOL_REQUEST_VALID
+        );
+    }
+
+    @Test
+    void rejectsCurrentPriceRequestWithoutSymbol() {
+        HarnessToolRequestValidationResult result = validator.validate(
+                HarnessToolRequest.currentPrice(" ")
+        );
+
+        assertThat(result.status()).isEqualTo(HarnessToolRequestValidationStatus.INVALID);
+        assertThat(result.reasonCode()).isEqualTo(
+                HarnessToolRequestValidationReasonCode.SYMBOL_MISSING
+        );
+    }
 }

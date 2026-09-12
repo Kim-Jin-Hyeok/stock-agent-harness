@@ -108,6 +108,15 @@ class HarnessRunSnapshotJsonConverterTest {
                         "Harness tool execution completed.",
                         null,
                         marketSnapshot()
+                ),
+                new HarnessToolExecutionSnapshot(
+                        HarnessToolExecutionStatus.EXECUTED,
+                        HarnessToolType.GET_CURRENT_PRICE,
+                        HarnessToolExecutionReasonCode.TOOL_EXECUTED,
+                        "Harness tool execution completed.",
+                        null,
+                        null,
+                        new HarnessCurrentPriceSnapshot("005930", 70_000L)
                 )
         );
 
@@ -119,7 +128,8 @@ class HarnessRunSnapshotJsonConverterTest {
                 .extracting(HarnessToolExecutionSnapshot::type)
                 .containsExactly(
                         HarnessToolType.GET_PORTFOLIO,
-                        HarnessToolType.GET_MARKET
+                        HarnessToolType.GET_MARKET,
+                        HarnessToolType.GET_CURRENT_PRICE
                 );
     }
 
