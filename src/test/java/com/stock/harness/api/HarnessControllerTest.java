@@ -13,13 +13,23 @@ import com.stock.harness.HarnessStepStatus;
 import com.stock.harness.HarnessStepType;
 import com.stock.harness.InvestmentHarness;
 import com.stock.harness.persistence.HarnessDecisionSnapshot;
+import com.stock.harness.persistence.HarnessCurrentPriceSnapshot;
 import com.stock.harness.persistence.HarnessMarketSnapshot;
 import com.stock.harness.persistence.HarnessPortfolioPositionSnapshot;
 import com.stock.harness.persistence.HarnessPortfolioSnapshot;
 import com.stock.harness.persistence.HarnessRiskCheckSnapshot;
+import com.stock.harness.persistence.HarnessToolExecutionSnapshot;
+import com.stock.harness.persistence.HarnessToolRequestSnapshot;
 import com.stock.harness.tool.HarnessToolExecutionResult;
+import com.stock.harness.tool.HarnessToolExecutionReasonCode;
+import com.stock.harness.tool.HarnessToolExecutionStatus;
 import com.stock.harness.tool.HarnessToolOutput;
+import com.stock.harness.tool.HarnessToolRequest;
+import com.stock.harness.tool.HarnessToolType;
 import com.stock.market.MarketSnapshot;
+import com.stock.market.price.CurrentPriceSnapshot;
+import com.stock.market.price.lookup.CurrentPriceLookupResult;
+import com.stock.market.price.lookup.CurrentPriceLookupSource;
 import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.risk.RiskCheckResult;
 import com.stock.risk.RiskCheckStatus;
@@ -82,6 +92,10 @@ class HarnessControllerTest {
                 .andExpect(jsonPath("$.toolResults[0].reasonCode").value("TOOL_EXECUTED"))
                 .andExpect(jsonPath("$.toolResults[0].output.portfolioSnapshot.cashAmountKrw")
                         .value(9_300_000L))
+                .andExpect(jsonPath("$.toolResults[1].output.currentPriceSnapshot.symbol")
+                        .value("005930"))
+                .andExpect(jsonPath("$.toolResults[1].output.currentPriceSource")
+                        .value("PROVIDER"))
                 .andExpect(jsonPath("$.tradeRecords[0].runId").value(runId))
                 .andExpect(jsonPath("$.tradeRecords[0].status").value("EXECUTED"));
 
@@ -122,6 +136,8 @@ class HarnessControllerTest {
                 .andExpect(jsonPath("$.riskCheckSnapshot.status").value("APPROVED"))
                 .andExpect(jsonPath("$.portfolioSnapshot.cashAmountKrw").value(9_300_000L))
                 .andExpect(jsonPath("$.marketSnapshot.market").value("KR"))
+                .andExpect(jsonPath("$.toolExecutionSnapshots[0].currentPriceSource")
+                        .value("CACHE"))
                 .andExpect(jsonPath("$.steps[0].type").value("EXECUTE_TRADE"))
                 .andExpect(jsonPath("$.tradeRecords[0].status").value("EXECUTED"));
 
@@ -194,7 +210,10 @@ class HarnessControllerTest {
                 startedAt,
                 finishedAt,
                 List.of(completedStep()),
-                List.of(portfolioToolExecutionResult()),
+                List.of(
+                        portfolioToolExecutionResult(),
+                        currentPriceToolExecutionResult()
+                ),
                 buyDecision(),
                 approvedRiskCheckResult(),
                 executedBuyTradeResult(),
@@ -206,6 +225,17 @@ class HarnessControllerTest {
     private HarnessToolExecutionResult portfolioToolExecutionResult() {
         return HarnessToolExecutionResult.executed(
                 HarnessToolOutput.portfolio(portfolioSnapshot())
+        );
+    }
+
+    private HarnessToolExecutionResult currentPriceToolExecutionResult() {
+        return HarnessToolExecutionResult.executed(
+                HarnessToolRequest.currentPrice("005930"),
+                HarnessToolOutput.currentPrice(
+                        CurrentPriceLookupResult.provider(
+                                new CurrentPriceSnapshot("005930", 70_000L)
+                        )
+                )
         );
     }
 
@@ -234,9 +264,23 @@ class HarnessControllerTest {
                 riskCheckSnapshot(),
                 harnessPortfolioSnapshot(),
                 harnessMarketSnapshot(),
-                List.of(),
+                List.of(currentPriceToolExecutionSnapshot()),
                 completedSteps(),
                 List.of(executedBuyTradeRecord(runId))
+        );
+    }
+
+    private HarnessToolExecutionSnapshot currentPriceToolExecutionSnapshot() {
+        return new HarnessToolExecutionSnapshot(
+                HarnessToolExecutionStatus.EXECUTED,
+                HarnessToolType.GET_CURRENT_PRICE,
+                HarnessToolExecutionReasonCode.TOOL_EXECUTED,
+                "Harness tool execution completed.",
+                null,
+                null,
+                new HarnessCurrentPriceSnapshot("005930", 70_000L),
+                new HarnessToolRequestSnapshot(HarnessToolType.GET_CURRENT_PRICE, "005930"),
+                CurrentPriceLookupSource.CACHE
         );
     }
 

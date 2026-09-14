@@ -2,6 +2,8 @@ package com.stock.harness.tool;
 
 import com.stock.market.MarketSnapshot;
 import com.stock.market.price.CurrentPriceSnapshot;
+import com.stock.market.price.lookup.CurrentPriceLookupResult;
+import com.stock.market.price.lookup.CurrentPriceLookupSource;
 import com.stock.portfolio.PortfolioSnapshot;
 import org.junit.jupiter.api.Test;
 
@@ -37,10 +39,13 @@ class HarnessToolOutputTest {
     void createsCurrentPriceOutput() {
         CurrentPriceSnapshot currentPriceSnapshot = new CurrentPriceSnapshot("005930", 70_000L);
 
-        HarnessToolOutput output = HarnessToolOutput.currentPrice(currentPriceSnapshot);
+        HarnessToolOutput output = HarnessToolOutput.currentPrice(
+                CurrentPriceLookupResult.provider(currentPriceSnapshot)
+        );
 
         assertThat(output.type()).isEqualTo(HarnessToolType.GET_CURRENT_PRICE);
         assertThat(output.currentPriceSnapshot()).isEqualTo(currentPriceSnapshot);
+        assertThat(output.currentPriceSource()).isEqualTo(CurrentPriceLookupSource.PROVIDER);
         assertThat(output.portfolioSnapshot()).isNull();
         assertThat(output.marketSnapshot()).isNull();
     }

@@ -6,6 +6,7 @@ import com.stock.market.price.CurrentPriceService;
 import com.stock.market.price.CurrentPriceSnapshot;
 import com.stock.market.price.cache.CurrentPriceCache;
 import com.stock.market.price.cache.CurrentPriceCacheProperties;
+import com.stock.market.price.lookup.CurrentPriceLookupSource;
 import com.stock.market.price.provider.FixedCurrentPriceProvider;
 import com.stock.portfolio.PortfolioService;
 import com.stock.portfolio.PortfolioSnapshot;
@@ -58,6 +59,8 @@ class HarnessToolExecutorTest {
         assertThat(result.request()).isEqualTo(HarnessToolRequest.currentPrice("005930"));
         assertThat(result.output().currentPriceSnapshot())
                 .isEqualTo(new CurrentPriceSnapshot("005930", 100_000L));
+        assertThat(result.output().currentPriceSource())
+                .isEqualTo(CurrentPriceLookupSource.PROVIDER);
         assertThat(result.output().portfolioSnapshot()).isNull();
         assertThat(result.output().marketSnapshot()).isNull();
     }

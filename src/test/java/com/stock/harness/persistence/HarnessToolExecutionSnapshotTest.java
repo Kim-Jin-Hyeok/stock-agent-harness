@@ -8,6 +8,8 @@ import com.stock.harness.tool.HarnessToolRequest;
 import com.stock.harness.tool.HarnessToolType;
 import com.stock.market.MarketSnapshot;
 import com.stock.market.price.CurrentPriceSnapshot;
+import com.stock.market.price.lookup.CurrentPriceLookupResult;
+import com.stock.market.price.lookup.CurrentPriceLookupSource;
 import com.stock.portfolio.PortfolioSnapshot;
 import org.junit.jupiter.api.Test;
 
@@ -58,7 +60,9 @@ class HarnessToolExecutionSnapshotTest {
         HarnessToolExecutionSnapshot snapshot = HarnessToolExecutionSnapshot.from(
                 HarnessToolExecutionResult.executed(
                         HarnessToolRequest.currentPrice("005930"),
-                        HarnessToolOutput.currentPrice(currentPrice)
+                        HarnessToolOutput.currentPrice(
+                                CurrentPriceLookupResult.cache(currentPrice)
+                        )
                 )
         );
 
@@ -69,6 +73,7 @@ class HarnessToolExecutionSnapshotTest {
         assertThat(snapshot.currentPriceSnapshot()).isEqualTo(
                 HarnessCurrentPriceSnapshot.from(currentPrice)
         );
+        assertThat(snapshot.currentPriceSource()).isEqualTo(CurrentPriceLookupSource.CACHE);
         assertThat(snapshot.portfolioSnapshot()).isNull();
         assertThat(snapshot.marketSnapshot()).isNull();
     }
@@ -88,6 +93,7 @@ class HarnessToolExecutionSnapshotTest {
         assertThat(snapshot.request()).isEqualTo(
                 new HarnessToolRequestSnapshot(HarnessToolType.GET_CURRENT_PRICE, "005930")
         );
+        assertThat(snapshot.currentPriceSource()).isNull();
         assertThat(snapshot.portfolioSnapshot()).isNull();
         assertThat(snapshot.marketSnapshot()).isNull();
     }

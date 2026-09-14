@@ -2,6 +2,8 @@ package com.stock.market.price;
 
 import com.stock.market.price.cache.CurrentPriceCache;
 import com.stock.market.price.cache.CurrentPriceCacheProperties;
+import com.stock.market.price.lookup.CurrentPriceLookupResult;
+import com.stock.market.price.lookup.CurrentPriceLookupSource;
 import com.stock.market.price.provider.CurrentPriceProvider;
 import org.junit.jupiter.api.Test;
 
@@ -31,9 +33,10 @@ class CurrentPriceServiceTest {
         when(cache.get("005930")).thenReturn(Optional.of(cached));
         CurrentPriceService service = new CurrentPriceService(provider, cache);
 
-        CurrentPriceSnapshot snapshot = service.getCurrentPrice("005930");
+        CurrentPriceLookupResult result = service.getCurrentPrice("005930");
 
-        assertThat(snapshot).isEqualTo(cached);
+        assertThat(result.snapshot()).isEqualTo(cached);
+        assertThat(result.source()).isEqualTo(CurrentPriceLookupSource.CACHE);
         verify(provider, never()).getCurrentPrice("005930");
         verify(cache, never()).put("005930", cached);
     }
@@ -47,9 +50,10 @@ class CurrentPriceServiceTest {
         when(provider.getCurrentPrice("005930")).thenReturn(loaded);
         CurrentPriceService service = new CurrentPriceService(provider, cache);
 
-        CurrentPriceSnapshot snapshot = service.getCurrentPrice("005930");
+        CurrentPriceLookupResult result = service.getCurrentPrice("005930");
 
-        assertThat(snapshot).isEqualTo(loaded);
+        assertThat(result.snapshot()).isEqualTo(loaded);
+        assertThat(result.source()).isEqualTo(CurrentPriceLookupSource.PROVIDER);
         verify(provider).getCurrentPrice("005930");
         verify(cache).put("005930", loaded);
     }
@@ -65,11 +69,13 @@ class CurrentPriceServiceTest {
         );
         CurrentPriceService service = new CurrentPriceService(provider, cache);
 
-        CurrentPriceSnapshot first = service.getCurrentPrice("005930");
-        CurrentPriceSnapshot second = service.getCurrentPrice("005930");
+        CurrentPriceLookupResult first = service.getCurrentPrice("005930");
+        CurrentPriceLookupResult second = service.getCurrentPrice("005930");
 
-        assertThat(first).isEqualTo(loaded);
-        assertThat(second).isEqualTo(loaded);
+        assertThat(first.snapshot()).isEqualTo(loaded);
+        assertThat(first.source()).isEqualTo(CurrentPriceLookupSource.PROVIDER);
+        assertThat(second.snapshot()).isEqualTo(loaded);
+        assertThat(second.source()).isEqualTo(CurrentPriceLookupSource.CACHE);
         verify(provider, times(1)).getCurrentPrice("005930");
     }
 
@@ -81,9 +87,10 @@ class CurrentPriceServiceTest {
         when(provider.getCurrentPrice("005930")).thenReturn(null);
         CurrentPriceService service = new CurrentPriceService(provider, cache);
 
-        CurrentPriceSnapshot snapshot = service.getCurrentPrice("005930");
+        CurrentPriceLookupResult result = service.getCurrentPrice("005930");
 
-        assertThat(snapshot).isNull();
+        assertThat(result.snapshot()).isNull();
+        assertThat(result.source()).isEqualTo(CurrentPriceLookupSource.PROVIDER);
         verify(cache, never()).put(eq("005930"), any());
     }
 
@@ -96,9 +103,10 @@ class CurrentPriceServiceTest {
         when(provider.getCurrentPrice("005930")).thenReturn(mismatched);
         CurrentPriceService service = new CurrentPriceService(provider, cache);
 
-        CurrentPriceSnapshot snapshot = service.getCurrentPrice("005930");
+        CurrentPriceLookupResult result = service.getCurrentPrice("005930");
 
-        assertThat(snapshot).isEqualTo(mismatched);
+        assertThat(result.snapshot()).isEqualTo(mismatched);
+        assertThat(result.source()).isEqualTo(CurrentPriceLookupSource.PROVIDER);
         verify(cache, never()).put(eq("005930"), any());
     }
 
@@ -111,9 +119,10 @@ class CurrentPriceServiceTest {
         when(provider.getCurrentPrice("005930")).thenReturn(invalid);
         CurrentPriceService service = new CurrentPriceService(provider, cache);
 
-        CurrentPriceSnapshot snapshot = service.getCurrentPrice("005930");
+        CurrentPriceLookupResult result = service.getCurrentPrice("005930");
 
-        assertThat(snapshot).isEqualTo(invalid);
+        assertThat(result.snapshot()).isEqualTo(invalid);
+        assertThat(result.source()).isEqualTo(CurrentPriceLookupSource.PROVIDER);
         verify(cache, never()).put(eq("005930"), any());
     }
 

@@ -5,6 +5,7 @@ import com.stock.harness.tool.HarnessToolExecutionResult;
 import com.stock.harness.tool.HarnessToolExecutionStatus;
 import com.stock.harness.tool.HarnessToolOutput;
 import com.stock.harness.tool.HarnessToolType;
+import com.stock.market.price.lookup.CurrentPriceLookupSource;
 
 public record HarnessToolExecutionSnapshot(
         HarnessToolExecutionStatus status,
@@ -14,7 +15,8 @@ public record HarnessToolExecutionSnapshot(
         HarnessPortfolioSnapshot portfolioSnapshot,
         HarnessMarketSnapshot marketSnapshot,
         HarnessCurrentPriceSnapshot currentPriceSnapshot,
-        HarnessToolRequestSnapshot request
+        HarnessToolRequestSnapshot request,
+        CurrentPriceLookupSource currentPriceSource
 ) {
     public HarnessToolExecutionSnapshot(
             HarnessToolExecutionStatus status,
@@ -24,7 +26,7 @@ public record HarnessToolExecutionSnapshot(
             HarnessPortfolioSnapshot portfolioSnapshot,
             HarnessMarketSnapshot marketSnapshot
     ) {
-        this(status, type, reasonCode, reason, portfolioSnapshot, marketSnapshot, null, null);
+        this(status, type, reasonCode, reason, portfolioSnapshot, marketSnapshot, null, null, null);
     }
 
     public HarnessToolExecutionSnapshot(
@@ -44,6 +46,30 @@ public record HarnessToolExecutionSnapshot(
                 portfolioSnapshot,
                 marketSnapshot,
                 currentPriceSnapshot,
+                null,
+                null
+        );
+    }
+
+    public HarnessToolExecutionSnapshot(
+            HarnessToolExecutionStatus status,
+            HarnessToolType type,
+            HarnessToolExecutionReasonCode reasonCode,
+            String reason,
+            HarnessPortfolioSnapshot portfolioSnapshot,
+            HarnessMarketSnapshot marketSnapshot,
+            HarnessCurrentPriceSnapshot currentPriceSnapshot,
+            HarnessToolRequestSnapshot request
+    ) {
+        this(
+                status,
+                type,
+                reasonCode,
+                reason,
+                portfolioSnapshot,
+                marketSnapshot,
+                currentPriceSnapshot,
+                request,
                 null
         );
     }
@@ -76,7 +102,8 @@ public record HarnessToolExecutionSnapshot(
                 currentPriceSnapshot,
                 result.request() == null
                         ? null
-                        : HarnessToolRequestSnapshot.from(result.request())
+                        : HarnessToolRequestSnapshot.from(result.request()),
+                output == null ? null : output.currentPriceSource()
         );
     }
 }

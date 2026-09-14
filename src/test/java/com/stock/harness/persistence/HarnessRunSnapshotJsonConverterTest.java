@@ -5,6 +5,7 @@ import com.stock.agent.InvestmentAction;
 import com.stock.harness.tool.HarnessToolExecutionReasonCode;
 import com.stock.harness.tool.HarnessToolExecutionStatus;
 import com.stock.harness.tool.HarnessToolType;
+import com.stock.market.price.lookup.CurrentPriceLookupSource;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskReasonCode;
 import org.junit.jupiter.api.Test;
@@ -120,7 +121,8 @@ class HarnessRunSnapshotJsonConverterTest {
                         new HarnessToolRequestSnapshot(
                                 HarnessToolType.GET_CURRENT_PRICE,
                                 "005930"
-                        )
+                        ),
+                        CurrentPriceLookupSource.PROVIDER
                 )
         );
 
@@ -138,6 +140,36 @@ class HarnessRunSnapshotJsonConverterTest {
         assertThat(restored.getLast().request()).isEqualTo(
                 new HarnessToolRequestSnapshot(HarnessToolType.GET_CURRENT_PRICE, "005930")
         );
+        assertThat(restored.getLast().currentPriceSource())
+                .isEqualTo(CurrentPriceLookupSource.PROVIDER);
+    }
+
+    @Test
+    void restoresToolExecutionSnapshotWithoutCurrentPriceSource() {
+        String json = """
+                [{
+                  "status": "EXECUTED",
+                  "type": "GET_CURRENT_PRICE",
+                  "reasonCode": "TOOL_EXECUTED",
+                  "reason": "Harness tool execution completed.",
+                  "currentPriceSnapshot": {
+                    "symbol": "005930",
+                    "priceKrw": 70000
+                  },
+                  "request": {
+                    "type": "GET_CURRENT_PRICE",
+                    "symbol": "005930"
+                  }
+                }]
+                """;
+
+        List<HarnessToolExecutionSnapshot> restored = converter.toToolExecutionSnapshots(json);
+
+        assertThat(restored).singleElement().satisfies(snapshot -> {
+            assertThat(snapshot.currentPriceSnapshot())
+                    .isEqualTo(new HarnessCurrentPriceSnapshot("005930", 70_000L));
+            assertThat(snapshot.currentPriceSource()).isNull();
+        });
     }
 
     private HarnessDecisionSnapshot decisionSnapshot() {
