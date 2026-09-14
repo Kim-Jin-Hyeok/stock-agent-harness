@@ -211,6 +211,7 @@ portfolioSnapshot
 marketSnapshot
 currentPriceSnapshot
 request
+currentPriceSource
 ```
 
 이 객체는 JPA Entity가 아니라 `HarnessToolExecutionResult`를 JSON으로 저장하기 위한 영속화 스냅샷이다.
@@ -220,6 +221,8 @@ Tool 출력은 타입에 따라 `HarnessPortfolioSnapshot`, `HarnessMarketSnapsh
 `request`는 런타임의 `HarnessToolRequest`를 `HarnessToolRequestSnapshot`으로 변환한 값이다. 현재는 `type`과 `symbol`을 저장하며, 실행 성공 여부와 관계없이 원본 요청을 남긴다. 따라서 `GET_CURRENT_PRICE` 실행이 실패해 `currentPriceSnapshot`이 null이어도 요청한 symbol을 확인할 수 있다.
 
 기존 최상위 `type`은 API와 저장 데이터 계약의 호환성을 위해 유지한다. 신규 실행 결과에서는 `type`과 `request.type`이 같도록 팩토리 메서드가 생성한다. 원본 요청 저장 기능 추가 전에 생성된 JSON에는 `request` 필드가 없으므로 역직렬화 결과가 null일 수 있다.
+
+`currentPriceSource`는 현재가가 이번 조회에서 캐시로 해결됐는지 Provider를 호출해 가져왔는지 저장한다. 현재가 조회가 아닌 Tool 또는 출력이 없는 실패 결과에서는 null이다. 조회 출처 저장 기능 추가 전 JSON에도 이 필드가 없으므로 역직렬화 결과가 null일 수 있다.
 
 `HarnessCurrentPriceSnapshot`은 현재가 조회 당시의 종목 코드와 가격을 저장한다.
 
@@ -498,9 +501,11 @@ Tool 결과도 같은 원칙을 따른다.
 ```text
 POST HarnessRunResponse.toolResults
 -> 런타임 HarnessToolExecutionResult
+-> output.currentPriceSource에서 CACHE 또는 PROVIDER 확인
 
 GET HarnessRunDetail.toolExecutionSnapshots
 -> DB에서 복원한 HarnessToolExecutionSnapshot
+-> currentPriceSource에서 CACHE 또는 PROVIDER 확인
 ```
 
 ## Open Questions
@@ -1312,6 +1317,8 @@ src/main/java/com/stock/market/price/CurrentPriceSnapshot.java
 src/main/java/com/stock/market/price/cache/CurrentPriceCache.java
 src/main/java/com/stock/market/price/cache/CurrentPriceCacheProperties.java
 src/main/java/com/stock/market/price/config/CurrentPriceConfiguration.java
+src/main/java/com/stock/market/price/lookup/CurrentPriceLookupResult.java
+src/main/java/com/stock/market/price/lookup/CurrentPriceLookupSource.java
 src/main/java/com/stock/market/price/provider/CurrentPriceProvider.java
 src/main/java/com/stock/market/price/provider/FixedCurrentPriceProvider.java
 ```
@@ -1322,12 +1329,25 @@ src/main/java/com/stock/market/price/provider/FixedCurrentPriceProvider.java
 HarnessToolExecutor
 -> CurrentPriceService
 -> CurrentPriceCache 조회
--> 캐시 적중이면 CurrentPriceSnapshot 반환
+-> 캐시 적중이면 CurrentPriceLookupResult(snapshot, CACHE) 반환
 -> 캐시 미스 또는 만료면 CurrentPriceProvider 호출
 -> Provider 결과의 캐시 저장 가능 여부 확인
 -> 저장 가능하면 캐시에 저장
--> 저장할 수 없어도 결과 자체는 HarnessToolExecutor로 반환
+-> CurrentPriceLookupResult(snapshot, PROVIDER) 반환
+-> HarnessToolOutput에 currentPriceSnapshot과 currentPriceSource를 분리해 저장
 ```
+
+`CurrentPriceLookupResult`는 가격 데이터인 `CurrentPriceSnapshot`과 이번 조회 경로인 `CurrentPriceLookupSource`를 함께 전달한다.
+
+```text
+CACHE
+-> 유효한 인메모리 캐시 값을 반환함
+
+PROVIDER
+-> 캐시 미스 또는 만료 후 CurrentPriceProvider를 호출함
+```
+
+조회 출처는 가격 데이터 자체의 속성이 아니라 이번 조회 과정의 메타데이터다. 따라서 `CurrentPriceSnapshot`에 넣지 않고 별도 조회 결과로 전달한다. `HarnessToolOutput`은 기존 `currentPriceSnapshot` 필드를 유지하면서 `currentPriceSource`를 별도 필드로 제공해 기존 응답 구조 변경을 최소화한다.
 
 `CurrentPriceCache`는 `ConcurrentHashMap`을 사용하는 인메모리 캐시다. 요청 symbol을 키로 사용하므로 종목별 현재가가 분리된다. 캐시 Entry에는 `CurrentPriceSnapshot`과 저장 시각을 함께 보관한다.
 
@@ -1364,13 +1384,14 @@ Provider가 예외를 던지면 `CurrentPriceService`는 캐시에 값을 저장
 
 캐시 적중 여부와 관계없이 기존 `HarnessToolCallBudget`은 소비한다. 이 Budget은 Agent의 논리적인 Tool 실행 시도를 제한하기 때문이다. 캐시 미스에서 발생하는 실제 Provider 또는 Broker API 호출 횟수는 아직 별도 Budget으로 관리하지 않는다.
 
+`currentPriceSource`는 이미 발생한 조회 경로를 관찰하기 위한 정보다. `PROVIDER`가 기록됐다는 사실만으로 호출 전 허용 여부를 통제할 수는 없다. 실제 외부 호출 Budget은 Provider를 호출하기 전에 소비 가능 여부를 확인하는 별도 실행 통제 구조가 필요하다.
+
 현재 캐시에는 다음 기능이 없다.
 
 ```text
 Redis를 통한 서버 간 캐시 공유
 최대 Entry 수와 LRU 제거 정책
 동시 캐시 미스 요청을 하나로 합치는 single-flight
-캐시 적중 여부의 실행 이력 기록
 실제 Provider 호출 전용 Budget
 만료된 가격 fallback
 ```
@@ -1568,7 +1589,7 @@ ttl
 
 `harness.scheduler.fixed-delay-ms`는 현재 `@Scheduled(fixedDelayString = "${harness.scheduler.fixed-delay-ms}")` 속성에서 직접 참조한다. `@Scheduled`는 어노테이션 속성으로 스케줄 간격을 받아야 하므로, 이 단계에서는 `fixed-delay-ms`를 별도 record 필드로 옮기지 않는다.
 
-현재 Tool 실행 결과의 계약 검증, Run 결과 포함, JSON 저장, 상세 조회까지 구현되어 있다. 각 실행 결과는 원본 Tool 요청을 함께 보존하므로 출력이 없는 실패, 권한 거절, 중복 차단 결과에서도 요청 타입과 symbol을 확인할 수 있다. `GET_CURRENT_PRICE`는 요청 symbol 필수 검증과 응답 symbol 및 양수 가격 검증, Provider 경계와 인메모리 TTL 캐시까지 포함한다. Tool Service의 `RuntimeException`은 `TOOL_EXECUTION_FAILED` 결과로 변환되어 실행 이력에 저장되고, 설정된 횟수 안에서 같은 원본 요청으로 재시도된다.
+현재 Tool 실행 결과의 계약 검증, Run 결과 포함, JSON 저장, 상세 조회까지 구현되어 있다. 각 실행 결과는 원본 Tool 요청을 함께 보존하므로 출력이 없는 실패, 권한 거절, 중복 차단 결과에서도 요청 타입과 symbol을 확인할 수 있다. `GET_CURRENT_PRICE`는 요청 symbol 필수 검증과 응답 symbol 및 양수 가격 검증, Provider 경계, 인메모리 TTL 캐시, `CACHE`와 `PROVIDER` 조회 출처 기록까지 포함한다. Tool Service의 `RuntimeException`은 `TOOL_EXECUTION_FAILED` 결과로 변환되어 실행 이력에 저장되고, 설정된 횟수 안에서 같은 원본 요청으로 재시도된다.
 
 동일 Run의 중복 Tool 요청 차단까지 구현되어 있다.
 
