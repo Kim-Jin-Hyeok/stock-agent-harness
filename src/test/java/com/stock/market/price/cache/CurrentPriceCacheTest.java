@@ -50,6 +50,23 @@ class CurrentPriceCacheTest {
         assertThat(cache.get("000660")).contains(skHynix);
     }
 
+    @Test
+    void removesExpiredEntriesWhenCachingAnotherSymbol() {
+        Clock clock = mock(Clock.class);
+        when(clock.instant()).thenReturn(CACHED_AT, CACHED_AT.plus(TTL));
+        CurrentPriceCache cache = new CurrentPriceCache(
+                new CurrentPriceCacheProperties(TTL),
+                clock
+        );
+        CurrentPriceSnapshot skHynix = new CurrentPriceSnapshot("000660", 120_000L);
+        cache.put("005930", new CurrentPriceSnapshot("005930", 70_000L));
+
+        cache.put("000660", skHynix);
+
+        assertThat(cache.entryCount()).isEqualTo(1);
+        assertThat(cache.get("000660")).contains(skHynix);
+    }
+
     private CurrentPriceCache cache(Instant instant) {
         return new CurrentPriceCache(
                 new CurrentPriceCacheProperties(TTL),

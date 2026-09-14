@@ -24,7 +24,7 @@ public class CurrentPriceCache {
             return Optional.empty();
         }
 
-        if (isExpired(entry)) {
+        if (isExpired(entry, clock.instant())) {
             entries.remove(symbol, entry);
             return Optional.empty();
         }
@@ -33,12 +33,26 @@ public class CurrentPriceCache {
     }
 
     public void put(String symbol, CurrentPriceSnapshot snapshot) {
-        entries.put(symbol, new CacheEntry(snapshot, clock.instant()));
+        Instant now = clock.instant();
+        removeExpiredEntries(now);
+        entries.put(symbol, new CacheEntry(snapshot, now));
     }
 
-    private boolean isExpired(CacheEntry entry) {
+    int entryCount() {
+        return entries.size();
+    }
+
+    private void removeExpiredEntries(Instant now) {
+        entries.forEach((symbol, entry) -> {
+            if (isExpired(entry, now)) {
+                entries.remove(symbol, entry);
+            }
+        });
+    }
+
+    private boolean isExpired(CacheEntry entry, Instant now) {
         Instant expiresAt = entry.cachedAt().plus(properties.ttl());
-        return !clock.instant().isBefore(expiresAt);
+        return !now.isBefore(expiresAt);
     }
 
     private record CacheEntry(
