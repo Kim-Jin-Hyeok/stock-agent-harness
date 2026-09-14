@@ -26,6 +26,8 @@ import com.stock.harness.tool.validation.HarnessToolResultValidationReasonCode;
 import com.stock.harness.tool.validation.HarnessToolResultValidator;
 import com.stock.market.MarketService;
 import com.stock.market.price.CurrentPriceService;
+import com.stock.market.price.cache.CurrentPriceCache;
+import com.stock.market.price.cache.CurrentPriceCacheProperties;
 import com.stock.market.price.provider.FixedCurrentPriceProvider;
 import com.stock.portfolio.PortfolioPosition;
 import com.stock.portfolio.PortfolioService;
@@ -39,6 +41,8 @@ import com.stock.trade.TradeStatus;
 import com.stock.trade.persistence.TradeRecordRepository;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -77,7 +81,11 @@ class InvestmentHarnessTest {
     );
     private final MarketService marketService = new MarketService();
     private final CurrentPriceService currentPriceService = new CurrentPriceService(
-            new FixedCurrentPriceProvider()
+            new FixedCurrentPriceProvider(),
+            new CurrentPriceCache(
+                    new CurrentPriceCacheProperties(Duration.ofSeconds(30)),
+                    Clock.systemUTC()
+            )
     );
     private final HarnessRunHistoryService harnessRunHistoryService = new HarnessRunHistoryService(
             harnessRunSnapshotJsonConverter,

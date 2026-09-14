@@ -10,6 +10,11 @@ logging:
     root: INFO
     com.stock: DEBUG
 
+market:
+  current-price:
+    cache:
+      ttl: 30s
+
 harness:
   max-steps: 10
   max-tool-calls: 5

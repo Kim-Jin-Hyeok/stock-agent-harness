@@ -1,38 +1,90 @@
 package com.stock.market.price;
 
+import com.stock.market.price.cache.CurrentPriceCache;
+import com.stock.market.price.cache.CurrentPriceCacheProperties;
 import com.stock.market.price.provider.CurrentPriceProvider;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.Optional;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class CurrentPriceServiceTest {
 
     @Test
-    void returnsCurrentPriceFromProvider() {
+    void returnsCachedCurrentPriceWithoutCallingProvider() {
         CurrentPriceProvider provider = mock(CurrentPriceProvider.class);
-        CurrentPriceSnapshot expected = new CurrentPriceSnapshot("005930", 70_000L);
-        when(provider.getCurrentPrice("005930")).thenReturn(expected);
-        CurrentPriceService service = new CurrentPriceService(provider);
+        CurrentPriceCache cache = mock(CurrentPriceCache.class);
+        CurrentPriceSnapshot cached = new CurrentPriceSnapshot("005930", 70_000L);
+        when(cache.get("005930")).thenReturn(Optional.of(cached));
+        CurrentPriceService service = new CurrentPriceService(provider, cache);
 
         CurrentPriceSnapshot snapshot = service.getCurrentPrice("005930");
 
-        assertThat(snapshot).isEqualTo(expected);
+        assertThat(snapshot).isEqualTo(cached);
+        verify(provider, never()).getCurrentPrice("005930");
+        verify(cache, never()).put("005930", cached);
+    }
+
+    @Test
+    void loadsAndCachesCurrentPriceOnCacheMiss() {
+        CurrentPriceProvider provider = mock(CurrentPriceProvider.class);
+        CurrentPriceCache cache = mock(CurrentPriceCache.class);
+        CurrentPriceSnapshot loaded = new CurrentPriceSnapshot("005930", 70_000L);
+        when(cache.get("005930")).thenReturn(Optional.empty());
+        when(provider.getCurrentPrice("005930")).thenReturn(loaded);
+        CurrentPriceService service = new CurrentPriceService(provider, cache);
+
+        CurrentPriceSnapshot snapshot = service.getCurrentPrice("005930");
+
+        assertThat(snapshot).isEqualTo(loaded);
         verify(provider).getCurrentPrice("005930");
+        verify(cache).put("005930", loaded);
+    }
+
+    @Test
+    void callsProviderOnceForRepeatedRequestWithinTtl() {
+        CurrentPriceProvider provider = mock(CurrentPriceProvider.class);
+        CurrentPriceSnapshot loaded = new CurrentPriceSnapshot("005930", 70_000L);
+        when(provider.getCurrentPrice("005930")).thenReturn(loaded);
+        CurrentPriceCache cache = new CurrentPriceCache(
+                new CurrentPriceCacheProperties(Duration.ofSeconds(30)),
+                Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC)
+        );
+        CurrentPriceService service = new CurrentPriceService(provider, cache);
+
+        CurrentPriceSnapshot first = service.getCurrentPrice("005930");
+        CurrentPriceSnapshot second = service.getCurrentPrice("005930");
+
+        assertThat(first).isEqualTo(loaded);
+        assertThat(second).isEqualTo(loaded);
+        verify(provider, times(1)).getCurrentPrice("005930");
     }
 
     @Test
     void propagatesProviderException() {
         CurrentPriceProvider provider = mock(CurrentPriceProvider.class);
+        CurrentPriceCache cache = mock(CurrentPriceCache.class);
+        when(cache.get("005930")).thenReturn(Optional.empty());
         when(provider.getCurrentPrice("005930"))
                 .thenThrow(new IllegalStateException("Broker timeout"));
-        CurrentPriceService service = new CurrentPriceService(provider);
+        CurrentPriceService service = new CurrentPriceService(provider, cache);
 
         assertThatThrownBy(() -> service.getCurrentPrice("005930"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Broker timeout");
+        verify(cache, never()).put(eq("005930"), any());
     }
 }

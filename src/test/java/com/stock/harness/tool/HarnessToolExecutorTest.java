@@ -4,11 +4,16 @@ import com.stock.market.MarketService;
 import com.stock.market.MarketSnapshot;
 import com.stock.market.price.CurrentPriceService;
 import com.stock.market.price.CurrentPriceSnapshot;
+import com.stock.market.price.cache.CurrentPriceCache;
+import com.stock.market.price.cache.CurrentPriceCacheProperties;
 import com.stock.market.price.provider.FixedCurrentPriceProvider;
 import com.stock.portfolio.PortfolioService;
 import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.portfolio.PortfolioSnapshotStore;
 import org.junit.jupiter.api.Test;
+
+import java.time.Clock;
+import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -90,7 +95,13 @@ class HarnessToolExecutorTest {
     }
 
     private CurrentPriceService currentPriceService() {
-        return new CurrentPriceService(new FixedCurrentPriceProvider());
+        return new CurrentPriceService(
+                new FixedCurrentPriceProvider(),
+                new CurrentPriceCache(
+                        new CurrentPriceCacheProperties(Duration.ofSeconds(30)),
+                        Clock.systemUTC()
+                )
+        );
     }
 
     private PortfolioService portfolioService() {
