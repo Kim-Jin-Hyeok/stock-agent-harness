@@ -18,7 +18,17 @@ public class CurrentPriceService {
 
     private CurrentPriceSnapshot loadAndCache(String symbol) {
         CurrentPriceSnapshot snapshot = currentPriceProvider.getCurrentPrice(symbol);
-        currentPriceCache.put(symbol, snapshot);
+
+        if (isCacheable(symbol, snapshot)) {
+            currentPriceCache.put(symbol, snapshot);
+        }
+
         return snapshot;
+    }
+
+    private boolean isCacheable(String symbol, CurrentPriceSnapshot snapshot) {
+        return snapshot != null
+                && symbol.equals(snapshot.symbol())
+                && snapshot.priceKrw() > 0;
     }
 }

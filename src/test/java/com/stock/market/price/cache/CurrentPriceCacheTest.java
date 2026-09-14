@@ -13,7 +13,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class CurrentPriceCacheTest {
-    private static final Instant CACHED_AT = Instant.parse("2026-01-currentPriceClock:00:00Z");
+    private static final Instant CACHED_AT = Instant.parse("2026-01-01T00:00:00Z");
     private static final Duration TTL = Duration.ofSeconds(30);
 
     @Test

@@ -74,6 +74,50 @@ class CurrentPriceServiceTest {
     }
 
     @Test
+    void doesNotCacheNullProviderResult() {
+        CurrentPriceProvider provider = mock(CurrentPriceProvider.class);
+        CurrentPriceCache cache = mock(CurrentPriceCache.class);
+        when(cache.get("005930")).thenReturn(Optional.empty());
+        when(provider.getCurrentPrice("005930")).thenReturn(null);
+        CurrentPriceService service = new CurrentPriceService(provider, cache);
+
+        CurrentPriceSnapshot snapshot = service.getCurrentPrice("005930");
+
+        assertThat(snapshot).isNull();
+        verify(cache, never()).put(eq("005930"), any());
+    }
+
+    @Test
+    void doesNotCacheProviderResultWithDifferentSymbol() {
+        CurrentPriceProvider provider = mock(CurrentPriceProvider.class);
+        CurrentPriceCache cache = mock(CurrentPriceCache.class);
+        CurrentPriceSnapshot mismatched = new CurrentPriceSnapshot("000660", 120_000L);
+        when(cache.get("005930")).thenReturn(Optional.empty());
+        when(provider.getCurrentPrice("005930")).thenReturn(mismatched);
+        CurrentPriceService service = new CurrentPriceService(provider, cache);
+
+        CurrentPriceSnapshot snapshot = service.getCurrentPrice("005930");
+
+        assertThat(snapshot).isEqualTo(mismatched);
+        verify(cache, never()).put(eq("005930"), any());
+    }
+
+    @Test
+    void doesNotCacheProviderResultWithNonPositivePrice() {
+        CurrentPriceProvider provider = mock(CurrentPriceProvider.class);
+        CurrentPriceCache cache = mock(CurrentPriceCache.class);
+        CurrentPriceSnapshot invalid = new CurrentPriceSnapshot("005930", 0L);
+        when(cache.get("005930")).thenReturn(Optional.empty());
+        when(provider.getCurrentPrice("005930")).thenReturn(invalid);
+        CurrentPriceService service = new CurrentPriceService(provider, cache);
+
+        CurrentPriceSnapshot snapshot = service.getCurrentPrice("005930");
+
+        assertThat(snapshot).isEqualTo(invalid);
+        verify(cache, never()).put(eq("005930"), any());
+    }
+
+    @Test
     void propagatesProviderException() {
         CurrentPriceProvider provider = mock(CurrentPriceProvider.class);
         CurrentPriceCache cache = mock(CurrentPriceCache.class);
