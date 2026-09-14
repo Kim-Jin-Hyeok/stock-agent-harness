@@ -46,6 +46,7 @@ import static org.assertj.core.groups.Tuple.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -834,6 +835,117 @@ class InvestmentHarnessTest {
                     );
                     assertThat(toolResult.output()).isNull();
                 });
+    }
+
+    @Test
+    void runRetriesFailedToolExecutionAndCompletesAfterSuccess() {
+        HarnessToolExecutor retryingExecutor = mock(HarnessToolExecutor.class);
+        when(retryingExecutor.execute(any()))
+                .thenReturn(
+                        HarnessToolExecutionResult.executionFailed(
+                                HarnessToolType.GET_PORTFOLIO,
+                                "Broker timeout"
+                        ),
+                        HarnessToolExecutionResult.executed(
+                                HarnessToolOutput.portfolio(portfolioService.getCurrentSnapshot())
+                        )
+                );
+        InvestmentHarness retryingHarness = new InvestmentHarness(
+                riskGuard,
+                tradeExecutor,
+                portfolioService,
+                marketService,
+                harnessRunHistoryService,
+                new ToolResultUsingInvestmentAgent(),
+                new HarnessProperties(2, 2, 1),
+                harnessToolAuthorizer,
+                retryingExecutor,
+                harnessToolResultValidator,
+                harnessAgentActionValidator,
+                harnessToolRequestValidator
+        );
+
+        HarnessRunResult result = retryingHarness.run();
+
+        assertThat(result.status()).isEqualTo(HarnessRunStatus.COMPLETED);
+        assertThat(result.toolResults())
+                .extracting(
+                        HarnessToolExecutionResult::status,
+                        HarnessToolExecutionResult::reasonCode
+                )
+                .containsExactly(
+                        tuple(
+                                HarnessToolExecutionStatus.FAILED,
+                                HarnessToolExecutionReasonCode.TOOL_EXECUTION_FAILED
+                        ),
+                        tuple(
+                                HarnessToolExecutionStatus.EXECUTED,
+                                HarnessToolExecutionReasonCode.TOOL_EXECUTED
+                        )
+                );
+        assertThat(result.steps())
+                .extracting(HarnessStepResult::type)
+                .filteredOn(HarnessStepType.CHECK_TOOL_CALL_LIMIT::equals)
+                .hasSize(2);
+        assertThat(result.steps())
+                .filteredOn(step -> step.type() == HarnessStepType.EXECUTE_TOOL_REQUEST)
+                .extracting(HarnessStepResult::status)
+                .containsExactly(
+                        HarnessStepStatus.FAILED,
+                        HarnessStepStatus.COMPLETED
+                );
+        verify(retryingExecutor, times(2)).execute(any());
+    }
+
+    @Test
+    void runFailsAfterToolRetriesAreExhausted() {
+        InvestmentAgent requestingAgent = mock(InvestmentAgent.class);
+        when(requestingAgent.next(any())).thenReturn(
+                AgentNextAction.requestTool(HarnessToolRequest.portfolio())
+        );
+        HarnessToolExecutor failingExecutor = mock(HarnessToolExecutor.class);
+        when(failingExecutor.execute(any())).thenReturn(
+                HarnessToolExecutionResult.executionFailed(
+                        HarnessToolType.GET_PORTFOLIO,
+                        "Broker timeout"
+                )
+        );
+        InvestmentHarness retryingHarness = new InvestmentHarness(
+                riskGuard,
+                tradeExecutor,
+                portfolioService,
+                marketService,
+                harnessRunHistoryService,
+                requestingAgent,
+                new HarnessProperties(2, 2, 1),
+                harnessToolAuthorizer,
+                failingExecutor,
+                harnessToolResultValidator,
+                harnessAgentActionValidator,
+                harnessToolRequestValidator
+        );
+
+        HarnessRunResult result = retryingHarness.run();
+
+        assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
+        assertThat(result.toolResults())
+                .hasSize(2)
+                .allSatisfy(toolResult -> {
+                    assertThat(toolResult.status()).isEqualTo(HarnessToolExecutionStatus.FAILED);
+                    assertThat(toolResult.reasonCode()).isEqualTo(
+                            HarnessToolExecutionReasonCode.TOOL_EXECUTION_FAILED
+                    );
+                });
+        assertThat(result.steps())
+                .extracting(HarnessStepResult::type)
+                .filteredOn(HarnessStepType.CHECK_TOOL_CALL_LIMIT::equals)
+                .hasSize(2);
+        assertThat(result.steps())
+                .extracting(HarnessStepResult::type)
+                .filteredOn(HarnessStepType.EXECUTE_TOOL_REQUEST::equals)
+                .hasSize(2);
+        verify(failingExecutor, times(2)).execute(any());
+        verify(requestingAgent).next(any());
     }
 
     @Test

@@ -13,6 +13,7 @@ logging:
 harness:
   max-steps: 10
   max-tool-calls: 5
+  max-tool-retries: 1
   scheduler:
     enabled: false
     fixed-delay-ms: 600000

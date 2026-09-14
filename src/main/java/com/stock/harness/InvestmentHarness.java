@@ -10,6 +10,7 @@ import com.stock.harness.agent.validation.HarnessAgentActionValidator;
 import com.stock.harness.execution.HarnessAgentLoopResult;
 import com.stock.harness.execution.limit.HarnessAgentStepBudget;
 import com.stock.harness.execution.limit.HarnessToolCallBudget;
+import com.stock.harness.execution.retry.HarnessToolRetryPolicy;
 import com.stock.harness.execution.tool.HarnessToolRequestTracker;
 import com.stock.harness.tool.*;
 import com.stock.harness.tool.validation.HarnessToolRequestValidationResult;
@@ -85,6 +86,9 @@ public class InvestmentHarness {
             HarnessToolCallBudget toolCallBudget = new HarnessToolCallBudget(
                     context.limits().maxToolCalls()
             );
+            HarnessToolRetryPolicy toolRetryPolicy = new HarnessToolRetryPolicy(
+                    context.limits().maxToolRetries()
+            );
             HarnessToolRequestTracker toolRequestTracker = new HarnessToolRequestTracker();
 
             HarnessAgentLoopResult agentLoopResult = resolveInvestmentDecision(
@@ -92,6 +96,7 @@ public class InvestmentHarness {
                     stepRecorder,
                     agentStepBudget,
                     toolCallBudget,
+                    toolRetryPolicy,
                     toolRequestTracker,
                     recordedToolResults
             );
@@ -182,7 +187,8 @@ public class InvestmentHarness {
     ) {
         HarnessRunLimits limits = new HarnessRunLimits(
                 harnessProperties.maxSteps(),
-                harnessProperties.maxToolCalls()
+                harnessProperties.maxToolCalls(),
+                harnessProperties.maxToolRetries()
         );
 
         HarnessAllowedTools allowedTools = HarnessAllowedTools.readOnly();
@@ -198,10 +204,11 @@ public class InvestmentHarness {
     }
 
     private HarnessRunStatus determineRunStatus(List<HarnessStepResult> steps) {
-        boolean hasFailedStep = steps.stream()
-                .anyMatch(step -> step.status() == HarnessStepStatus.FAILED);
+        boolean hasTerminalFailedStep = steps.stream()
+                .anyMatch(step -> step.status() == HarnessStepStatus.FAILED
+                        && step.type() != HarnessStepType.EXECUTE_TOOL_REQUEST);
 
-        return hasFailedStep
+        return hasTerminalFailedStep
                 ? HarnessRunStatus.FAILED
                 : HarnessRunStatus.COMPLETED;
     }
@@ -246,6 +253,7 @@ public class InvestmentHarness {
             HarnessStepRecorder stepRecorder,
             HarnessAgentStepBudget agentStepBudget,
             HarnessToolCallBudget toolCallBudget,
+            HarnessToolRetryPolicy toolRetryPolicy,
             HarnessToolRequestTracker toolRequestTracker,
             List<HarnessToolExecutionResult> recordedToolResults
     ) {
@@ -330,17 +338,13 @@ public class InvestmentHarness {
                     recordedToolResults
             );
 
-            consumeToolCallBudget(stepRecorder, toolCallBudget);
-
-            HarnessToolExecutionResult executionResult = stepRecorder.record(
-                    HarnessStepType.EXECUTE_TOOL_REQUEST,
-                    () -> harnessToolExecutor.execute(action.toolRequest()),
-                    result -> result.status() == HarnessToolExecutionStatus.EXECUTED
-                            ? HarnessStepStatus.COMPLETED
-                            : HarnessStepStatus.FAILED,
-                    HarnessToolExecutionResult::reason
+            HarnessToolExecutionResult executionResult = executeToolRequest(
+                    action.toolRequest(),
+                    stepRecorder,
+                    toolCallBudget,
+                    toolRetryPolicy,
+                    recordedToolResults
             );
-            recordedToolResults.add(executionResult);
 
             if (executionResult.status() != HarnessToolExecutionStatus.EXECUTED) {
                 throw new IllegalStateException(
@@ -369,6 +373,36 @@ public class InvestmentHarness {
             }
 
             currentContext = currentContext.withToolResult(executionResult);
+        }
+    }
+
+    private HarnessToolExecutionResult executeToolRequest(
+            HarnessToolRequest request,
+            HarnessStepRecorder stepRecorder,
+            HarnessToolCallBudget toolCallBudget,
+            HarnessToolRetryPolicy toolRetryPolicy,
+            List<HarnessToolExecutionResult> recordedToolResults
+    ) {
+        int usedRetries = 0;
+
+        while (true) {
+            consumeToolCallBudget(stepRecorder, toolCallBudget);
+
+            HarnessToolExecutionResult executionResult = stepRecorder.record(
+                    HarnessStepType.EXECUTE_TOOL_REQUEST,
+                    () -> harnessToolExecutor.execute(request),
+                    result -> result.status() == HarnessToolExecutionStatus.EXECUTED
+                            ? HarnessStepStatus.COMPLETED
+                            : HarnessStepStatus.FAILED,
+                    HarnessToolExecutionResult::reason
+            );
+            recordedToolResults.add(executionResult);
+
+            if (!toolRetryPolicy.shouldRetry(executionResult, usedRetries)) {
+                return executionResult;
+            }
+
+            usedRetries++;
         }
     }
 
