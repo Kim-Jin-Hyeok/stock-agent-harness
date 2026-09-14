@@ -1304,12 +1304,62 @@ Tool Service 호출 중 `RuntimeException`이 발생하면 `HarnessToolExecutor`
 
 현재는 원래 예외 메시지를 실패 결과의 `reason`에 포함한다. 실제 Broker API 연동 후에는 인증정보나 외부 응답의 민감한 값이 이 메시지에 포함되지 않도록 저장 가능한 메시지로 정제하는 정책이 필요하다.
 
-현재 `CurrentPriceService`는 Broker API 연동 전 Harness 흐름을 검증하기 위한 고정 로컬 가격을 반환한다. 따라서 이 결과를 실제 시장 가격으로 사용해서는 안 된다.
+현재 `CurrentPriceService`는 요청한 symbol의 캐시를 먼저 조회한다. TTL 안의 값이 있으면 Provider를 호출하지 않고 캐시 값을 반환하고, 캐시가 없거나 만료됐으면 `CurrentPriceProvider`를 호출한 뒤 정상 반환된 결과를 캐시에 저장한다.
 
 ```text
 src/main/java/com/stock/market/price/CurrentPriceService.java
 src/main/java/com/stock/market/price/CurrentPriceSnapshot.java
+src/main/java/com/stock/market/price/cache/CurrentPriceCache.java
+src/main/java/com/stock/market/price/cache/CurrentPriceCacheProperties.java
+src/main/java/com/stock/market/price/config/CurrentPriceConfiguration.java
+src/main/java/com/stock/market/price/provider/CurrentPriceProvider.java
+src/main/java/com/stock/market/price/provider/FixedCurrentPriceProvider.java
 ```
+
+현재 조회 흐름은 다음과 같다.
+
+```text
+HarnessToolExecutor
+-> CurrentPriceService
+-> CurrentPriceCache 조회
+-> 캐시 적중이면 CurrentPriceSnapshot 반환
+-> 캐시 미스 또는 만료면 CurrentPriceProvider 호출
+-> Provider 결과를 캐시에 저장하고 반환
+```
+
+`CurrentPriceCache`는 `ConcurrentHashMap`을 사용하는 인메모리 캐시다. 요청 symbol을 키로 사용하므로 종목별 현재가가 분리된다. 캐시 Entry에는 `CurrentPriceSnapshot`과 저장 시각을 함께 보관한다.
+
+TTL은 `market.current-price.cache.ttl`로 설정하며 현재 기본 실행 설정은 `30s`다. 저장 시각에 TTL을 더한 시각과 현재 시각이 같아지는 순간부터 만료로 처리한다. 만료된 Entry는 조회 시 제거하고 Provider를 다시 호출한다.
+
+```yaml
+market:
+  current-price:
+    cache:
+      ttl: 30s
+```
+
+`CurrentPriceCacheProperties`는 TTL이 null, 0 또는 음수이면 생성을 거부한다. 따라서 이 설정이 누락되거나 유효하지 않으면 Spring ApplicationContext 시작 단계에서 실패한다. 이는 캐시 정책 없이 애플리케이션이 실행되는 것을 막는 fail-fast 정책이다.
+
+캐시 만료 판정은 직접 `Instant.now()`를 호출하지 않고 주입받은 `Clock`을 사용한다. 운영에서는 `CurrentPriceConfiguration`이 `Clock.systemUTC()`를 Bean으로 제공하고, 테스트에서는 고정하거나 제어할 수 있는 Clock을 사용해 실제 대기 없이 TTL 경계를 검증한다.
+
+Provider가 예외를 던지면 `CurrentPriceService`는 캐시에 값을 저장하지 않고 예외를 상위로 전달한다. 만료된 이전 가격도 대신 반환하지 않는다. 이 예외는 `HarnessToolExecutor`에서 `TOOL_EXECUTION_FAILED`로 변환되며 Harness 재시도 정책의 대상이 된다.
+
+현재 `FixedCurrentPriceProvider`는 Broker API 연동 전 Harness 흐름을 검증하기 위해 고정 로컬 가격을 반환한다. 따라서 이 결과를 실제 시장 가격으로 사용해서는 안 된다. 실제 연동 시에는 `CurrentPriceProvider` 구현을 Broker API Adapter로 교체하고 `CurrentPriceService`와 Harness Tool 계약은 유지한다.
+
+캐시 적중 여부와 관계없이 기존 `HarnessToolCallBudget`은 소비한다. 이 Budget은 Agent의 논리적인 Tool 실행 시도를 제한하기 때문이다. 캐시 미스에서 발생하는 실제 Provider 또는 Broker API 호출 횟수는 아직 별도 Budget으로 관리하지 않는다.
+
+현재 캐시에는 다음 기능이 없다.
+
+```text
+Redis를 통한 서버 간 캐시 공유
+최대 Entry 수와 LRU 제거 정책
+동시 캐시 미스 요청을 하나로 합치는 single-flight
+캐시 적중 여부의 실행 이력 기록
+실제 Provider 호출 전용 Budget
+만료된 가격 fallback
+```
+
+현재가 TTL이 짧고 단일 애플리케이션 인스턴스를 전제로 하므로 인메모리 캐시로 시작한다. 여러 서버나 Scheduler가 같은 Broker API 호출량을 공유해야 할 때 Redis 도입을 검토한다. 인메모리 캐시는 애플리케이션 재시작 시 모두 사라진다.
 
 `notSupported` 결과 생성 메서드는 지원하지 않는 Tool 타입이 추가될 경우를 표현하기 위해 남아 있다.
 
@@ -1484,7 +1534,15 @@ maxPositionRatio
 enabled
 ```
 
+`CurrentPriceCacheProperties`는 현재 다음 값을 가진다.
+
+```text
+ttl
+```
+
 `maxSteps`, `maxToolCalls`, `maxToolRetries`는 Harness 실행 통제 값이고, `maxOrderRatio`, `maxPositionRatio`는 Risk Guard 정책 값이다.
+
+`ttl`은 현재가 캐시의 유효 시간을 결정하는 시장 데이터 조회 정책 값이다.
 
 `enabled`는 Scheduler가 주기적으로 `InvestmentHarness`를 실행할지 결정하는 Scheduler 실행 설정 값이다.
 
@@ -1494,8 +1552,8 @@ enabled
 
 `harness.scheduler.fixed-delay-ms`는 현재 `@Scheduled(fixedDelayString = "${harness.scheduler.fixed-delay-ms}")` 속성에서 직접 참조한다. `@Scheduled`는 어노테이션 속성으로 스케줄 간격을 받아야 하므로, 이 단계에서는 `fixed-delay-ms`를 별도 record 필드로 옮기지 않는다.
 
-현재 Tool 실행 결과의 계약 검증, Run 결과 포함, JSON 저장, 상세 조회까지 구현되어 있다. 각 실행 결과는 원본 Tool 요청을 함께 보존하므로 출력이 없는 실패, 권한 거절, 중복 차단 결과에서도 요청 타입과 symbol을 확인할 수 있다. `GET_CURRENT_PRICE`는 요청 symbol 필수 검증과 응답 symbol 및 양수 가격 검증까지 포함한다. Tool Service의 `RuntimeException`은 `TOOL_EXECUTION_FAILED` 결과로 변환되어 실행 이력에 저장되고, 설정된 횟수 안에서 같은 원본 요청으로 재시도된다.
+현재 Tool 실행 결과의 계약 검증, Run 결과 포함, JSON 저장, 상세 조회까지 구현되어 있다. 각 실행 결과는 원본 Tool 요청을 함께 보존하므로 출력이 없는 실패, 권한 거절, 중복 차단 결과에서도 요청 타입과 symbol을 확인할 수 있다. `GET_CURRENT_PRICE`는 요청 symbol 필수 검증과 응답 symbol 및 양수 가격 검증, Provider 경계와 인메모리 TTL 캐시까지 포함한다. Tool Service의 `RuntimeException`은 `TOOL_EXECUTION_FAILED` 결과로 변환되어 실행 이력에 저장되고, 설정된 횟수 안에서 같은 원본 요청으로 재시도된다.
 
 동일 Run의 중복 Tool 요청 차단까지 구현되어 있다.
 
-실제 Broker API Tool을 바로 추가하기보다 Cache 경계, 실제 외부 API 호출 Budget, Tool 실패 재시도 정책을 먼저 설계하는 방향을 유지한다.
+현재가 Cache 경계와 Tool 실패 재시도 정책은 구현되어 있다. 실제 Broker API를 연결하기 전에는 논리적인 Tool Call Budget과 실제 외부 Provider 호출 Budget을 어떻게 구분할지 먼저 설계한다.
