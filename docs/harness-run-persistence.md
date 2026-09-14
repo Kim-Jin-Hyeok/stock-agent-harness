@@ -569,7 +569,7 @@ Agent가 다시 `REQUEST_TOOL`을 반환하면 같은 흐름을 반복한다. �
 
 `CHECK_TOOL_CALL_LIMIT`는 권한 검사와 중복 검사를 통과한 Tool을 실제로 실행하기 직전에 Tool Call Budget을 확인한 결과다. 권한이 거절되거나 중복으로 차단된 요청은 Tool 실행으로 이어지지 않으므로 Budget을 소비하지 않는다.
 
-Tool 실행을 시도하면 성공 여부와 관계없이 Budget을 소비한다. 외부 API를 호출한 뒤 실패할 수도 있으므로 성공한 결과만 계산하면 실제 호출 비용을 제한할 수 없기 때문이다.
+Tool 실행을 시도하면 성공 여부와 관계없이 Budget을 소비한다. 재시도도 실제 Tool 실행이므로 시도할 때마다 Budget을 추가로 소비한다. 외부 API를 호출한 뒤 실패할 수도 있으므로 성공한 결과만 계산하면 실제 호출 비용을 제한할 수 없기 때문이다.
 
 ```text
 Tool call allowed. used={usedCalls}, max={maxCalls}
@@ -609,6 +609,7 @@ src/main/java/com/stock/harness/HarnessRunLimits.java
 ```text
 maxSteps
 maxToolCalls
+maxToolRetries
 ```
 
 현재 `maxSteps`는 전체 `HarnessStepResult` 개수가 아니라 한 Run에서 Agent가 판단할 수 있는 최대 횟수다.
@@ -625,18 +626,28 @@ maxSteps = 2
 
 `HarnessProperties.maxToolCalls`는 한 Run에서 실행을 시도할 수 있는 최대 Tool 호출 횟수다. `0`이면 Agent 판단은 허용하지만 Tool 실행은 허용하지 않는다.
 
-`HarnessRunLimits.maxSteps`, `HarnessRunLimits.maxToolCalls`는 Run 시작 시점에 확정되어 해당 Run에 적용되는 제한값이다.
+`HarnessProperties.maxToolRetries`는 최초 Tool 실행이 `TOOL_EXECUTION_FAILED`로 끝났을 때 추가로 허용할 재시도 횟수다. `0`이면 재시도하지 않고, `1`이면 최초 실행을 포함해 최대 두 번 실행할 수 있다.
+
+현재 기본 설정은 추가 재시도 1회다.
+
+```yaml
+harness:
+  max-tool-retries: 1
+```
+
+`HarnessRunLimits.maxSteps`, `HarnessRunLimits.maxToolCalls`, `HarnessRunLimits.maxToolRetries`는 Run 시작 시점에 확정되어 해당 Run에 적용되는 제한값이다.
 
 현재 흐름은 다음과 같다.
 
 ```text
 application.yml
--> HarnessProperties(maxSteps, maxToolCalls)
+-> HarnessProperties(maxSteps, maxToolCalls, maxToolRetries)
 -> InvestmentHarness.createContext()
--> HarnessRunLimits(maxSteps, maxToolCalls)
+-> HarnessRunLimits(maxSteps, maxToolCalls, maxToolRetries)
 -> HarnessRunContext(limits)
 -> HarnessAgentStepBudget(maxSteps)
 -> HarnessToolCallBudget(maxToolCalls)
+-> HarnessToolRetryPolicy(maxToolRetries)
 ```
 
 Budget 클래스의 패키지 경로는 다음과 같다.
@@ -644,9 +655,21 @@ Budget 클래스의 패키지 경로는 다음과 같다.
 ```text
 src/main/java/com/stock/harness/execution/limit/HarnessAgentStepBudget.java
 src/main/java/com/stock/harness/execution/limit/HarnessToolCallBudget.java
+src/main/java/com/stock/harness/execution/retry/HarnessToolRetryPolicy.java
 ```
 
 Budget은 사용 횟수를 가지는 Run 전용 객체다. Spring Bean으로 등록하지 않고 `InvestmentHarness.run()`에서 매번 새로 생성하므로 서로 다른 Run이 상태를 공유하지 않는다.
+
+`HarnessToolRetryPolicy`도 Spring Bean으로 등록하지 않는다. Run 제한으로 생성되는 상태 없는 정책 객체이며, 실행 결과와 이미 사용한 재시도 횟수를 받아 재시도 여부만 판단한다.
+
+```text
+result.status == FAILED
+result.reasonCode == TOOL_EXECUTION_FAILED
+usedRetries < maxRetries
+-> 재시도 허용
+```
+
+`TOOL_NOT_SUPPORTED`, 권한 거절, 중복 요청, 요청 및 결과 계약 위반은 같은 호출을 반복해도 해결되지 않으므로 재시도하지 않는다.
 
 `HarnessRunContext`는 `maxSteps`를 직접 들지 않고 `HarnessRunLimits`를 가진다.
 
@@ -977,6 +1000,8 @@ HarnessToolRequest
 -> HarnessStepType.EXECUTE_TOOL_REQUEST
 ```
 
+결과가 `TOOL_EXECUTION_FAILED`이고 재시도 횟수가 남았다면 `CHECK_TOOL_CALL_LIMIT`와 `EXECUTE_TOOL_REQUEST`를 다시 수행한다. 권한과 요청 내용은 이미 확인됐으므로 `VALIDATE_TOOL_REQUEST`, `AUTHORIZE_TOOL_REQUEST`, `CHECK_DUPLICATE_TOOL_REQUEST`는 반복하지 않는다.
+
 권한 판정이 거절되면 Tool 실행기로 넘어가지 않는다. 이 경우 `AUTHORIZE_TOOL_REQUEST`는 `FAILED`로 기록되고, Run은 `RUN_FAILED`로 종료된다.
 
 현재 단계에서 검증할 내용은 다음과 같다.
@@ -1024,6 +1049,8 @@ CHECK_DUPLICATE_TOOL_REQUEST
 CHECK_TOOL_CALL_LIMIT
 EXECUTE_TOOL_REQUEST
 ```
+
+Harness가 실패한 실행을 다시 시도하는 것은 Agent가 같은 요청을 새로 반환한 것이 아니다. 따라서 내부 재시도는 `HarnessToolRequestTracker`를 다시 거치지 않으며 중복 요청으로 차단되지 않는다.
 
 권한이 없는 요청은 중복 여부와 관계없이 먼저 차단한다. 중복 요청은 실제 Tool 실행 전에 차단되므로 Tool Call Budget을 소비하지 않는다.
 
@@ -1170,6 +1197,7 @@ REQUEST_TOOL이면 HarnessToolRequestValidator가 요청 계약을 검증하고 
 권한이 허용되면 HarnessToolRequestTracker로 중복 여부를 확인하고 CHECK_DUPLICATE_TOOL_REQUEST Step을 기록함
 중복 검사를 통과하면 HarnessToolCallBudget을 확인하고 CHECK_TOOL_CALL_LIMIT Step을 기록함
 Tool Call Budget을 통과하면 HarnessToolExecutor로 실행을 시도하고 EXECUTE_TOOL_REQUEST Step을 기록함
+TOOL_EXECUTION_FAILED이고 재시도 횟수가 남으면 Budget 확인과 Tool 실행을 반복함
 HarnessToolExecutor는 GET_PORTFOLIO, GET_MARKET, GET_CURRENT_PRICE 조회 Tool을 실행함
 HarnessToolExecutionResult 모델 있음
 HarnessToolResultValidator가 실행 결과 계약을 검증하고 VALIDATE_TOOL_RESULT Step을 기록함
@@ -1361,6 +1389,12 @@ FAILED
 -> EXECUTE_TOOL_REQUEST Step FAILED
 -> message = Tool 실행 실패 사유
 -> 실패한 HarnessToolExecutionResult를 Run 이력에 저장
+
+TOOL_EXECUTION_FAILED이고 재시도 가능
+-> CHECK_TOOL_CALL_LIMIT와 EXECUTE_TOOL_REQUEST를 다시 수행
+-> 실패한 시도와 후속 시도를 모두 Run 이력에 저장
+
+재시도할 수 없거나 재시도까지 실패
 -> VALIDATE_TOOL_RESULT를 실행하지 않음
 -> Agent를 다시 호출하지 않고 Run 종료
 ```
@@ -1401,12 +1435,14 @@ VALIDATE_AGENT_ACTION
 
 Agent Loop는 `FINAL_DECISION`이 반환되거나 실행 Budget이 소진될 때까지 반복된다. `FINAL_DECISION`이 반환되면 Risk Guard와 Trade Executor 흐름으로 진행한다. Agent Step Budget이 소진되면 다음 Agent 호출 전에 중단하고, Tool Call Budget이 소진되면 다음 Tool 실행 전에 중단한다.
 
-현재 Tool 실행 또는 결과 검증이 실패하면 Harness는 Agent에게 실패 결과를 다시 전달하지 않고 Run을 즉시 실패시킨다. `TOOL_EXECUTION_FAILED`도 자동 재시도하지 않는다. 재시도 가능 여부와 횟수, 대기 시간은 아직 정책으로 정의하지 않았다.
+`TOOL_EXECUTION_FAILED`는 `HarnessToolRetryPolicy`가 허용하는 동안 즉시 재시도한다. 최초 실패 후 재시도에 성공하면 실패한 실행 Step은 `FAILED`로 유지하지만 복구된 실패로 판단해 최종 Run은 `COMPLETED`가 될 수 있다. 실패한 시도와 성공한 시도는 모두 Run 이력에 남고, 최종 성공 결과만 검증 후 Agent Context에 전달한다.
+
+재시도 횟수가 소진되거나 Tool Call Budget이 부족하면 Run을 실패시킨다. 현재는 재시도 사이의 대기 시간과 Backoff를 적용하지 않는다. `TOOL_EXECUTION_FAILED`가 아닌 실행 실패와 결과 계약 검증 실패는 재시도하지 않는다.
 
 이후 판단해야 할 질문은 다음과 같다.
 
 ```text
-1. 일시적인 Tool 실행 실패를 재시도하거나 Agent에게 전달하는 정책이 필요한가?
+1. 재시도 사이에 고정 대기 또는 지수 Backoff를 적용할 것인가?
 2. 논리적인 Tool 호출 횟수와 실제 Broker API 호출 횟수를 별도 Budget으로 관리할 것인가?
 ```
 
@@ -1417,6 +1453,7 @@ Agent Loop는 `FINAL_DECISION`이 반환되거나 실행 Budget이 소진될 때
 ```text
 maxSteps
 maxToolCalls
+maxToolRetries
 ```
 
 `RiskProperties`는 현재 다음 값을 가진다.
@@ -1432,7 +1469,7 @@ maxPositionRatio
 enabled
 ```
 
-`maxSteps`, `maxToolCalls`는 Harness 실행 통제 값이고, `maxOrderRatio`, `maxPositionRatio`는 Risk Guard 정책 값이다.
+`maxSteps`, `maxToolCalls`, `maxToolRetries`는 Harness 실행 통제 값이고, `maxOrderRatio`, `maxPositionRatio`는 Risk Guard 정책 값이다.
 
 `enabled`는 Scheduler가 주기적으로 `InvestmentHarness`를 실행할지 결정하는 Scheduler 실행 설정 값이다.
 
@@ -1442,7 +1479,7 @@ enabled
 
 `harness.scheduler.fixed-delay-ms`는 현재 `@Scheduled(fixedDelayString = "${harness.scheduler.fixed-delay-ms}")` 속성에서 직접 참조한다. `@Scheduled`는 어노테이션 속성으로 스케줄 간격을 받아야 하므로, 이 단계에서는 `fixed-delay-ms`를 별도 record 필드로 옮기지 않는다.
 
-현재 Tool 실행 결과의 계약 검증, Run 결과 포함, JSON 저장, 상세 조회까지 구현되어 있다. `GET_CURRENT_PRICE`는 요청 symbol 필수 검증과 응답 symbol 및 양수 가격 검증까지 포함한다. Tool Service의 `RuntimeException`은 `TOOL_EXECUTION_FAILED` 결과로 변환되어 실행 이력에 저장된다.
+현재 Tool 실행 결과의 계약 검증, Run 결과 포함, JSON 저장, 상세 조회까지 구현되어 있다. `GET_CURRENT_PRICE`는 요청 symbol 필수 검증과 응답 symbol 및 양수 가격 검증까지 포함한다. Tool Service의 `RuntimeException`은 `TOOL_EXECUTION_FAILED` 결과로 변환되어 실행 이력에 저장되고, 설정된 횟수 안에서 재시도된다.
 
 동일 Run의 중복 Tool 요청 차단까지 구현되어 있다.
 
