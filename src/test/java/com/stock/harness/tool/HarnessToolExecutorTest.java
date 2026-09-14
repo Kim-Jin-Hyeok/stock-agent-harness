@@ -49,6 +49,7 @@ class HarnessToolExecutorTest {
 
         assertThat(result.status()).isEqualTo(executedStatus());
         assertThat(result.type()).isEqualTo(HarnessToolType.GET_CURRENT_PRICE);
+        assertThat(result.request()).isEqualTo(HarnessToolRequest.currentPrice("005930"));
         assertThat(result.output().currentPriceSnapshot())
                 .isEqualTo(new CurrentPriceSnapshot("005930", 100_000L));
         assertThat(result.output().portfolioSnapshot()).isNull();
@@ -67,6 +68,7 @@ class HarnessToolExecutorTest {
 
         assertThat(result.status()).isEqualTo(HarnessToolExecutionStatus.FAILED);
         assertThat(result.type()).isEqualTo(HarnessToolType.GET_CURRENT_PRICE);
+        assertThat(result.request()).isEqualTo(HarnessToolRequest.currentPrice("005930"));
         assertThat(result.reasonCode()).isEqualTo(
                 HarnessToolExecutionReasonCode.TOOL_EXECUTION_FAILED
         );

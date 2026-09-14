@@ -13,7 +13,8 @@ public record HarnessToolExecutionSnapshot(
         String reason,
         HarnessPortfolioSnapshot portfolioSnapshot,
         HarnessMarketSnapshot marketSnapshot,
-        HarnessCurrentPriceSnapshot currentPriceSnapshot
+        HarnessCurrentPriceSnapshot currentPriceSnapshot,
+        HarnessToolRequestSnapshot request
 ) {
     public HarnessToolExecutionSnapshot(
             HarnessToolExecutionStatus status,
@@ -23,7 +24,28 @@ public record HarnessToolExecutionSnapshot(
             HarnessPortfolioSnapshot portfolioSnapshot,
             HarnessMarketSnapshot marketSnapshot
     ) {
-        this(status, type, reasonCode, reason, portfolioSnapshot, marketSnapshot, null);
+        this(status, type, reasonCode, reason, portfolioSnapshot, marketSnapshot, null, null);
+    }
+
+    public HarnessToolExecutionSnapshot(
+            HarnessToolExecutionStatus status,
+            HarnessToolType type,
+            HarnessToolExecutionReasonCode reasonCode,
+            String reason,
+            HarnessPortfolioSnapshot portfolioSnapshot,
+            HarnessMarketSnapshot marketSnapshot,
+            HarnessCurrentPriceSnapshot currentPriceSnapshot
+    ) {
+        this(
+                status,
+                type,
+                reasonCode,
+                reason,
+                portfolioSnapshot,
+                marketSnapshot,
+                currentPriceSnapshot,
+                null
+        );
     }
 
     public static HarnessToolExecutionSnapshot from(HarnessToolExecutionResult result) {
@@ -51,7 +73,10 @@ public record HarnessToolExecutionSnapshot(
                 result.reason(),
                 portfolioSnapshot,
                 marketSnapshot,
-                currentPriceSnapshot
+                currentPriceSnapshot,
+                result.request() == null
+                        ? null
+                        : HarnessToolRequestSnapshot.from(result.request())
         );
     }
 }

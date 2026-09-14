@@ -17,12 +17,15 @@ public class HarnessToolExecutor {
         try {
             return switch (request.type()) {
                 case GET_PORTFOLIO -> HarnessToolExecutionResult.executed(
+                        request,
                         HarnessToolOutput.portfolio(portfolioService.getCurrentSnapshot())
                 );
                 case GET_MARKET -> HarnessToolExecutionResult.executed(
+                        request,
                         HarnessToolOutput.market(marketService.getCurrentSnapshot())
                 );
                 case GET_CURRENT_PRICE -> HarnessToolExecutionResult.executed(
+                        request,
                         HarnessToolOutput.currentPrice(
                                 currentPriceService.getCurrentPrice(request.symbol())
                         )
@@ -30,7 +33,7 @@ public class HarnessToolExecutor {
             };
         } catch (RuntimeException e) {
             return HarnessToolExecutionResult.executionFailed(
-                    request.type(),
+                    request,
                     e.getMessage()
             );
         }

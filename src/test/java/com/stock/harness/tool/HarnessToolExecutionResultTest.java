@@ -15,6 +15,7 @@ class HarnessToolExecutionResultTest {
 
         assertThat(result.status()).isEqualTo(executedStatus());
         assertThat(result.type()).isEqualTo(HarnessToolType.GET_PORTFOLIO);
+        assertThat(result.request()).isEqualTo(HarnessToolRequest.portfolio());
         assertThat(result.reasonCode()).isEqualTo(toolExecutedReasonCode());
         assertThat(result.reason()).isEqualTo(toolExecutedReason());
         assertThat(result.output()).isEqualTo(portfolioToolOutput());
@@ -34,12 +35,13 @@ class HarnessToolExecutionResultTest {
     @Test
     void executionFailedCreatesFailedResult() {
         HarnessToolExecutionResult result = HarnessToolExecutionResult.executionFailed(
-                HarnessToolType.GET_CURRENT_PRICE,
+                HarnessToolRequest.currentPrice("005930"),
                 "Broker timeout"
         );
 
         assertThat(result.status()).isEqualTo(HarnessToolExecutionStatus.FAILED);
         assertThat(result.type()).isEqualTo(HarnessToolType.GET_CURRENT_PRICE);
+        assertThat(result.request()).isEqualTo(HarnessToolRequest.currentPrice("005930"));
         assertThat(result.reasonCode()).isEqualTo(
                 HarnessToolExecutionReasonCode.TOOL_EXECUTION_FAILED
         );

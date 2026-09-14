@@ -4,6 +4,7 @@ import com.stock.harness.tool.HarnessToolExecutionReasonCode;
 import com.stock.harness.tool.HarnessToolExecutionResult;
 import com.stock.harness.tool.HarnessToolExecutionStatus;
 import com.stock.harness.tool.HarnessToolOutput;
+import com.stock.harness.tool.HarnessToolRequest;
 import com.stock.harness.tool.HarnessToolType;
 import com.stock.market.MarketSnapshot;
 import com.stock.market.price.CurrentPriceSnapshot;
@@ -56,11 +57,15 @@ class HarnessToolExecutionSnapshotTest {
 
         HarnessToolExecutionSnapshot snapshot = HarnessToolExecutionSnapshot.from(
                 HarnessToolExecutionResult.executed(
+                        HarnessToolRequest.currentPrice("005930"),
                         HarnessToolOutput.currentPrice(currentPrice)
                 )
         );
 
         assertThat(snapshot.type()).isEqualTo(HarnessToolType.GET_CURRENT_PRICE);
+        assertThat(snapshot.request()).isEqualTo(
+                new HarnessToolRequestSnapshot(HarnessToolType.GET_CURRENT_PRICE, "005930")
+        );
         assertThat(snapshot.currentPriceSnapshot()).isEqualTo(
                 HarnessCurrentPriceSnapshot.from(currentPrice)
         );
@@ -71,12 +76,18 @@ class HarnessToolExecutionSnapshotTest {
     @Test
     void fromHandlesExecutionResultWithoutOutput() {
         HarnessToolExecutionSnapshot snapshot = HarnessToolExecutionSnapshot.from(
-                HarnessToolExecutionResult.notSupported(HarnessToolType.GET_MARKET)
+                HarnessToolExecutionResult.executionFailed(
+                        HarnessToolRequest.currentPrice("005930"),
+                        "Broker timeout"
+                )
         );
 
         assertThat(snapshot.status()).isEqualTo(HarnessToolExecutionStatus.FAILED);
-        assertThat(snapshot.type()).isEqualTo(HarnessToolType.GET_MARKET);
-        assertThat(snapshot.reasonCode()).isEqualTo(HarnessToolExecutionReasonCode.TOOL_NOT_SUPPORTED);
+        assertThat(snapshot.type()).isEqualTo(HarnessToolType.GET_CURRENT_PRICE);
+        assertThat(snapshot.reasonCode()).isEqualTo(HarnessToolExecutionReasonCode.TOOL_EXECUTION_FAILED);
+        assertThat(snapshot.request()).isEqualTo(
+                new HarnessToolRequestSnapshot(HarnessToolType.GET_CURRENT_PRICE, "005930")
+        );
         assertThat(snapshot.portfolioSnapshot()).isNull();
         assertThat(snapshot.marketSnapshot()).isNull();
     }

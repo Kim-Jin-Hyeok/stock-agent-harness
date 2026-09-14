@@ -322,7 +322,7 @@ public class InvestmentHarness {
 
             if (authorizationResult.status() != HarnessToolAuthorizationStatus.ALLOWED) {
                 HarnessToolExecutionResult executionResult = HarnessToolExecutionResult.authorizationDenied(
-                        authorizationResult.type()
+                        action.toolRequest()
                 );
                 recordedToolResults.add(executionResult);
 
@@ -414,7 +414,7 @@ public class InvestmentHarness {
     ) {
         if (!toolRequestTracker.tryRegister(request)) {
             HarnessToolExecutionResult executionResult =
-                    HarnessToolExecutionResult.duplicateRequest(request.type());
+                    HarnessToolExecutionResult.duplicateRequest(request);
             recordedToolResults.add(executionResult);
 
             String message = executionResult.reason() + " type=" + request.type();

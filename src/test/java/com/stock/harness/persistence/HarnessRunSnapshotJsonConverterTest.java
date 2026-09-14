@@ -116,7 +116,11 @@ class HarnessRunSnapshotJsonConverterTest {
                         "Harness tool execution completed.",
                         null,
                         null,
-                        new HarnessCurrentPriceSnapshot("005930", 70_000L)
+                        new HarnessCurrentPriceSnapshot("005930", 70_000L),
+                        new HarnessToolRequestSnapshot(
+                                HarnessToolType.GET_CURRENT_PRICE,
+                                "005930"
+                        )
                 )
         );
 
@@ -131,6 +135,9 @@ class HarnessRunSnapshotJsonConverterTest {
                         HarnessToolType.GET_MARKET,
                         HarnessToolType.GET_CURRENT_PRICE
                 );
+        assertThat(restored.getLast().request()).isEqualTo(
+                new HarnessToolRequestSnapshot(HarnessToolType.GET_CURRENT_PRICE, "005930")
+        );
     }
 
     private HarnessDecisionSnapshot decisionSnapshot() {

@@ -78,6 +78,7 @@ class HarnessControllerTest {
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.toolResults[0].status").value("EXECUTED"))
                 .andExpect(jsonPath("$.toolResults[0].type").value("GET_PORTFOLIO"))
+                .andExpect(jsonPath("$.toolResults[0].request.type").value("GET_PORTFOLIO"))
                 .andExpect(jsonPath("$.toolResults[0].reasonCode").value("TOOL_EXECUTED"))
                 .andExpect(jsonPath("$.toolResults[0].output.portfolioSnapshot.cashAmountKrw")
                         .value(9_300_000L))

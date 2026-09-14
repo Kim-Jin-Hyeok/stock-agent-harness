@@ -793,6 +793,7 @@ class InvestmentHarnessTest {
                 .satisfies(toolResult -> {
                     assertThat(toolResult.status()).isEqualTo(HarnessToolExecutionStatus.FAILED);
                     assertThat(toolResult.type()).isEqualTo(HarnessToolType.GET_PORTFOLIO);
+                    assertThat(toolResult.request()).isEqualTo(HarnessToolRequest.portfolio());
                     assertThat(toolResult.reasonCode()).isEqualTo(
                             HarnessToolExecutionReasonCode.TOOL_AUTHORIZATION_DENIED
                     );
@@ -843,10 +844,11 @@ class InvestmentHarnessTest {
         when(retryingExecutor.execute(any()))
                 .thenReturn(
                         HarnessToolExecutionResult.executionFailed(
-                                HarnessToolType.GET_PORTFOLIO,
+                                HarnessToolRequest.portfolio(),
                                 "Broker timeout"
                         ),
                         HarnessToolExecutionResult.executed(
+                                HarnessToolRequest.portfolio(),
                                 HarnessToolOutput.portfolio(portfolioService.getCurrentSnapshot())
                         )
                 );
@@ -883,6 +885,12 @@ class InvestmentHarnessTest {
                                 HarnessToolExecutionReasonCode.TOOL_EXECUTED
                         )
                 );
+        assertThat(result.toolResults())
+                .extracting(HarnessToolExecutionResult::request)
+                .containsExactly(
+                        HarnessToolRequest.portfolio(),
+                        HarnessToolRequest.portfolio()
+                );
         assertThat(result.steps())
                 .extracting(HarnessStepResult::type)
                 .filteredOn(HarnessStepType.CHECK_TOOL_CALL_LIMIT::equals)
@@ -906,7 +914,7 @@ class InvestmentHarnessTest {
         HarnessToolExecutor failingExecutor = mock(HarnessToolExecutor.class);
         when(failingExecutor.execute(any())).thenReturn(
                 HarnessToolExecutionResult.executionFailed(
-                        HarnessToolType.GET_PORTFOLIO,
+                        HarnessToolRequest.portfolio(),
                         "Broker timeout"
                 )
         );
@@ -1086,6 +1094,12 @@ class InvestmentHarnessTest {
                                 HarnessToolExecutionStatus.SKIPPED,
                                 HarnessToolExecutionReasonCode.DUPLICATE_TOOL_REQUEST
                         )
+                );
+        assertThat(result.toolResults())
+                .extracting(HarnessToolExecutionResult::request)
+                .containsExactly(
+                        HarnessToolRequest.portfolio(),
+                        HarnessToolRequest.portfolio()
                 );
     }
 
