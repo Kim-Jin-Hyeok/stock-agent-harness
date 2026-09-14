@@ -26,6 +26,7 @@ import com.stock.harness.tool.validation.HarnessToolResultValidationReasonCode;
 import com.stock.harness.tool.validation.HarnessToolResultValidator;
 import com.stock.market.MarketService;
 import com.stock.market.price.CurrentPriceService;
+import com.stock.market.price.provider.FixedCurrentPriceProvider;
 import com.stock.portfolio.PortfolioPosition;
 import com.stock.portfolio.PortfolioService;
 import com.stock.portfolio.PortfolioSnapshotStore;
@@ -75,7 +76,9 @@ class InvestmentHarnessTest {
             tradeHistoryService
     );
     private final MarketService marketService = new MarketService();
-    private final CurrentPriceService currentPriceService = new CurrentPriceService();
+    private final CurrentPriceService currentPriceService = new CurrentPriceService(
+            new FixedCurrentPriceProvider()
+    );
     private final HarnessRunHistoryService harnessRunHistoryService = new HarnessRunHistoryService(
             harnessRunSnapshotJsonConverter,
             harnessRunRepository,

@@ -1,12 +1,15 @@
 package com.stock.market.price;
 
+import com.stock.market.price.provider.CurrentPriceProvider;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class CurrentPriceService {
-    private static final long FIXED_CURRENT_PRICE_KRW = 100_000L;
+    private final CurrentPriceProvider currentPriceProvider;
 
     public CurrentPriceSnapshot getCurrentPrice(String symbol) {
-        return new CurrentPriceSnapshot(symbol, FIXED_CURRENT_PRICE_KRW);
+        return currentPriceProvider.getCurrentPrice(symbol);
     }
 }

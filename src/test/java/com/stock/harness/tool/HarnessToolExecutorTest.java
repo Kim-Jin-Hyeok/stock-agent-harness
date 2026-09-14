@@ -4,6 +4,7 @@ import com.stock.market.MarketService;
 import com.stock.market.MarketSnapshot;
 import com.stock.market.price.CurrentPriceService;
 import com.stock.market.price.CurrentPriceSnapshot;
+import com.stock.market.price.provider.FixedCurrentPriceProvider;
 import com.stock.portfolio.PortfolioService;
 import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.portfolio.PortfolioSnapshotStore;
@@ -89,7 +90,7 @@ class HarnessToolExecutorTest {
     }
 
     private CurrentPriceService currentPriceService() {
-        return new CurrentPriceService();
+        return new CurrentPriceService(new FixedCurrentPriceProvider());
     }
 
     private PortfolioService portfolioService() {
