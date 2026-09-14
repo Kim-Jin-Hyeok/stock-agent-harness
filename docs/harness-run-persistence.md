@@ -1304,7 +1304,7 @@ Tool Service 호출 중 `RuntimeException`이 발생하면 `HarnessToolExecutor`
 
 현재는 원래 예외 메시지를 실패 결과의 `reason`에 포함한다. 실제 Broker API 연동 후에는 인증정보나 외부 응답의 민감한 값이 이 메시지에 포함되지 않도록 저장 가능한 메시지로 정제하는 정책이 필요하다.
 
-현재 `CurrentPriceService`는 요청한 symbol의 캐시를 먼저 조회한다. TTL 안의 값이 있으면 Provider를 호출하지 않고 캐시 값을 반환하고, 캐시가 없거나 만료됐으면 `CurrentPriceProvider`를 호출한 뒤 정상 반환된 결과를 캐시에 저장한다.
+현재 `CurrentPriceService`는 요청한 symbol의 캐시를 먼저 조회한다. TTL 안의 값이 있으면 Provider를 호출하지 않고 캐시 값을 반환하고, 캐시가 없거나 만료됐으면 `CurrentPriceProvider`를 호출한 뒤 캐시에 저장할 수 있는 결과인지 확인한다.
 
 ```text
 src/main/java/com/stock/market/price/CurrentPriceService.java
@@ -1324,10 +1324,26 @@ HarnessToolExecutor
 -> CurrentPriceCache 조회
 -> 캐시 적중이면 CurrentPriceSnapshot 반환
 -> 캐시 미스 또는 만료면 CurrentPriceProvider 호출
--> Provider 결과를 캐시에 저장하고 반환
+-> Provider 결과의 캐시 저장 가능 여부 확인
+-> 저장 가능하면 캐시에 저장
+-> 저장할 수 없어도 결과 자체는 HarnessToolExecutor로 반환
 ```
 
 `CurrentPriceCache`는 `ConcurrentHashMap`을 사용하는 인메모리 캐시다. 요청 symbol을 키로 사용하므로 종목별 현재가가 분리된다. 캐시 Entry에는 `CurrentPriceSnapshot`과 저장 시각을 함께 보관한다.
+
+`CurrentPriceService`는 Provider 결과가 다음 조건을 모두 만족할 때만 캐시에 저장한다.
+
+```text
+CurrentPriceSnapshot이 null이 아님
+요청 symbol과 응답 symbol이 같음
+priceKrw가 0보다 큼
+```
+
+조건을 만족하지 않는 결과는 캐시에 저장하지 않지만 Service에서 예외로 바꾸지도 않는다. 결과 자체는 `HarnessToolExecutor`를 거쳐 `HarnessToolResultValidator`에 전달되며, Harness가 `OUTPUT_PAYLOAD_MISSING`, `OUTPUT_SYMBOL_MISMATCH`, `OUTPUT_PRICE_INVALID`와 같은 구체적인 계약 위반 사유를 결정한다.
+
+Service와 Harness가 비슷한 조건을 확인하지만 목적은 다르다. Service의 검사는 잘못된 Provider 응답이 TTL 동안 반복 반환되는 캐시 오염을 막는다. Harness의 검사는 해당 Tool 결과를 Agent Context에 전달해도 되는지 판정하고 Run 이력에 결정적인 실패 사유를 남긴다.
+
+유효하지 않은 결과를 캐시에 저장하지 않으므로 다음 조회는 다시 캐시 미스가 되고 Provider를 다시 호출할 수 있다.
 
 TTL은 `market.current-price.cache.ttl`로 설정하며 현재 기본 실행 설정은 `30s`다. 저장 시각에 TTL을 더한 시각과 현재 시각이 같아지는 순간부터 만료로 처리한다. 만료된 Entry는 조회 시 제거하고 Provider를 다시 호출한다.
 
