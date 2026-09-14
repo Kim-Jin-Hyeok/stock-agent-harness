@@ -1214,6 +1214,7 @@ SKIPPED
 
 ```text
 TOOL_EXECUTED
+TOOL_EXECUTION_FAILED
 TOOL_NOT_SUPPORTED
 TOOL_AUTHORIZATION_DENIED
 DUPLICATE_TOOL_REQUEST
@@ -1228,6 +1229,13 @@ HarnessToolExecutionResult.executed(output)
 -> reasonCode = TOOL_EXECUTED
 -> reason = Harness tool execution completed.
 -> output = Tool 조회 결과
+
+HarnessToolExecutionResult.executionFailed(type, cause)
+-> status = FAILED
+-> type = 요청한 Tool 타입
+-> reasonCode = TOOL_EXECUTION_FAILED
+-> reason = Tool execution failed. cause={예외 메시지}
+-> output = null
 
 HarnessToolExecutionResult.notSupported(type)
 -> status = FAILED
@@ -1248,6 +1256,10 @@ HarnessToolExecutionResult.duplicateRequest(type)
 이 모델은 `HarnessToolExecutor`가 Tool 실행 결과를 Harness에 돌려줄 때 사용하는 값 객체다.
 
 현재 `HarnessToolExecutor`는 `GET_PORTFOLIO` 요청에 `PortfolioSnapshot`을, `GET_MARKET` 요청에 `MarketSnapshot`을 담은 실행 결과를 반환한다. `GET_CURRENT_PRICE` 요청은 symbol을 `CurrentPriceService`에 전달하고 `CurrentPriceSnapshot`을 반환한다.
+
+Tool Service 호출 중 `RuntimeException`이 발생하면 `HarnessToolExecutor`는 예외를 그대로 전파하지 않고 `TOOL_EXECUTION_FAILED` 결과로 변환한다. Tool별 Service가 각자 실패 결과를 만드는 대신 Tool 실행 경계에서 동일한 실패 계약을 적용하기 위한 구조다.
+
+현재는 원래 예외 메시지를 실패 결과의 `reason`에 포함한다. 실제 Broker API 연동 후에는 인증정보나 외부 응답의 민감한 값이 이 메시지에 포함되지 않도록 저장 가능한 메시지로 정제하는 정책이 필요하다.
 
 현재 `CurrentPriceService`는 Broker API 연동 전 Harness 흐름을 검증하기 위한 고정 로컬 가격을 반환한다. 따라서 이 결과를 실제 시장 가격으로 사용해서는 안 된다.
 
@@ -1308,7 +1320,7 @@ OUTPUT_PRICE_INVALID
 
 현재가 결과는 payload 존재, symbol 일치, 가격 유효성 순서로 검증한다. 여러 오류가 동시에 있으면 먼저 발견된 계약 위반 하나를 반환해 실패 이유를 결정적으로 유지한다.
 
-Tool 실행 상태가 `EXECUTED`일 때만 `VALIDATE_TOOL_RESULT` 단계로 진행한다. 실행 자체가 실패하면 실행 실패 결과를 이력에 남기고 검증 전 Run을 종료한다.
+Tool 실행 상태가 `EXECUTED`일 때만 `VALIDATE_TOOL_RESULT` 단계로 진행한다. 실행 자체가 실패하면 실행 실패 결과를 `HarnessRunResult.toolResults`와 Run 상세 이력에 남기고 검증 전 Run을 종료한다.
 
 계약 검증이 실패하면 `VALIDATE_TOOL_RESULT` Step을 `FAILED`로 기록하고 Run을 종료한다. 이때 원래 Tool 실행 결과는 Run 이력에 남지만 Agent Context에는 추가하지 않으므로, Agent가 잘못된 결과를 근거로 다시 판단하지 않는다.
 
@@ -1348,6 +1360,9 @@ EXECUTED
 FAILED
 -> EXECUTE_TOOL_REQUEST Step FAILED
 -> message = Tool 실행 실패 사유
+-> 실패한 HarnessToolExecutionResult를 Run 이력에 저장
+-> VALIDATE_TOOL_RESULT를 실행하지 않음
+-> Agent를 다시 호출하지 않고 Run 종료
 ```
 
 현재 `HarnessToolExecutor`는 `GET_PORTFOLIO`, `GET_MARKET`, `GET_CURRENT_PRICE` 조회 Tool을 실행한다. Tool 실행에 성공하면 이력에는 다음처럼 남는다.
@@ -1386,7 +1401,7 @@ VALIDATE_AGENT_ACTION
 
 Agent Loop는 `FINAL_DECISION`이 반환되거나 실행 Budget이 소진될 때까지 반복된다. `FINAL_DECISION`이 반환되면 Risk Guard와 Trade Executor 흐름으로 진행한다. Agent Step Budget이 소진되면 다음 Agent 호출 전에 중단하고, Tool Call Budget이 소진되면 다음 Tool 실행 전에 중단한다.
 
-현재 Tool 실행 또는 결과 검증이 실패하면 Harness는 Agent에게 실패 결과를 다시 전달하지 않고 Run을 즉시 실패시킨다.
+현재 Tool 실행 또는 결과 검증이 실패하면 Harness는 Agent에게 실패 결과를 다시 전달하지 않고 Run을 즉시 실패시킨다. `TOOL_EXECUTION_FAILED`도 자동 재시도하지 않는다. 재시도 가능 여부와 횟수, 대기 시간은 아직 정책으로 정의하지 않았다.
 
 이후 판단해야 할 질문은 다음과 같다.
 
@@ -1427,7 +1442,7 @@ enabled
 
 `harness.scheduler.fixed-delay-ms`는 현재 `@Scheduled(fixedDelayString = "${harness.scheduler.fixed-delay-ms}")` 속성에서 직접 참조한다. `@Scheduled`는 어노테이션 속성으로 스케줄 간격을 받아야 하므로, 이 단계에서는 `fixed-delay-ms`를 별도 record 필드로 옮기지 않는다.
 
-현재 Tool 실행 결과의 계약 검증, Run 결과 포함, JSON 저장, 상세 조회까지 구현되어 있다. `GET_CURRENT_PRICE`는 요청 symbol 필수 검증과 응답 symbol 및 양수 가격 검증까지 포함한다.
+현재 Tool 실행 결과의 계약 검증, Run 결과 포함, JSON 저장, 상세 조회까지 구현되어 있다. `GET_CURRENT_PRICE`는 요청 symbol 필수 검증과 응답 symbol 및 양수 가격 검증까지 포함한다. Tool Service의 `RuntimeException`은 `TOOL_EXECUTION_FAILED` 결과로 변환되어 실행 이력에 저장된다.
 
 동일 Run의 중복 Tool 요청 차단까지 구현되어 있다.
 
