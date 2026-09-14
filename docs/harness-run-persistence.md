@@ -104,7 +104,7 @@ toolExecutionSnapshotsJson
 
 `marketSnapshotJson`은 Agent가 판단할 때 참조한 시장 상태를 저장한다.
 
-`toolExecutionSnapshotsJson`은 Run에서 발생한 Tool 실행 결과를 호출 순서대로 저장한다. 신규 Run에서 Tool 호출이 없으면 빈 JSON 배열을 저장하고, 저장 기능 추가 전 데이터처럼 값이 `null`이면 조회할 때 빈 목록으로 복원한다. Tool 출력은 커질 수 있으므로 이 필드는 `@Lob`으로 관리한다.
+`toolExecutionSnapshotsJson`은 Run에서 발생한 Tool 실행 결과를 호출 순서대로 저장한다. 각 실행 결과에는 원본 Tool 요청도 포함하므로 출력이 없는 실패나 차단 결과에서도 어떤 입력으로 실행을 시도했는지 확인할 수 있다. 신규 Run에서 Tool 호출이 없으면 빈 JSON 배열을 저장하고, 저장 기능 추가 전 데이터처럼 값이 `null`이면 조회할 때 빈 목록으로 복원한다. Tool 출력은 커질 수 있으므로 이 필드는 `@Lob`으로 관리한다.
 
 이 값들은 현재 단계에서 조건 검색이나 통계 집계보다 Run 상세 확인 목적이 강하다. 그래서 별도 Entity로 분리하지 않고 JSON 문자열로 저장한다.
 
@@ -197,6 +197,7 @@ description
 
 ```text
 src/main/java/com/stock/harness/persistence/HarnessToolExecutionSnapshot.java
+src/main/java/com/stock/harness/persistence/HarnessToolRequestSnapshot.java
 ```
 
 현재 필드:
@@ -209,11 +210,16 @@ reason
 portfolioSnapshot
 marketSnapshot
 currentPriceSnapshot
+request
 ```
 
 이 객체는 JPA Entity가 아니라 `HarnessToolExecutionResult`를 JSON으로 저장하기 위한 영속화 스냅샷이다.
 
 Tool 출력은 타입에 따라 `HarnessPortfolioSnapshot`, `HarnessMarketSnapshot`, `HarnessCurrentPriceSnapshot`으로 변환한다. 권한 거절이나 실행 실패처럼 출력이 없는 결과도 상태와 사유를 보존할 수 있도록 출력 필드는 null을 허용한다.
+
+`request`는 런타임의 `HarnessToolRequest`를 `HarnessToolRequestSnapshot`으로 변환한 값이다. 현재는 `type`과 `symbol`을 저장하며, 실행 성공 여부와 관계없이 원본 요청을 남긴다. 따라서 `GET_CURRENT_PRICE` 실행이 실패해 `currentPriceSnapshot`이 null이어도 요청한 symbol을 확인할 수 있다.
+
+기존 최상위 `type`은 API와 저장 데이터 계약의 호환성을 위해 유지한다. 신규 실행 결과에서는 `type`과 `request.type`이 같도록 팩토리 메서드가 생성한다. 원본 요청 저장 기능 추가 전에 생성된 JSON에는 `request` 필드가 없으므로 역직렬화 결과가 null일 수 있다.
 
 `HarnessCurrentPriceSnapshot`은 현재가 조회 당시의 종목 코드와 가격을 저장한다.
 
@@ -1218,6 +1224,7 @@ Tool Calling 기반 Agent Loop 있음
 src/main/java/com/stock/harness/tool/HarnessToolExecutionResult.java
 src/main/java/com/stock/harness/tool/HarnessToolExecutionStatus.java
 src/main/java/com/stock/harness/tool/HarnessToolExecutionReasonCode.java
+src/main/java/com/stock/harness/tool/HarnessToolRequest.java
 ```
 
 현재 필드는 다음과 같다.
@@ -1225,6 +1232,7 @@ src/main/java/com/stock/harness/tool/HarnessToolExecutionReasonCode.java
 ```text
 status
 type
+request
 reasonCode
 reason
 output
@@ -1251,37 +1259,44 @@ DUPLICATE_TOOL_REQUEST
 현재 생성 흐름은 다음과 같다.
 
 ```text
-HarnessToolExecutionResult.executed(output)
+HarnessToolExecutionResult.executed(request, output)
 -> status = EXECUTED
--> type = output.type
+-> type = request.type
+-> request = 원본 Tool 요청
 -> reasonCode = TOOL_EXECUTED
 -> reason = Harness tool execution completed.
 -> output = Tool 조회 결과
 
-HarnessToolExecutionResult.executionFailed(type, cause)
+HarnessToolExecutionResult.executionFailed(request, cause)
 -> status = FAILED
--> type = 요청한 Tool 타입
+-> type = request.type
+-> request = 원본 Tool 요청
 -> reasonCode = TOOL_EXECUTION_FAILED
 -> reason = Tool execution failed. cause={예외 메시지}
 -> output = null
 
-HarnessToolExecutionResult.notSupported(type)
+HarnessToolExecutionResult.notSupported(request)
 -> status = FAILED
+-> request = 원본 Tool 요청
 -> reasonCode = TOOL_NOT_SUPPORTED
 -> reason = Tool execution is not supported yet.
 
-HarnessToolExecutionResult.authorizationDenied(type)
+HarnessToolExecutionResult.authorizationDenied(request)
 -> status = FAILED
+-> request = 원본 Tool 요청
 -> reasonCode = TOOL_AUTHORIZATION_DENIED
 -> reason = Tool authorization denied.
 
-HarnessToolExecutionResult.duplicateRequest(type)
+HarnessToolExecutionResult.duplicateRequest(request)
 -> status = SKIPPED
+-> request = 원본 Tool 요청
 -> reasonCode = DUPLICATE_TOOL_REQUEST
 -> reason = Duplicate tool request was skipped.
 ```
 
 이 모델은 `HarnessToolExecutor`가 Tool 실행 결과를 Harness에 돌려줄 때 사용하는 값 객체다.
+
+`type`과 `request.type`은 현재 중복되지만 역할이 다르다. 최상위 `type`은 기존 API 응답과 조회 코드의 호환성을 유지하고, `request`는 symbol을 포함한 실제 입력 전체를 보존한다. 기존 호출부를 위한 type 기반 오버로드도 남아 있지만, 실제 Harness 실행 경로는 원본 요청이 유실되지 않도록 request 기반 팩토리를 사용한다.
 
 현재 `HarnessToolExecutor`는 `GET_PORTFOLIO` 요청에 `PortfolioSnapshot`을, `GET_MARKET` 요청에 `MarketSnapshot`을 담은 실행 결과를 반환한다. `GET_CURRENT_PRICE` 요청은 symbol을 `CurrentPriceService`에 전달하고 `CurrentPriceSnapshot`을 반환한다.
 
@@ -1435,7 +1450,7 @@ VALIDATE_AGENT_ACTION
 
 Agent Loop는 `FINAL_DECISION`이 반환되거나 실행 Budget이 소진될 때까지 반복된다. `FINAL_DECISION`이 반환되면 Risk Guard와 Trade Executor 흐름으로 진행한다. Agent Step Budget이 소진되면 다음 Agent 호출 전에 중단하고, Tool Call Budget이 소진되면 다음 Tool 실행 전에 중단한다.
 
-`TOOL_EXECUTION_FAILED`는 `HarnessToolRetryPolicy`가 허용하는 동안 즉시 재시도한다. 최초 실패 후 재시도에 성공하면 실패한 실행 Step은 `FAILED`로 유지하지만 복구된 실패로 판단해 최종 Run은 `COMPLETED`가 될 수 있다. 실패한 시도와 성공한 시도는 모두 Run 이력에 남고, 최종 성공 결과만 검증 후 Agent Context에 전달한다.
+`TOOL_EXECUTION_FAILED`는 `HarnessToolRetryPolicy`가 허용하는 동안 즉시 재시도한다. 최초 실패 후 재시도에 성공하면 실패한 실행 Step은 `FAILED`로 유지하지만 복구된 실패로 판단해 최종 Run은 `COMPLETED`가 될 수 있다. 실패한 시도와 성공한 시도는 모두 동일한 원본 `HarnessToolRequest`와 함께 Run 이력에 남고, 최종 성공 결과만 검증 후 Agent Context에 전달한다.
 
 재시도 횟수가 소진되거나 Tool Call Budget이 부족하면 Run을 실패시킨다. 현재는 재시도 사이의 대기 시간과 Backoff를 적용하지 않는다. `TOOL_EXECUTION_FAILED`가 아닌 실행 실패와 결과 계약 검증 실패는 재시도하지 않는다.
 
@@ -1479,7 +1494,7 @@ enabled
 
 `harness.scheduler.fixed-delay-ms`는 현재 `@Scheduled(fixedDelayString = "${harness.scheduler.fixed-delay-ms}")` 속성에서 직접 참조한다. `@Scheduled`는 어노테이션 속성으로 스케줄 간격을 받아야 하므로, 이 단계에서는 `fixed-delay-ms`를 별도 record 필드로 옮기지 않는다.
 
-현재 Tool 실행 결과의 계약 검증, Run 결과 포함, JSON 저장, 상세 조회까지 구현되어 있다. `GET_CURRENT_PRICE`는 요청 symbol 필수 검증과 응답 symbol 및 양수 가격 검증까지 포함한다. Tool Service의 `RuntimeException`은 `TOOL_EXECUTION_FAILED` 결과로 변환되어 실행 이력에 저장되고, 설정된 횟수 안에서 재시도된다.
+현재 Tool 실행 결과의 계약 검증, Run 결과 포함, JSON 저장, 상세 조회까지 구현되어 있다. 각 실행 결과는 원본 Tool 요청을 함께 보존하므로 출력이 없는 실패, 권한 거절, 중복 차단 결과에서도 요청 타입과 symbol을 확인할 수 있다. `GET_CURRENT_PRICE`는 요청 symbol 필수 검증과 응답 symbol 및 양수 가격 검증까지 포함한다. Tool Service의 `RuntimeException`은 `TOOL_EXECUTION_FAILED` 결과로 변환되어 실행 이력에 저장되고, 설정된 횟수 안에서 같은 원본 요청으로 재시도된다.
 
 동일 Run의 중복 Tool 요청 차단까지 구현되어 있다.
 
