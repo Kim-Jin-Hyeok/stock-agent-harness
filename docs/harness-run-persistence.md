@@ -1324,7 +1324,7 @@ Tool Service 호출 중 `RuntimeException`이 발생하면 `HarnessToolExecutor`
 
 현재는 원래 예외 메시지를 실패 결과의 `reason`에 포함한다. 실제 Broker API 연동 후에는 인증정보나 외부 응답의 민감한 값이 이 메시지에 포함되지 않도록 저장 가능한 메시지로 정제하는 정책이 필요하다.
 
-현재 `CurrentPriceService`는 요청한 symbol의 캐시를 먼저 조회한다. TTL 안의 값이 있으면 Provider를 호출하지 않고 캐시 값을 반환하고, 캐시가 없거나 만료됐으면 `CurrentPriceProvider`를 호출한 뒤 캐시에 저장할 수 있는 결과인지 확인한다.
+현재 `CurrentPriceService`는 요청한 symbol의 캐시를 먼저 조회한다. TTL과 시장 데이터 신선도 조건을 모두 만족하는 값이 있으면 Provider를 호출하지 않고 캐시 값을 반환한다. 캐시가 없거나 둘 중 하나라도 만료됐으면 `CurrentPriceProvider`를 호출한 뒤 캐시에 저장할 수 있는 결과인지 확인한다.
 
 ```text
 src/main/java/com/stock/market/price/CurrentPriceService.java
@@ -1337,6 +1337,8 @@ src/main/java/com/stock/market/price/lookup/CurrentPriceLookupSource.java
 src/main/java/com/stock/market/price/provider/CurrentPriceProvider.java
 src/main/java/com/stock/market/price/provider/CurrentPriceProviderCallGuard.java
 src/main/java/com/stock/market/price/provider/FixedCurrentPriceProvider.java
+src/main/java/com/stock/market/price/validation/CurrentPriceFreshnessPolicy.java
+src/main/java/com/stock/market/price/validation/CurrentPriceFreshnessProperties.java
 ```
 
 현재 조회 흐름은 다음과 같다.
@@ -1346,7 +1348,7 @@ HarnessToolExecutor
 -> CurrentPriceService
 -> CurrentPriceCache 조회
 -> 캐시 적중이면 CurrentPriceLookupResult(snapshot, CACHE) 반환
--> 캐시 미스 또는 만료면 CurrentPriceProviderCallGuard 실행
+-> 캐시 미스, TTL 만료 또는 현재가 신선도 만료면 CurrentPriceProviderCallGuard 실행
 -> HarnessProviderCallBudget 소비에 성공하면 CurrentPriceProvider 호출
 -> Budget이 소진됐으면 Provider를 호출하지 않고 실패
 -> Provider가 symbol, priceKrw, observedAt을 포함한 CurrentPriceSnapshot 생성
@@ -1394,25 +1396,33 @@ Harness Step recordedAt
 CurrentPriceSnapshot이 null이 아님
 요청 symbol과 응답 symbol이 같음
 priceKrw가 0보다 큼
-observedAt이 null이 아님
+observedAt이 null이 아니고 현재 시각 기준 maxAge 안에 있음
 ```
 
-조건을 만족하지 않는 결과는 캐시에 저장하지 않지만 Service에서 예외로 바꾸지도 않는다. 결과 자체는 `HarnessToolExecutor`를 거쳐 `HarnessToolResultValidator`에 전달되며, Harness가 `OUTPUT_PAYLOAD_MISSING`, `OUTPUT_SYMBOL_MISMATCH`, `OUTPUT_PRICE_INVALID`, `OUTPUT_OBSERVED_AT_MISSING`과 같은 구체적인 계약 위반 사유를 결정한다.
+조건을 만족하지 않는 결과는 캐시에 저장하지 않지만 Service에서 예외로 바꾸지도 않는다. 오래된 Provider 결과도 `CurrentPriceLookupResult`로 반환되어 `HarnessToolExecutor`를 거쳐 `HarnessToolResultValidator`에 전달된다. Harness는 `OUTPUT_PAYLOAD_MISSING`, `OUTPUT_SYMBOL_MISMATCH`, `OUTPUT_PRICE_INVALID`, `OUTPUT_OBSERVED_AT_MISSING`, `OUTPUT_CURRENT_PRICE_STALE`과 같은 구체적인 계약 위반 사유를 결정한다.
 
 Service와 Harness가 비슷한 조건을 확인하지만 목적은 다르다. Service의 검사는 잘못된 Provider 응답이 TTL 동안 반복 반환되는 캐시 오염을 막는다. Harness의 검사는 해당 Tool 결과를 Agent Context에 전달해도 되는지 판정하고 Run 이력에 결정적인 실패 사유를 남긴다.
 
 유효하지 않은 결과를 캐시에 저장하지 않으므로 다음 조회는 다시 캐시 미스가 되고 Provider를 다시 호출할 수 있다.
 
-TTL은 `market.current-price.cache.ttl`로 설정하며 현재 기본 실행 설정은 `30s`다. 저장 시각에 TTL을 더한 시각과 현재 시각이 같아지는 순간부터 만료로 처리한다. 만료된 Entry는 해당 symbol 조회 시 제거한다. 새로운 가격을 저장할 때도 전체 Entry를 확인해 더 이상 조회되지 않는 종목의 만료 데이터가 메모리에 계속 누적되지 않도록 정리한다.
+TTL은 `market.current-price.cache.ttl`로 설정하며 현재 기본 실행 설정은 `30s`다. `cachedAt`에 TTL을 더한 시각과 현재 시각이 같아지는 순간부터 캐시 보관 시간이 만료된다.
+
+현재가 신선도는 `market.current-price.validation.max-age`로 설정하며 현재 기본 실행 설정은 `1m`이다. `observedAt`에 maxAge를 더한 시각과 현재 시각이 같아지는 순간부터 시장 데이터가 오래된 것으로 판단한다.
+
+TTL과 maxAge는 책임이 다르다. TTL은 애플리케이션이 같은 캐시 Entry를 얼마나 오래 보관할지 결정하고, maxAge는 Provider가 관측한 가격을 투자 판단에 사용해도 되는지 결정한다. 캐시 Entry는 두 조건 중 하나라도 만료되면 사용할 수 없다. 예를 들어 TTL이 5분이고 maxAge가 1분이면 최대 사용 가능 시간은 1분이지만, Provider가 이미 50초 지난 가격을 반환했다면 저장 후 약 10초만 사용할 수 있다.
+
+만료된 Entry는 해당 symbol 조회 시 제거한다. 새로운 가격을 저장할 때도 전체 Entry를 확인해 더 이상 조회되지 않는 종목의 만료 데이터가 메모리에 계속 누적되지 않도록 정리한다.
 
 ```yaml
 market:
   current-price:
     cache:
       ttl: 30s
+    validation:
+      max-age: 1m
 ```
 
-`CurrentPriceCacheProperties`는 TTL이 null, 0 또는 음수이면 생성을 거부한다. 따라서 이 설정이 누락되거나 유효하지 않으면 Spring ApplicationContext 시작 단계에서 실패한다. 이는 캐시 정책 없이 애플리케이션이 실행되는 것을 막는 fail-fast 정책이다.
+`CurrentPriceCacheProperties`는 TTL이 null, 0 또는 음수이면 생성을 거부한다. `CurrentPriceFreshnessProperties`도 maxAge에 같은 검증을 적용한다. 따라서 설정이 누락되거나 유효하지 않으면 Spring ApplicationContext 시작 단계에서 실패한다. 이는 캐시 또는 신선도 정책 없이 애플리케이션이 실행되는 것을 막는 fail-fast 정책이다.
 
 캐시 만료 판정과 `FixedCurrentPriceProvider`의 관측 시각 생성은 직접 `Instant.now()`를 호출하지 않고 주입받은 `Clock`을 사용한다. 운영에서는 `CurrentPriceConfiguration`이 `Clock.systemUTC()`를 Bean으로 제공하고, 테스트에서는 고정하거나 제어할 수 있는 Clock을 사용해 실제 대기 없이 TTL 경계와 `observedAt`을 검증한다.
 
@@ -1478,6 +1488,7 @@ GET_CURRENT_PRICE -> currentPriceSnapshot != null
 GET_CURRENT_PRICE -> request.symbol == currentPriceSnapshot.symbol
 GET_CURRENT_PRICE -> currentPriceSnapshot.priceKrw > 0
 GET_CURRENT_PRICE -> currentPriceSnapshot.observedAt != null
+GET_CURRENT_PRICE -> currentPriceSnapshot.observedAt이 현재 시각 기준 maxAge 안에 있음
 ```
 
 검증 사유 코드는 다음과 같다.
@@ -1491,9 +1502,10 @@ OUTPUT_PAYLOAD_MISSING
 OUTPUT_SYMBOL_MISMATCH
 OUTPUT_PRICE_INVALID
 OUTPUT_OBSERVED_AT_MISSING
+OUTPUT_CURRENT_PRICE_STALE
 ```
 
-현재가 결과는 payload 존재, symbol 일치, 가격 유효성, 관측 시각 존재 순서로 검증한다. 여러 오류가 동시에 있으면 먼저 발견된 계약 위반 하나를 반환해 실패 이유를 결정적으로 유지한다.
+현재가 결과는 payload 존재, symbol 일치, 가격 유효성, 관측 시각 존재, 관측 시각 신선도 순서로 검증한다. 오래된 결과는 `OUTPUT_CURRENT_PRICE_STALE`로 거절하며 Agent Context에 전달하지 않는다. 여러 오류가 동시에 있으면 먼저 발견된 계약 위반 하나를 반환해 실패 이유를 결정적으로 유지한다.
 
 Tool 실행 상태가 `EXECUTED`일 때만 `VALIDATE_TOOL_RESULT` 단계로 진행한다. 실행 자체가 실패하면 실행 실패 결과를 `HarnessRunResult.toolResults`와 Run 상세 이력에 남기고 검증 전 Run을 종료한다.
 
@@ -1628,9 +1640,15 @@ enabled
 ttl
 ```
 
+`CurrentPriceFreshnessProperties`는 현재 다음 값을 가진다.
+
+```text
+maxAge
+```
+
 `maxSteps`, `maxToolCalls`, `maxToolRetries`, `maxProviderCalls`는 Harness 실행 통제 값이고, `maxOrderRatio`, `maxPositionRatio`는 Risk Guard 정책 값이다.
 
-`ttl`은 현재가 캐시의 유효 시간을 결정하는 시장 데이터 조회 정책 값이다.
+`ttl`은 캐시 저장 시각을 기준으로 현재가 Entry의 보관 시간을 결정하고, `maxAge`는 Provider 관측 시각을 기준으로 현재가 데이터의 신선도를 결정하는 시장 데이터 조회 정책 값이다.
 
 `enabled`는 Scheduler가 주기적으로 `InvestmentHarness`를 실행할지 결정하는 Scheduler 실행 설정 값이다.
 
@@ -1640,7 +1658,7 @@ ttl
 
 `harness.scheduler.fixed-delay-ms`는 현재 `@Scheduled(fixedDelayString = "${harness.scheduler.fixed-delay-ms}")` 속성에서 직접 참조한다. `@Scheduled`는 어노테이션 속성으로 스케줄 간격을 받아야 하므로, 이 단계에서는 `fixed-delay-ms`를 별도 record 필드로 옮기지 않는다.
 
-현재 Tool 실행 결과의 계약 검증, Run 결과 포함, JSON 저장, 상세 조회까지 구현되어 있다. 각 실행 결과는 원본 Tool 요청을 함께 보존하므로 출력이 없는 실패, 권한 거절, 중복 차단 결과에서도 요청 타입과 symbol을 확인할 수 있다. `GET_CURRENT_PRICE`는 요청 symbol 필수 검증과 응답 symbol·양수 가격·관측 시각 검증, Provider 경계, 인메모리 TTL 캐시, `CACHE`와 `PROVIDER` 조회 출처 기록, Run별 Provider 호출 한도까지 포함한다. 관측 시각은 런타임 결과, JSON 저장, 상세 조회 API까지 보존되며 캐시 적중 시에도 원래 값이 유지된다. Tool Service의 `RuntimeException`은 `TOOL_EXECUTION_FAILED` 결과로 변환되어 실행 이력에 저장되고, 설정된 횟수 안에서 같은 원본 요청으로 재시도된다.
+현재 Tool 실행 결과의 계약 검증, Run 결과 포함, JSON 저장, 상세 조회까지 구현되어 있다. 각 실행 결과는 원본 Tool 요청을 함께 보존하므로 출력이 없는 실패, 권한 거절, 중복 차단 결과에서도 요청 타입과 symbol을 확인할 수 있다. `GET_CURRENT_PRICE`는 요청 symbol 필수 검증과 응답 symbol·양수 가격·관측 시각·신선도 검증, Provider 경계, TTL과 관측 시각을 함께 확인하는 인메모리 캐시, `CACHE`와 `PROVIDER` 조회 출처 기록, Run별 Provider 호출 한도까지 포함한다. 관측 시각은 런타임 결과, JSON 저장, 상세 조회 API까지 보존되며 캐시 적중 시에도 원래 값이 유지된다. Tool Service의 `RuntimeException`은 `TOOL_EXECUTION_FAILED` 결과로 변환되어 실행 이력에 저장되고, 설정된 횟수 안에서 같은 원본 요청으로 재시도된다.
 
 동일 Run의 중복 Tool 요청 차단까지 구현되어 있다.
 
