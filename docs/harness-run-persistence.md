@@ -646,26 +646,36 @@ harness:
   max-tool-retries: 1
 ```
 
-`HarnessRunLimits.maxSteps`, `HarnessRunLimits.maxToolCalls`, `HarnessRunLimits.maxToolRetries`는 Run 시작 시점에 확정되어 해당 Run에 적용되는 제한값이다.
+현재가 Provider 호출 한도는 한 Run에서 캐시 미스 이후 실제 Provider를 호출할 수 있는 최대 횟수다.
+
+```yaml
+harness:
+  max-provider-calls: 5
+```
+
+`HarnessRunLimits.maxSteps`, `HarnessRunLimits.maxToolCalls`, `HarnessRunLimits.maxToolRetries`, `HarnessRunLimits.maxProviderCalls`는 Run 시작 시점에 확정되어 해당 Run에 적용되는 제한값이다.
 
 현재 흐름은 다음과 같다.
 
 ```text
 application.yml
--> HarnessProperties(maxSteps, maxToolCalls, maxToolRetries)
+-> HarnessProperties(maxSteps, maxToolCalls, maxToolRetries, maxProviderCalls)
 -> InvestmentHarness.createContext()
--> HarnessRunLimits(maxSteps, maxToolCalls, maxToolRetries)
+-> HarnessRunLimits(maxSteps, maxToolCalls, maxToolRetries, maxProviderCalls)
 -> HarnessRunContext(limits)
 -> HarnessAgentStepBudget(maxSteps)
 -> HarnessToolCallBudget(maxToolCalls)
+-> HarnessProviderCallBudget(maxProviderCalls)
 -> HarnessToolRetryPolicy(maxToolRetries)
 ```
 
-Budget 클래스의 패키지 경로는 다음과 같다.
+Budget 및 재시도 관련 클래스의 패키지 경로는 다음과 같다.
 
 ```text
 src/main/java/com/stock/harness/execution/limit/HarnessAgentStepBudget.java
 src/main/java/com/stock/harness/execution/limit/HarnessToolCallBudget.java
+src/main/java/com/stock/harness/execution/limit/HarnessProviderCallBudget.java
+src/main/java/com/stock/harness/execution/limit/HarnessProviderCallLimitExceededException.java
 src/main/java/com/stock/harness/execution/retry/HarnessToolRetryPolicy.java
 ```
 
@@ -680,7 +690,7 @@ usedRetries < maxRetries
 -> 재시도 허용
 ```
 
-`TOOL_NOT_SUPPORTED`, 권한 거절, 중복 요청, 요청 및 결과 계약 위반은 같은 호출을 반복해도 해결되지 않으므로 재시도하지 않는다.
+`TOOL_NOT_SUPPORTED`, 권한 거절, 중복 요청, Provider 호출 한도 초과, 요청 및 결과 계약 위반은 같은 호출을 반복해도 해결되지 않으므로 재시도하지 않는다.
 
 `HarnessRunContext`는 `maxSteps`를 직접 들지 않고 `HarnessRunLimits`를 가진다.
 
@@ -694,11 +704,11 @@ HarnessRunContext
 -> toolResults
 ```
 
-이 구조를 통해 나중에 `apiCallLimit` 같은 Run 단위 실행 제한이 생기더라도 `HarnessRunContext`에 개별 필드를 계속 추가하지 않고 `HarnessRunLimits` 안에서 관리할 수 있다.
+이 구조를 통해 새로운 Run 단위 실행 제한이 생기더라도 `HarnessRunContext`에 개별 필드를 계속 추가하지 않고 `HarnessRunLimits` 안에서 관리할 수 있다.
 
 단, 현재 `HarnessRunLimits`는 DB에 저장하지 않는다.
 
-아직 Run별 override와 Broker API 호출 제한이 없기 때문에 저장 컬럼을 먼저 만들면 과한 구조가 될 수 있다.
+현재 제한값은 애플리케이션 설정에서 모든 Run에 동일하게 적용하며, Run별 override와 제한값 조회 요구가 없기 때문에 저장 컬럼을 먼저 만들지 않는다.
 
 현재는 `CHECK_STEP_LIMIT`에 Agent Step 사용량이, `CHECK_TOOL_CALL_LIMIT`에 Tool 호출 사용량이 남는다.
 
@@ -1320,6 +1330,7 @@ src/main/java/com/stock/market/price/config/CurrentPriceConfiguration.java
 src/main/java/com/stock/market/price/lookup/CurrentPriceLookupResult.java
 src/main/java/com/stock/market/price/lookup/CurrentPriceLookupSource.java
 src/main/java/com/stock/market/price/provider/CurrentPriceProvider.java
+src/main/java/com/stock/market/price/provider/CurrentPriceProviderCallGuard.java
 src/main/java/com/stock/market/price/provider/FixedCurrentPriceProvider.java
 ```
 
@@ -1330,7 +1341,9 @@ HarnessToolExecutor
 -> CurrentPriceService
 -> CurrentPriceCache 조회
 -> 캐시 적중이면 CurrentPriceLookupResult(snapshot, CACHE) 반환
--> 캐시 미스 또는 만료면 CurrentPriceProvider 호출
+-> 캐시 미스 또는 만료면 CurrentPriceProviderCallGuard 실행
+-> HarnessProviderCallBudget 소비에 성공하면 CurrentPriceProvider 호출
+-> Budget이 소진됐으면 Provider를 호출하지 않고 실패
 -> Provider 결과의 캐시 저장 가능 여부 확인
 -> 저장 가능하면 캐시에 저장
 -> CurrentPriceLookupResult(snapshot, PROVIDER) 반환
@@ -1365,7 +1378,7 @@ Service와 Harness가 비슷한 조건을 확인하지만 목적은 다르다. S
 
 유효하지 않은 결과를 캐시에 저장하지 않으므로 다음 조회는 다시 캐시 미스가 되고 Provider를 다시 호출할 수 있다.
 
-TTL은 `market.current-price.cache.ttl`로 설정하며 현재 기본 실행 설정은 `30s`다. 저장 시각에 TTL을 더한 시각과 현재 시각이 같아지는 순간부터 만료로 처리한다. 만료된 Entry는 조회 시 제거하고 Provider를 다시 호출한다.
+TTL은 `market.current-price.cache.ttl`로 설정하며 현재 기본 실행 설정은 `30s`다. 저장 시각에 TTL을 더한 시각과 현재 시각이 같아지는 순간부터 만료로 처리한다. 만료된 Entry는 해당 symbol 조회 시 제거한다. 새로운 가격을 저장할 때도 전체 Entry를 확인해 더 이상 조회되지 않는 종목의 만료 데이터가 메모리에 계속 누적되지 않도록 정리한다.
 
 ```yaml
 market:
@@ -1382,9 +1395,15 @@ Provider가 예외를 던지면 `CurrentPriceService`는 캐시에 값을 저장
 
 현재 `FixedCurrentPriceProvider`는 Broker API 연동 전 Harness 흐름을 검증하기 위해 고정 로컬 가격을 반환한다. 따라서 이 결과를 실제 시장 가격으로 사용해서는 안 된다. 실제 연동 시에는 `CurrentPriceProvider` 구현을 Broker API Adapter로 교체하고 `CurrentPriceService`와 Harness Tool 계약은 유지한다.
 
-캐시 적중 여부와 관계없이 기존 `HarnessToolCallBudget`은 소비한다. 이 Budget은 Agent의 논리적인 Tool 실행 시도를 제한하기 때문이다. 캐시 미스에서 발생하는 실제 Provider 또는 Broker API 호출 횟수는 아직 별도 Budget으로 관리하지 않는다.
+캐시 적중 여부와 관계없이 `HarnessToolCallBudget`은 소비한다. 이 Budget은 Agent의 논리적인 Tool 실행 시도를 제한하기 때문이다.
 
-`currentPriceSource`는 이미 발생한 조회 경로를 관찰하기 위한 정보다. `PROVIDER`가 기록됐다는 사실만으로 호출 전 허용 여부를 통제할 수는 없다. 실제 외부 호출 Budget은 Provider를 호출하기 전에 소비 가능 여부를 확인하는 별도 실행 통제 구조가 필요하다.
+`HarnessProviderCallBudget`은 실제 `CurrentPriceProvider` 호출만 제한한다. `InvestmentHarness.run()`에서 Run마다 새로 생성되며, `CurrentPriceService`가 캐시 미스를 확인한 뒤 Provider를 호출하기 직전에 `CurrentPriceProviderCallGuard`를 통해 소비한다. 캐시 적중 시에는 Guard를 실행하지 않으므로 Provider Budget도 소비하지 않는다.
+
+Provider가 예외를 던져도 외부 요청 자체는 이미 시도됐으므로 소비한 횟수를 복구하지 않는다. `TOOL_EXECUTION_FAILED` 재시도에서 Provider를 다시 호출하려면 Budget을 다시 소비해야 한다. 남은 횟수가 없으면 실제 Provider를 호출하지 않고 `PROVIDER_CALL_LIMIT_EXCEEDED` 결과를 반환한다. 이 사유는 같은 Run에서 재시도해도 한도가 복구되지 않으므로 `HarnessToolRetryPolicy`의 재시도 대상이 아니다.
+
+현재 구조에서는 `CurrentPriceService`가 캐시 미스 이후 Provider 호출 필요 여부를 판단하므로 별도 `CHECK_PROVIDER_CALL_LIMIT` Step을 선행 기록하지 않는다. 한도 초과는 `EXECUTE_TOOL_REQUEST` Step의 `FAILED` 상태와 `HarnessToolExecutionResult.reasonCode=PROVIDER_CALL_LIMIT_EXCEEDED`로 Run 이력에 남는다.
+
+`currentPriceSource`는 이미 발생한 조회 경로를 관찰하기 위한 정보다. 호출 허용 여부는 이 결과값으로 사후 판단하지 않고 Provider 호출 직전의 Guard와 Budget이 통제한다.
 
 현재 캐시에는 다음 기능이 없다.
 
@@ -1392,7 +1411,6 @@ Provider가 예외를 던지면 `CurrentPriceService`는 캐시에 값을 저장
 Redis를 통한 서버 간 캐시 공유
 최대 Entry 수와 LRU 제거 정책
 동시 캐시 미스 요청을 하나로 합치는 single-flight
-실제 Provider 호출 전용 Budget
 만료된 가격 fallback
 ```
 
@@ -1458,7 +1476,7 @@ Tool 실행 상태가 `EXECUTED`일 때만 `VALIDATE_TOOL_RESULT` 단계로 진�
 
 현재 Harness는 Agent Step Budget 안에서 Tool 실행 결과를 Agent에게 반복해서 전달할 수 있다.
 
-현재 Harness는 `maxSteps`를 통해 한 Run의 Agent 판단 횟수를 제한한다. 장기 목표에서는 Agent Step뿐 아니라 Tool 호출 수, Broker API 호출 수, Cache 사용 여부, Rate Limit도 Harness가 관리해야 한다.
+현재 Harness는 한 Run의 Agent 판단 횟수, 논리적인 Tool 호출 수, 현재가 Provider 호출 수를 각각 제한한다. Cache 사용 여부는 조회 출처로 기록하며, 여러 Run과 서버가 공유하는 시간 단위 Rate Limit은 아직 구현하지 않는다.
 
 `HarnessRunContext.toolResults`는 현재 Run에서 완료된 Tool 실행 결과를 보관한다. `withToolResult`는 기존 Context를 변경하지 않고 실행 결과가 추가된 새 Context를 만든다.
 
@@ -1495,6 +1513,11 @@ FAILED
 TOOL_EXECUTION_FAILED이고 재시도 가능
 -> CHECK_TOOL_CALL_LIMIT와 EXECUTE_TOOL_REQUEST를 다시 수행
 -> 실패한 시도와 후속 시도를 모두 Run 이력에 저장
+
+PROVIDER_CALL_LIMIT_EXCEEDED
+-> 실제 Provider를 호출하지 않음
+-> EXECUTE_TOOL_REQUEST Step을 FAILED로 기록
+-> 같은 Run에서 한도가 복구되지 않으므로 재시도하지 않음
 
 재시도할 수 없거나 재시도까지 실패
 -> VALIDATE_TOOL_RESULT를 실행하지 않음
@@ -1535,17 +1558,17 @@ VALIDATE_AGENT_ACTION
 -> Harness agent action is valid.
 ```
 
-Agent Loop는 `FINAL_DECISION`이 반환되거나 실행 Budget이 소진될 때까지 반복된다. `FINAL_DECISION`이 반환되면 Risk Guard와 Trade Executor 흐름으로 진행한다. Agent Step Budget이 소진되면 다음 Agent 호출 전에 중단하고, Tool Call Budget이 소진되면 다음 Tool 실행 전에 중단한다.
+Agent Loop는 `FINAL_DECISION`이 반환되거나 실행 Budget이 소진될 때까지 반복된다. `FINAL_DECISION`이 반환되면 Risk Guard와 Trade Executor 흐름으로 진행한다. Agent Step Budget이 소진되면 다음 Agent 호출 전에 중단하고, Tool Call Budget이 소진되면 다음 Tool 실행 전에 중단한다. 현재가 Provider Budget이 소진되면 캐시 적중 결과는 계속 사용할 수 있지만 새로운 Provider 호출은 실행하지 않는다.
 
 `TOOL_EXECUTION_FAILED`는 `HarnessToolRetryPolicy`가 허용하는 동안 즉시 재시도한다. 최초 실패 후 재시도에 성공하면 실패한 실행 Step은 `FAILED`로 유지하지만 복구된 실패로 판단해 최종 Run은 `COMPLETED`가 될 수 있다. 실패한 시도와 성공한 시도는 모두 동일한 원본 `HarnessToolRequest`와 함께 Run 이력에 남고, 최종 성공 결과만 검증 후 Agent Context에 전달한다.
 
-재시도 횟수가 소진되거나 Tool Call Budget이 부족하면 Run을 실패시킨다. 현재는 재시도 사이의 대기 시간과 Backoff를 적용하지 않는다. `TOOL_EXECUTION_FAILED`가 아닌 실행 실패와 결과 계약 검증 실패는 재시도하지 않는다.
+재시도 횟수가 소진되거나 Tool Call Budget 또는 Provider Call Budget이 부족하면 Run을 실패시킨다. 현재는 재시도 사이의 대기 시간과 Backoff를 적용하지 않는다. `TOOL_EXECUTION_FAILED`가 아닌 실행 실패와 결과 계약 검증 실패는 재시도하지 않는다.
 
 이후 판단해야 할 질문은 다음과 같다.
 
 ```text
 1. 재시도 사이에 고정 대기 또는 지수 Backoff를 적용할 것인가?
-2. 논리적인 Tool 호출 횟수와 실제 Broker API 호출 횟수를 별도 Budget으로 관리할 것인가?
+2. 여러 Run과 서버가 공유하는 분당 또는 시간당 Provider Rate Limit을 어디에서 관리할 것인가?
 ```
 
 설정 책임은 현재 다음처럼 분리되어 있다.
@@ -1556,6 +1579,7 @@ Agent Loop는 `FINAL_DECISION`이 반환되거나 실행 Budget이 소진될 때
 maxSteps
 maxToolCalls
 maxToolRetries
+maxProviderCalls
 ```
 
 `RiskProperties`는 현재 다음 값을 가진다.
@@ -1577,7 +1601,7 @@ enabled
 ttl
 ```
 
-`maxSteps`, `maxToolCalls`, `maxToolRetries`는 Harness 실행 통제 값이고, `maxOrderRatio`, `maxPositionRatio`는 Risk Guard 정책 값이다.
+`maxSteps`, `maxToolCalls`, `maxToolRetries`, `maxProviderCalls`는 Harness 실행 통제 값이고, `maxOrderRatio`, `maxPositionRatio`는 Risk Guard 정책 값이다.
 
 `ttl`은 현재가 캐시의 유효 시간을 결정하는 시장 데이터 조회 정책 값이다.
 
@@ -1589,8 +1613,8 @@ ttl
 
 `harness.scheduler.fixed-delay-ms`는 현재 `@Scheduled(fixedDelayString = "${harness.scheduler.fixed-delay-ms}")` 속성에서 직접 참조한다. `@Scheduled`는 어노테이션 속성으로 스케줄 간격을 받아야 하므로, 이 단계에서는 `fixed-delay-ms`를 별도 record 필드로 옮기지 않는다.
 
-현재 Tool 실행 결과의 계약 검증, Run 결과 포함, JSON 저장, 상세 조회까지 구현되어 있다. 각 실행 결과는 원본 Tool 요청을 함께 보존하므로 출력이 없는 실패, 권한 거절, 중복 차단 결과에서도 요청 타입과 symbol을 확인할 수 있다. `GET_CURRENT_PRICE`는 요청 symbol 필수 검증과 응답 symbol 및 양수 가격 검증, Provider 경계, 인메모리 TTL 캐시, `CACHE`와 `PROVIDER` 조회 출처 기록까지 포함한다. Tool Service의 `RuntimeException`은 `TOOL_EXECUTION_FAILED` 결과로 변환되어 실행 이력에 저장되고, 설정된 횟수 안에서 같은 원본 요청으로 재시도된다.
+현재 Tool 실행 결과의 계약 검증, Run 결과 포함, JSON 저장, 상세 조회까지 구현되어 있다. 각 실행 결과는 원본 Tool 요청을 함께 보존하므로 출력이 없는 실패, 권한 거절, 중복 차단 결과에서도 요청 타입과 symbol을 확인할 수 있다. `GET_CURRENT_PRICE`는 요청 symbol 필수 검증과 응답 symbol 및 양수 가격 검증, Provider 경계, 인메모리 TTL 캐시, `CACHE`와 `PROVIDER` 조회 출처 기록, Run별 Provider 호출 한도까지 포함한다. Tool Service의 `RuntimeException`은 `TOOL_EXECUTION_FAILED` 결과로 변환되어 실행 이력에 저장되고, 설정된 횟수 안에서 같은 원본 요청으로 재시도된다.
 
 동일 Run의 중복 Tool 요청 차단까지 구현되어 있다.
 
-현재가 Cache 경계와 Tool 실패 재시도 정책은 구현되어 있다. 실제 Broker API를 연결하기 전에는 논리적인 Tool Call Budget과 실제 외부 Provider 호출 Budget을 어떻게 구분할지 먼저 설계한다.
+현재가 Cache 경계, Tool 실패 재시도 정책, 논리적인 Tool Call Budget과 실제 Provider Call Budget의 분리는 구현되어 있다. 실제 Broker API를 연결하기 전에는 인증과 응답 매핑, 외부 API 오류 분류, 여러 Run에 걸친 시간 단위 Rate Limit 정책을 결정해야 한다.
