@@ -7,6 +7,7 @@ import com.stock.agent.InvestmentAgent;
 import com.stock.agent.InvestmentDecision;
 import com.stock.harness.agent.validation.HarnessAgentActionValidationReasonCode;
 import com.stock.harness.agent.validation.HarnessAgentActionValidator;
+import com.stock.harness.execution.retry.HarnessRetryWaiter;
 import com.stock.harness.persistence.HarnessRunRepository;
 import com.stock.harness.persistence.HarnessRunSnapshotJsonConverter;
 import com.stock.harness.persistence.HarnessStepRepository;
@@ -59,6 +60,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class InvestmentHarnessTest {
@@ -122,6 +124,7 @@ class InvestmentHarnessTest {
             new HarnessToolResultValidator(currentPriceFreshnessPolicy);
     private final HarnessAgentActionValidator harnessAgentActionValidator = new HarnessAgentActionValidator();
     private final HarnessToolRequestValidator harnessToolRequestValidator = new HarnessToolRequestValidator();
+    private final HarnessRetryWaiter harnessRetryWaiter = mock(HarnessRetryWaiter.class);
 
     private final InvestmentHarness investmentHarness = new InvestmentHarness(
             riskGuard,
@@ -135,7 +138,8 @@ class InvestmentHarnessTest {
             harnessToolExecutor,
             harnessToolResultValidator,
             harnessAgentActionValidator,
-            harnessToolRequestValidator
+            harnessToolRequestValidator,
+            harnessRetryWaiter
     );
 
     @Test
@@ -229,7 +233,8 @@ class InvestmentHarnessTest {
                 harnessToolExecutor,
                 harnessToolResultValidator,
                 harnessAgentActionValidator,
-                harnessToolRequestValidator
+                harnessToolRequestValidator,
+                harnessRetryWaiter
         );
 
         HarnessRunResult result = limitedHarness.run();
@@ -276,7 +281,8 @@ class InvestmentHarnessTest {
                 harnessToolExecutor,
                 harnessToolResultValidator,
                 harnessAgentActionValidator,
-                harnessToolRequestValidator
+                harnessToolRequestValidator,
+                harnessRetryWaiter
         );
 
         HarnessRunResult result = failingHarness.run();
@@ -323,7 +329,8 @@ class InvestmentHarnessTest {
                 unusedToolExecutor,
                 harnessToolResultValidator,
                 harnessAgentActionValidator,
-                harnessToolRequestValidator
+                harnessToolRequestValidator,
+                harnessRetryWaiter
         );
 
         HarnessRunResult result = validatingHarness.run();
@@ -369,7 +376,8 @@ class InvestmentHarnessTest {
                 unusedToolExecutor,
                 harnessToolResultValidator,
                 harnessAgentActionValidator,
-                harnessToolRequestValidator
+                harnessToolRequestValidator,
+                harnessRetryWaiter
         );
 
         HarnessRunResult result = validatingHarness.run();
@@ -412,7 +420,8 @@ class InvestmentHarnessTest {
                 harnessToolExecutor,
                 harnessToolResultValidator,
                 harnessAgentActionValidator,
-                harnessToolRequestValidator
+                harnessToolRequestValidator,
+                harnessRetryWaiter
         );
 
         HarnessRunResult result = successHarness.run();
@@ -456,7 +465,8 @@ class InvestmentHarnessTest {
                 harnessToolExecutor,
                 harnessToolResultValidator,
                 harnessAgentActionValidator,
-                harnessToolRequestValidator
+                harnessToolRequestValidator,
+                harnessRetryWaiter
         );
 
         HarnessRunResult result = deniedHarness.run();
@@ -509,7 +519,8 @@ class InvestmentHarnessTest {
                 harnessToolExecutor,
                 harnessToolResultValidator,
                 harnessAgentActionValidator,
-                harnessToolRequestValidator
+                harnessToolRequestValidator,
+                harnessRetryWaiter
         );
 
         HarnessRunResult result = sellHarness.run();
@@ -539,7 +550,8 @@ class InvestmentHarnessTest {
                 harnessToolExecutor,
                 harnessToolResultValidator,
                 harnessAgentActionValidator,
-                harnessToolRequestValidator
+                harnessToolRequestValidator,
+                harnessRetryWaiter
         );
 
         HarnessRunResult result = toolRequestingHarness.run();
@@ -648,7 +660,8 @@ class InvestmentHarnessTest {
                 harnessToolExecutor,
                 harnessToolResultValidator,
                 harnessAgentActionValidator,
-                harnessToolRequestValidator
+                harnessToolRequestValidator,
+                harnessRetryWaiter
         );
 
         HarnessRunResult result = multipleToolHarness.run();
@@ -713,7 +726,8 @@ class InvestmentHarnessTest {
                 harnessToolExecutor,
                 harnessToolResultValidator,
                 harnessAgentActionValidator,
-                harnessToolRequestValidator
+                harnessToolRequestValidator,
+                harnessRetryWaiter
         );
 
         HarnessRunResult result = currentPriceHarness.run();
@@ -747,7 +761,8 @@ class InvestmentHarnessTest {
                 harnessToolExecutor,
                 harnessToolResultValidator,
                 harnessAgentActionValidator,
-                harnessToolRequestValidator
+                harnessToolRequestValidator,
+                harnessRetryWaiter
         );
 
         HarnessRunResult result = limitedToolHarness.run();
@@ -813,7 +828,8 @@ class InvestmentHarnessTest {
                 harnessToolExecutor,
                 harnessToolResultValidator,
                 harnessAgentActionValidator,
-                harnessToolRequestValidator
+                harnessToolRequestValidator,
+                harnessRetryWaiter
         );
 
         HarnessRunResult result = deniedHarness.run();
@@ -851,7 +867,8 @@ class InvestmentHarnessTest {
                 failingToolExecutor,
                 harnessToolResultValidator,
                 harnessAgentActionValidator,
-                harnessToolRequestValidator
+                harnessToolRequestValidator,
+                harnessRetryWaiter
         );
 
         HarnessRunResult result = failingToolHarness.run();
@@ -895,7 +912,8 @@ class InvestmentHarnessTest {
                 retryingExecutor,
                 harnessToolResultValidator,
                 harnessAgentActionValidator,
-                harnessToolRequestValidator
+                harnessToolRequestValidator,
+                harnessRetryWaiter
         );
 
         HarnessRunResult result = retryingHarness.run();
@@ -934,6 +952,7 @@ class InvestmentHarnessTest {
                         HarnessStepStatus.COMPLETED
                 );
         verify(retryingExecutor, times(2)).execute(any(), any());
+        verify(harnessRetryWaiter).waitBeforeRetry();
     }
 
     @Test
@@ -967,7 +986,8 @@ class InvestmentHarnessTest {
                 retryingExecutor,
                 harnessToolResultValidator,
                 harnessAgentActionValidator,
-                harnessToolRequestValidator
+                harnessToolRequestValidator,
+                harnessRetryWaiter
         );
 
         HarnessRunResult result = retryingHarness.run();
@@ -1007,6 +1027,7 @@ class InvestmentHarnessTest {
                         HarnessStepStatus.COMPLETED
                 );
         verify(retryingExecutor, times(2)).execute(any(), any());
+        verify(harnessRetryWaiter).waitBeforeRetry();
     }
 
     @Test
@@ -1033,7 +1054,8 @@ class InvestmentHarnessTest {
                 failingExecutor,
                 harnessToolResultValidator,
                 harnessAgentActionValidator,
-                harnessToolRequestValidator
+                harnessToolRequestValidator,
+                harnessRetryWaiter
         );
 
         HarnessRunResult result = failingHarness.run();
@@ -1059,6 +1081,7 @@ class InvestmentHarnessTest {
                 .doesNotContain(HarnessStepType.VALIDATE_TOOL_RESULT);
         verify(failingExecutor).execute(any(), any());
         verify(requestingAgent).next(any());
+        verifyNoInteractions(harnessRetryWaiter);
     }
 
     @Test
@@ -1086,7 +1109,8 @@ class InvestmentHarnessTest {
                 failingExecutor,
                 harnessToolResultValidator,
                 harnessAgentActionValidator,
-                harnessToolRequestValidator
+                harnessToolRequestValidator,
+                harnessRetryWaiter
         );
 
         HarnessRunResult result = retryingHarness.run();
@@ -1110,6 +1134,7 @@ class InvestmentHarnessTest {
                 .hasSize(2);
         verify(failingExecutor, times(2)).execute(any(), any());
         verify(requestingAgent).next(any());
+        verify(harnessRetryWaiter).waitBeforeRetry();
     }
 
     @Test
@@ -1143,7 +1168,8 @@ class InvestmentHarnessTest {
                 providerLimitedExecutor,
                 harnessToolResultValidator,
                 harnessAgentActionValidator,
-                harnessToolRequestValidator
+                harnessToolRequestValidator,
+                harnessRetryWaiter
         );
 
         HarnessRunResult result = providerLimitedHarness.run();
@@ -1193,7 +1219,8 @@ class InvestmentHarnessTest {
                 malformedExecutor,
                 harnessToolResultValidator,
                 harnessAgentActionValidator,
-                harnessToolRequestValidator
+                harnessToolRequestValidator,
+                harnessRetryWaiter
         );
 
         HarnessRunResult result = validatingHarness.run();
@@ -1242,7 +1269,8 @@ class InvestmentHarnessTest {
                 harnessToolExecutor,
                 harnessToolResultValidator,
                 harnessAgentActionValidator,
-                harnessToolRequestValidator
+                harnessToolRequestValidator,
+                harnessRetryWaiter
         );
 
         HarnessRunResult result = toolRequestingHarness.run();

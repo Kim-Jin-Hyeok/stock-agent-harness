@@ -11,6 +11,7 @@ import com.stock.harness.execution.HarnessAgentLoopResult;
 import com.stock.harness.execution.limit.HarnessAgentStepBudget;
 import com.stock.harness.execution.limit.HarnessProviderCallBudget;
 import com.stock.harness.execution.limit.HarnessToolCallBudget;
+import com.stock.harness.execution.retry.HarnessRetryWaiter;
 import com.stock.harness.execution.retry.HarnessToolRetryPolicy;
 import com.stock.harness.execution.tool.HarnessToolRequestTracker;
 import com.stock.harness.tool.*;
@@ -55,6 +56,7 @@ public class InvestmentHarness {
     private final HarnessToolResultValidator harnessToolResultValidator;
     private final HarnessAgentActionValidator harnessAgentActionValidator;
     private final HarnessToolRequestValidator harnessToolRequestValidator;
+    private final HarnessRetryWaiter harnessRetryWaiter;
 
     public HarnessRunResult run() {
         LocalDateTime startedAt = LocalDateTime.now();
@@ -411,6 +413,7 @@ public class InvestmentHarness {
                 return executionResult;
             }
 
+            harnessRetryWaiter.waitBeforeRetry();
             usedRetries++;
         }
     }
