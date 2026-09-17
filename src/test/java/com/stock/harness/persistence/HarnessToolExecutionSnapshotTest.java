@@ -13,11 +13,13 @@ import com.stock.market.price.lookup.CurrentPriceLookupSource;
 import com.stock.portfolio.PortfolioSnapshot;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class HarnessToolExecutionSnapshotTest {
+    private static final Instant OBSERVED_AT = Instant.parse("2026-01-01T00:00:00Z");
 
     @Test
     void fromConvertsPortfolioToolExecutionResult() {
@@ -55,7 +57,11 @@ class HarnessToolExecutionSnapshotTest {
 
     @Test
     void fromConvertsCurrentPriceToolExecutionResult() {
-        CurrentPriceSnapshot currentPrice = new CurrentPriceSnapshot("005930", 70_000L);
+        CurrentPriceSnapshot currentPrice = new CurrentPriceSnapshot(
+                "005930",
+                70_000L,
+                OBSERVED_AT
+        );
 
         HarnessToolExecutionSnapshot snapshot = HarnessToolExecutionSnapshot.from(
                 HarnessToolExecutionResult.executed(

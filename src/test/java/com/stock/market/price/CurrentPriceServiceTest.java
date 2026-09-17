@@ -26,12 +26,13 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class CurrentPriceServiceTest {
+    private static final Instant OBSERVED_AT = Instant.parse("2026-01-01T00:00:00Z");
 
     @Test
     void returnsCachedCurrentPriceWithoutCallingProvider() {
         CurrentPriceProvider provider = mock(CurrentPriceProvider.class);
         CurrentPriceCache cache = mock(CurrentPriceCache.class);
-        CurrentPriceSnapshot cached = new CurrentPriceSnapshot("005930", 70_000L);
+        CurrentPriceSnapshot cached = new CurrentPriceSnapshot("005930", 70_000L, OBSERVED_AT);
         when(cache.get("005930")).thenReturn(Optional.of(cached));
         CurrentPriceService service = new CurrentPriceService(provider, cache);
         CurrentPriceProviderCallGuard providerCallGuard = mock(
@@ -54,7 +55,7 @@ class CurrentPriceServiceTest {
     void loadsAndCachesCurrentPriceOnCacheMiss() {
         CurrentPriceProvider provider = mock(CurrentPriceProvider.class);
         CurrentPriceCache cache = mock(CurrentPriceCache.class);
-        CurrentPriceSnapshot loaded = new CurrentPriceSnapshot("005930", 70_000L);
+        CurrentPriceSnapshot loaded = new CurrentPriceSnapshot("005930", 70_000L, OBSERVED_AT);
         when(cache.get("005930")).thenReturn(Optional.empty());
         when(provider.getCurrentPrice("005930")).thenReturn(loaded);
         CurrentPriceService service = new CurrentPriceService(provider, cache);
@@ -77,7 +78,7 @@ class CurrentPriceServiceTest {
     @Test
     void callsProviderOnceForRepeatedRequestWithinTtl() {
         CurrentPriceProvider provider = mock(CurrentPriceProvider.class);
-        CurrentPriceSnapshot loaded = new CurrentPriceSnapshot("005930", 70_000L);
+        CurrentPriceSnapshot loaded = new CurrentPriceSnapshot("005930", 70_000L, OBSERVED_AT);
         when(provider.getCurrentPrice("005930")).thenReturn(loaded);
         CurrentPriceCache cache = new CurrentPriceCache(
                 new CurrentPriceCacheProperties(Duration.ofSeconds(30)),
@@ -114,7 +115,7 @@ class CurrentPriceServiceTest {
     void doesNotCacheProviderResultWithDifferentSymbol() {
         CurrentPriceProvider provider = mock(CurrentPriceProvider.class);
         CurrentPriceCache cache = mock(CurrentPriceCache.class);
-        CurrentPriceSnapshot mismatched = new CurrentPriceSnapshot("000660", 120_000L);
+        CurrentPriceSnapshot mismatched = new CurrentPriceSnapshot("000660", 120_000L, OBSERVED_AT);
         when(cache.get("005930")).thenReturn(Optional.empty());
         when(provider.getCurrentPrice("005930")).thenReturn(mismatched);
         CurrentPriceService service = new CurrentPriceService(provider, cache);
@@ -130,7 +131,7 @@ class CurrentPriceServiceTest {
     void doesNotCacheProviderResultWithNonPositivePrice() {
         CurrentPriceProvider provider = mock(CurrentPriceProvider.class);
         CurrentPriceCache cache = mock(CurrentPriceCache.class);
-        CurrentPriceSnapshot invalid = new CurrentPriceSnapshot("005930", 0L);
+        CurrentPriceSnapshot invalid = new CurrentPriceSnapshot("005930", 0L, OBSERVED_AT);
         when(cache.get("005930")).thenReturn(Optional.empty());
         when(provider.getCurrentPrice("005930")).thenReturn(invalid);
         CurrentPriceService service = new CurrentPriceService(provider, cache);
@@ -154,6 +155,22 @@ class CurrentPriceServiceTest {
         assertThatThrownBy(() -> service.getCurrentPrice("005930", () -> {}))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Broker timeout");
+        verify(cache, never()).put(eq("005930"), any());
+    }
+
+    @Test
+    void doesNotCacheProviderResultWithoutObservedAt() {
+        CurrentPriceProvider provider = mock(CurrentPriceProvider.class);
+        CurrentPriceCache cache = mock(CurrentPriceCache.class);
+        CurrentPriceSnapshot invalid = new CurrentPriceSnapshot("005930", 70_000L, null);
+        when(cache.get("005930")).thenReturn(Optional.empty());
+        when(provider.getCurrentPrice("005930")).thenReturn(invalid);
+        CurrentPriceService service = new CurrentPriceService(provider, cache);
+
+        CurrentPriceLookupResult result = service.getCurrentPrice("005930", () -> {});
+
+        assertThat(result.snapshot()).isEqualTo(invalid);
+        assertThat(result.source()).isEqualTo(CurrentPriceLookupSource.PROVIDER);
         verify(cache, never()).put(eq("005930"), any());
     }
 

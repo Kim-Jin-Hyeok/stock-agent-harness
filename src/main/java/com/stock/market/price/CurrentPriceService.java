@@ -39,6 +39,7 @@ public class CurrentPriceService {
     private boolean isCacheable(String symbol, CurrentPriceSnapshot snapshot) {
         return snapshot != null
                 && symbol.equals(snapshot.symbol())
-                && snapshot.priceKrw() > 0;
+                && snapshot.priceKrw() > 0
+                && snapshot.observedAt() != null;
     }
 }

@@ -17,6 +17,8 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -27,6 +29,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class HarnessToolExecutorTest {
+    private static final Instant OBSERVED_AT = Instant.parse("2026-01-01T00:00:00Z");
 
     @Test
     void executesPortfolioToolRequest() {
@@ -76,7 +79,7 @@ class HarnessToolExecutorTest {
         assertThat(result.type()).isEqualTo(HarnessToolType.GET_CURRENT_PRICE);
         assertThat(result.request()).isEqualTo(HarnessToolRequest.currentPrice("005930"));
         assertThat(result.output().currentPriceSnapshot())
-                .isEqualTo(new CurrentPriceSnapshot("005930", 100_000L));
+                .isEqualTo(new CurrentPriceSnapshot("005930", 100_000L, OBSERVED_AT));
         assertThat(result.output().currentPriceSource())
                 .isEqualTo(CurrentPriceLookupSource.PROVIDER);
         assertThat(result.output().portfolioSnapshot()).isNull();
@@ -145,7 +148,7 @@ class HarnessToolExecutorTest {
 
     private CurrentPriceService currentPriceService() {
         return new CurrentPriceService(
-                new FixedCurrentPriceProvider(),
+                new FixedCurrentPriceProvider(Clock.fixed(OBSERVED_AT, ZoneOffset.UTC)),
                 new CurrentPriceCache(
                         new CurrentPriceCacheProperties(Duration.ofSeconds(30)),
                         Clock.systemUTC()

@@ -11,11 +11,13 @@ import com.stock.market.price.CurrentPriceSnapshot;
 import com.stock.portfolio.PortfolioSnapshot;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class HarnessToolResultValidatorTest {
+    private static final Instant OBSERVED_AT = Instant.parse("2026-01-01T00:00:00Z");
     private final HarnessToolResultValidator validator = new HarnessToolResultValidator();
 
     @Test
@@ -54,7 +56,7 @@ class HarnessToolResultValidatorTest {
                 HarnessToolRequest.currentPrice("005930"),
                 HarnessToolExecutionResult.executed(
                         HarnessToolOutput.currentPrice(
-                                new CurrentPriceSnapshot("005930", 70_000L)
+                                currentPrice("005930", 70_000L)
                         )
                 )
         );
@@ -91,7 +93,7 @@ class HarnessToolResultValidatorTest {
                 HarnessToolRequest.currentPrice("005930"),
                 HarnessToolExecutionResult.executed(
                         HarnessToolOutput.currentPrice(
-                                new CurrentPriceSnapshot("005930", 0L)
+                                currentPrice("005930", 0L)
                         )
                 )
         );
@@ -109,7 +111,7 @@ class HarnessToolResultValidatorTest {
                 HarnessToolRequest.currentPrice("005930"),
                 HarnessToolExecutionResult.executed(
                         HarnessToolOutput.currentPrice(
-                                new CurrentPriceSnapshot("005930", -1L)
+                                currentPrice("005930", -1L)
                         )
                 )
         );
@@ -127,7 +129,7 @@ class HarnessToolResultValidatorTest {
                 HarnessToolRequest.currentPrice("005930"),
                 HarnessToolExecutionResult.executed(
                         HarnessToolOutput.currentPrice(
-                                new CurrentPriceSnapshot("000660", 0L)
+                                currentPrice("000660", 0L)
                         )
                 )
         );
@@ -144,7 +146,7 @@ class HarnessToolResultValidatorTest {
                 HarnessToolRequest.currentPrice("005930"),
                 HarnessToolExecutionResult.executed(
                         HarnessToolOutput.currentPrice(
-                                new CurrentPriceSnapshot("000660", 200_000L)
+                                currentPrice("000660", 200_000L)
                         )
                 )
         );
@@ -156,6 +158,24 @@ class HarnessToolResultValidatorTest {
         assertThat(result.reason())
                 .contains("requested=005930")
                 .contains("actual=000660");
+    }
+
+    @Test
+    void rejectsCurrentPriceWithoutObservedAt() {
+        HarnessToolResultValidationResult result = validator.validate(
+                HarnessToolRequest.currentPrice("005930"),
+                HarnessToolExecutionResult.executed(
+                        HarnessToolOutput.currentPrice(
+                                new CurrentPriceSnapshot("005930", 70_000L, null)
+                        )
+                )
+        );
+
+        assertThat(result.status()).isEqualTo(HarnessToolResultValidationStatus.INVALID);
+        assertThat(result.reasonCode()).isEqualTo(
+                HarnessToolResultValidationReasonCode.OUTPUT_OBSERVED_AT_MISSING
+        );
+        assertThat(result.reason()).isEqualTo("Current price observedAt is missing.");
     }
 
     @Test
@@ -250,6 +270,10 @@ class HarnessToolResultValidatorTest {
 
     private HarnessToolRequest request(HarnessToolType type) {
         return new HarnessToolRequest(type);
+    }
+
+    private CurrentPriceSnapshot currentPrice(String symbol, long priceKrw) {
+        return new CurrentPriceSnapshot(symbol, priceKrw, OBSERVED_AT);
     }
 
     private PortfolioSnapshot portfolioSnapshot() {

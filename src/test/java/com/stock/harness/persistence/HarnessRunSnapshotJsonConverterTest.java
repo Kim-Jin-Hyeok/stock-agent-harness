@@ -10,13 +10,15 @@ import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskReasonCode;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class HarnessRunSnapshotJsonConverterTest {
+    private static final Instant OBSERVED_AT = Instant.parse("2026-01-01T00:00:00Z");
     private final HarnessRunSnapshotJsonConverter converter = new HarnessRunSnapshotJsonConverter(
-            new ObjectMapper()
+            new ObjectMapper().findAndRegisterModules()
     );
 
     @Test
@@ -117,7 +119,7 @@ class HarnessRunSnapshotJsonConverterTest {
                         "Harness tool execution completed.",
                         null,
                         null,
-                        new HarnessCurrentPriceSnapshot("005930", 70_000L),
+                        new HarnessCurrentPriceSnapshot("005930", 70_000L, OBSERVED_AT),
                         new HarnessToolRequestSnapshot(
                                 HarnessToolType.GET_CURRENT_PRICE,
                                 "005930"
@@ -142,10 +144,12 @@ class HarnessRunSnapshotJsonConverterTest {
         );
         assertThat(restored.getLast().currentPriceSource())
                 .isEqualTo(CurrentPriceLookupSource.PROVIDER);
+        assertThat(restored.getLast().currentPriceSnapshot().observedAt())
+                .isEqualTo(OBSERVED_AT);
     }
 
     @Test
-    void restoresToolExecutionSnapshotWithoutCurrentPriceSource() {
+    void restoresLegacyToolExecutionSnapshotWithoutCurrentPriceMetadata() {
         String json = """
                 [{
                   "status": "EXECUTED",
@@ -167,7 +171,8 @@ class HarnessRunSnapshotJsonConverterTest {
 
         assertThat(restored).singleElement().satisfies(snapshot -> {
             assertThat(snapshot.currentPriceSnapshot())
-                    .isEqualTo(new HarnessCurrentPriceSnapshot("005930", 70_000L));
+                    .isEqualTo(new HarnessCurrentPriceSnapshot("005930", 70_000L, null));
+            assertThat(snapshot.currentPriceSnapshot().observedAt()).isNull();
             assertThat(snapshot.currentPriceSource()).isNull();
         });
     }

@@ -45,6 +45,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -57,6 +58,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(HarnessController.class)
 class HarnessControllerTest {
+    private static final Instant CURRENT_PRICE_OBSERVED_AT = Instant.parse(
+            "2026-01-01T00:00:00Z"
+    );
 
     @Autowired
     private MockMvc mockMvc;
@@ -94,6 +98,8 @@ class HarnessControllerTest {
                         .value(9_300_000L))
                 .andExpect(jsonPath("$.toolResults[1].output.currentPriceSnapshot.symbol")
                         .value("005930"))
+                .andExpect(jsonPath("$.toolResults[1].output.currentPriceSnapshot.observedAt")
+                        .value(CURRENT_PRICE_OBSERVED_AT.toString()))
                 .andExpect(jsonPath("$.toolResults[1].output.currentPriceSource")
                         .value("PROVIDER"))
                 .andExpect(jsonPath("$.tradeRecords[0].runId").value(runId))
@@ -138,6 +144,8 @@ class HarnessControllerTest {
                 .andExpect(jsonPath("$.marketSnapshot.market").value("KR"))
                 .andExpect(jsonPath("$.toolExecutionSnapshots[0].currentPriceSource")
                         .value("CACHE"))
+                .andExpect(jsonPath("$.toolExecutionSnapshots[0].currentPriceSnapshot.observedAt")
+                        .value(CURRENT_PRICE_OBSERVED_AT.toString()))
                 .andExpect(jsonPath("$.steps[0].type").value("EXECUTE_TRADE"))
                 .andExpect(jsonPath("$.tradeRecords[0].status").value("EXECUTED"));
 
@@ -233,7 +241,11 @@ class HarnessControllerTest {
                 HarnessToolRequest.currentPrice("005930"),
                 HarnessToolOutput.currentPrice(
                         CurrentPriceLookupResult.provider(
-                                new CurrentPriceSnapshot("005930", 70_000L)
+                                new CurrentPriceSnapshot(
+                                        "005930",
+                                        70_000L,
+                                        CURRENT_PRICE_OBSERVED_AT
+                                )
                         )
                 )
         );
@@ -278,7 +290,11 @@ class HarnessControllerTest {
                 "Harness tool execution completed.",
                 null,
                 null,
-                new HarnessCurrentPriceSnapshot("005930", 70_000L),
+                new HarnessCurrentPriceSnapshot(
+                        "005930",
+                        70_000L,
+                        CURRENT_PRICE_OBSERVED_AT
+                ),
                 new HarnessToolRequestSnapshot(HarnessToolType.GET_CURRENT_PRICE, "005930"),
                 CurrentPriceLookupSource.CACHE
         );
