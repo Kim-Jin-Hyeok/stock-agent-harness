@@ -26,6 +26,7 @@ import com.stock.harness.tool.validation.HarnessToolResultValidationReasonCode;
 import com.stock.harness.tool.validation.HarnessToolResultValidator;
 import com.stock.market.MarketService;
 import com.stock.market.price.CurrentPriceService;
+import com.stock.market.price.CurrentPriceSnapshot;
 import com.stock.market.price.cache.CurrentPriceCache;
 import com.stock.market.price.cache.CurrentPriceCacheProperties;
 import com.stock.market.price.provider.CurrentPriceProvider;
@@ -933,6 +934,131 @@ class InvestmentHarnessTest {
                         HarnessStepStatus.COMPLETED
                 );
         verify(retryingExecutor, times(2)).execute(any(), any());
+    }
+
+    @Test
+    void runRetriesTemporaryProviderFailureAndCompletesAfterSuccess() {
+        HarnessToolRequest request = HarnessToolRequest.currentPrice("005930");
+        HarnessToolExecutor retryingExecutor = mock(HarnessToolExecutor.class);
+        when(retryingExecutor.execute(any(), any()))
+                .thenReturn(
+                        HarnessToolExecutionResult.providerTemporaryFailure(
+                                request,
+                                "Broker timeout"
+                        ),
+                        HarnessToolExecutionResult.executed(
+                                request,
+                                HarnessToolOutput.currentPrice(new CurrentPriceSnapshot(
+                                        "005930",
+                                        100_000L,
+                                        CURRENT_PRICE_OBSERVED_AT
+                                ))
+                        )
+                );
+        InvestmentHarness retryingHarness = new InvestmentHarness(
+                riskGuard,
+                tradeExecutor,
+                portfolioService,
+                marketService,
+                harnessRunHistoryService,
+                new CurrentPriceUsingInvestmentAgent(),
+                new HarnessProperties(2, 2, 1),
+                harnessToolAuthorizer,
+                retryingExecutor,
+                harnessToolResultValidator,
+                harnessAgentActionValidator,
+                harnessToolRequestValidator
+        );
+
+        HarnessRunResult result = retryingHarness.run();
+
+        assertThat(result.status()).isEqualTo(HarnessRunStatus.COMPLETED);
+        assertThat(result.toolResults())
+                .extracting(
+                        HarnessToolExecutionResult::status,
+                        HarnessToolExecutionResult::reasonCode
+                )
+                .containsExactly(
+                        tuple(
+                                HarnessToolExecutionStatus.FAILED,
+                                HarnessToolExecutionReasonCode.PROVIDER_TEMPORARY_FAILURE
+                        ),
+                        tuple(
+                                HarnessToolExecutionStatus.EXECUTED,
+                                HarnessToolExecutionReasonCode.TOOL_EXECUTED
+                        )
+                );
+        assertThat(result.toolResults())
+                .extracting(HarnessToolExecutionResult::request)
+                .containsExactly(request, request);
+        assertThat(result.steps())
+                .extracting(HarnessStepResult::type)
+                .filteredOn(HarnessStepType.RUN_INVESTMENT_AGENT::equals)
+                .hasSize(2);
+        assertThat(result.steps())
+                .extracting(HarnessStepResult::type)
+                .filteredOn(HarnessStepType.VALIDATE_TOOL_RESULT::equals)
+                .hasSize(1);
+        assertThat(result.steps())
+                .filteredOn(step -> step.type() == HarnessStepType.EXECUTE_TOOL_REQUEST)
+                .extracting(HarnessStepResult::status)
+                .containsExactly(
+                        HarnessStepStatus.FAILED,
+                        HarnessStepStatus.COMPLETED
+                );
+        verify(retryingExecutor, times(2)).execute(any(), any());
+    }
+
+    @Test
+    void runDoesNotRetryPermanentProviderFailure() {
+        HarnessToolRequest request = HarnessToolRequest.currentPrice("005930");
+        InvestmentAgent requestingAgent = mock(InvestmentAgent.class);
+        when(requestingAgent.next(any())).thenReturn(AgentNextAction.requestTool(request));
+        HarnessToolExecutor failingExecutor = mock(HarnessToolExecutor.class);
+        when(failingExecutor.execute(any(), any())).thenReturn(
+                HarnessToolExecutionResult.providerPermanentFailure(
+                        request,
+                        "Invalid authentication"
+                )
+        );
+        InvestmentHarness failingHarness = new InvestmentHarness(
+                riskGuard,
+                tradeExecutor,
+                portfolioService,
+                marketService,
+                harnessRunHistoryService,
+                requestingAgent,
+                new HarnessProperties(2, 2, 1),
+                harnessToolAuthorizer,
+                failingExecutor,
+                harnessToolResultValidator,
+                harnessAgentActionValidator,
+                harnessToolRequestValidator
+        );
+
+        HarnessRunResult result = failingHarness.run();
+
+        assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
+        assertThat(result.toolResults())
+                .singleElement()
+                .satisfies(toolResult -> {
+                    assertThat(toolResult.status()).isEqualTo(
+                            HarnessToolExecutionStatus.FAILED
+                    );
+                    assertThat(toolResult.reasonCode()).isEqualTo(
+                            HarnessToolExecutionReasonCode.PROVIDER_PERMANENT_FAILURE
+                    );
+                    assertThat(toolResult.request()).isEqualTo(request);
+                });
+        assertThat(result.steps())
+                .extracting(HarnessStepResult::type)
+                .filteredOn(HarnessStepType.RUN_INVESTMENT_AGENT::equals)
+                .hasSize(1);
+        assertThat(result.steps())
+                .extracting(HarnessStepResult::type)
+                .doesNotContain(HarnessStepType.VALIDATE_TOOL_RESULT);
+        verify(failingExecutor).execute(any(), any());
+        verify(requestingAgent).next(any());
     }
 
     @Test
