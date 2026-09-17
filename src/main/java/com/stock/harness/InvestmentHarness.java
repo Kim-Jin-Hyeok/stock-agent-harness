@@ -9,6 +9,7 @@ import com.stock.harness.agent.validation.HarnessAgentActionValidationStatus;
 import com.stock.harness.agent.validation.HarnessAgentActionValidator;
 import com.stock.harness.execution.HarnessAgentLoopResult;
 import com.stock.harness.execution.limit.HarnessAgentStepBudget;
+import com.stock.harness.execution.limit.HarnessProviderCallBudget;
 import com.stock.harness.execution.limit.HarnessToolCallBudget;
 import com.stock.harness.execution.retry.HarnessToolRetryPolicy;
 import com.stock.harness.execution.tool.HarnessToolRequestTracker;
@@ -86,6 +87,9 @@ public class InvestmentHarness {
             HarnessToolCallBudget toolCallBudget = new HarnessToolCallBudget(
                     context.limits().maxToolCalls()
             );
+            HarnessProviderCallBudget providerCallBudget = new HarnessProviderCallBudget(
+                    context.limits().maxProviderCalls()
+            );
             HarnessToolRetryPolicy toolRetryPolicy = new HarnessToolRetryPolicy(
                     context.limits().maxToolRetries()
             );
@@ -96,6 +100,7 @@ public class InvestmentHarness {
                     stepRecorder,
                     agentStepBudget,
                     toolCallBudget,
+                    providerCallBudget,
                     toolRetryPolicy,
                     toolRequestTracker,
                     recordedToolResults
@@ -188,7 +193,8 @@ public class InvestmentHarness {
         HarnessRunLimits limits = new HarnessRunLimits(
                 harnessProperties.maxSteps(),
                 harnessProperties.maxToolCalls(),
-                harnessProperties.maxToolRetries()
+                harnessProperties.maxToolRetries(),
+                harnessProperties.maxProviderCalls()
         );
 
         HarnessAllowedTools allowedTools = HarnessAllowedTools.readOnly();
@@ -253,6 +259,7 @@ public class InvestmentHarness {
             HarnessStepRecorder stepRecorder,
             HarnessAgentStepBudget agentStepBudget,
             HarnessToolCallBudget toolCallBudget,
+            HarnessProviderCallBudget providerCallBudget,
             HarnessToolRetryPolicy toolRetryPolicy,
             HarnessToolRequestTracker toolRequestTracker,
             List<HarnessToolExecutionResult> recordedToolResults
@@ -342,6 +349,7 @@ public class InvestmentHarness {
                     action.toolRequest(),
                     stepRecorder,
                     toolCallBudget,
+                    providerCallBudget,
                     toolRetryPolicy,
                     recordedToolResults
             );
@@ -380,6 +388,7 @@ public class InvestmentHarness {
             HarnessToolRequest request,
             HarnessStepRecorder stepRecorder,
             HarnessToolCallBudget toolCallBudget,
+            HarnessProviderCallBudget providerCallBudget,
             HarnessToolRetryPolicy toolRetryPolicy,
             List<HarnessToolExecutionResult> recordedToolResults
     ) {
@@ -390,7 +399,7 @@ public class InvestmentHarness {
 
             HarnessToolExecutionResult executionResult = stepRecorder.record(
                     HarnessStepType.EXECUTE_TOOL_REQUEST,
-                    () -> harnessToolExecutor.execute(request),
+                    () -> harnessToolExecutor.execute(request, providerCallBudget),
                     result -> result.status() == HarnessToolExecutionStatus.EXECUTED
                             ? HarnessStepStatus.COMPLETED
                             : HarnessStepStatus.FAILED,

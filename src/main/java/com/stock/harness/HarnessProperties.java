@@ -6,9 +6,14 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record HarnessProperties(
         int maxSteps,
         int maxToolCalls,
-        int maxToolRetries
+        int maxToolRetries,
+        int maxProviderCalls
 ) {
     public HarnessProperties(int maxSteps, int maxToolCalls) {
-        this(maxSteps, maxToolCalls, 0);
+        this(maxSteps, maxToolCalls, 0, maxToolCalls);
+    }
+
+    public HarnessProperties(int maxSteps, int maxToolCalls, int maxToolRetries) {
+        this(maxSteps, maxToolCalls, maxToolRetries, maxToolCalls);
     }
 }

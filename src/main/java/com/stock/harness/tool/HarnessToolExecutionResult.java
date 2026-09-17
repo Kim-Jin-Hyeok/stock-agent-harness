@@ -101,4 +101,18 @@ public record HarnessToolExecutionResult(
                 null
         );
     }
+
+    public static HarnessToolExecutionResult providerCallLimitExceeded(
+            HarnessToolRequest request,
+            String reason
+    ) {
+        return new HarnessToolExecutionResult(
+                HarnessToolExecutionStatus.FAILED,
+                request.type(),
+                request,
+                HarnessToolExecutionReasonCode.PROVIDER_CALL_LIMIT_EXCEEDED,
+                reason,
+                null
+        );
+    }
 }

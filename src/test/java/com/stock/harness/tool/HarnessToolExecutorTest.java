@@ -1,5 +1,6 @@
 package com.stock.harness.tool;
 
+import com.stock.harness.execution.limit.HarnessProviderCallBudget;
 import com.stock.market.MarketService;
 import com.stock.market.MarketSnapshot;
 import com.stock.market.price.CurrentPriceService;
@@ -7,6 +8,7 @@ import com.stock.market.price.CurrentPriceSnapshot;
 import com.stock.market.price.cache.CurrentPriceCache;
 import com.stock.market.price.cache.CurrentPriceCacheProperties;
 import com.stock.market.price.lookup.CurrentPriceLookupSource;
+import com.stock.market.price.provider.CurrentPriceProvider;
 import com.stock.market.price.provider.FixedCurrentPriceProvider;
 import com.stock.portfolio.PortfolioService;
 import com.stock.portfolio.PortfolioSnapshot;
@@ -17,14 +19,23 @@ import java.time.Clock;
 import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class HarnessToolExecutorTest {
 
     @Test
     void executesPortfolioToolRequest() {
-        HarnessToolExecutionResult result = executor().execute(portfolioToolRequest());
+        HarnessProviderCallBudget budget = providerCallBudget(0);
+
+        HarnessToolExecutionResult result = executor().execute(
+                portfolioToolRequest(),
+                budget
+        );
 
         assertThat(result.status()).isEqualTo(executedStatus());
         assertThat(result.type()).isEqualTo(portfolioTool());
@@ -33,11 +44,15 @@ class HarnessToolExecutorTest {
         assertThat(result.output().type()).isEqualTo(portfolioTool());
         assertThat(result.output().portfolioSnapshot()).isEqualTo(portfolioSnapshot());
         assertThat(result.output().marketSnapshot()).isNull();
+        assertThat(budget.usedCalls()).isZero();
     }
 
     @Test
     void executesMarketToolRequest() {
-        HarnessToolExecutionResult result = executor().execute(marketToolRequest());
+        HarnessToolExecutionResult result = executor().execute(
+                marketToolRequest(),
+                providerCallBudget(1)
+        );
 
         assertThat(result.status()).isEqualTo(executedStatus());
         assertThat(result.type()).isEqualTo(marketTool());
@@ -50,8 +65,11 @@ class HarnessToolExecutorTest {
 
     @Test
     void executesCurrentPriceToolRequest() {
+        HarnessProviderCallBudget budget = providerCallBudget(1);
+
         HarnessToolExecutionResult result = executor().execute(
-                HarnessToolRequest.currentPrice("005930")
+                HarnessToolRequest.currentPrice("005930"),
+                budget
         );
 
         assertThat(result.status()).isEqualTo(executedStatus());
@@ -63,16 +81,18 @@ class HarnessToolExecutorTest {
                 .isEqualTo(CurrentPriceLookupSource.PROVIDER);
         assertThat(result.output().portfolioSnapshot()).isNull();
         assertThat(result.output().marketSnapshot()).isNull();
+        assertThat(budget.usedCalls()).isEqualTo(1);
     }
 
     @Test
     void returnsFailedResultWhenToolServiceThrowsException() {
         CurrentPriceService failingService = mock(CurrentPriceService.class);
-        when(failingService.getCurrentPrice("005930"))
+        when(failingService.getCurrentPrice(eq("005930"), any()))
                 .thenThrow(new IllegalStateException("Broker timeout"));
 
         HarnessToolExecutionResult result = executor(failingService).execute(
-                HarnessToolRequest.currentPrice("005930")
+                HarnessToolRequest.currentPrice("005930"),
+                providerCallBudget(1)
         );
 
         assertThat(result.status()).isEqualTo(HarnessToolExecutionStatus.FAILED);
@@ -83,6 +103,32 @@ class HarnessToolExecutorTest {
         );
         assertThat(result.reason()).isEqualTo("Tool execution failed. cause=Broker timeout");
         assertThat(result.output()).isNull();
+    }
+
+    @Test
+    void returnsFailedResultWithoutCallingProviderWhenProviderCallLimitIsExceeded() {
+        CurrentPriceProvider provider = mock(CurrentPriceProvider.class);
+        HarnessProviderCallBudget budget = providerCallBudget(0);
+        HarnessToolRequest request = HarnessToolRequest.currentPrice("005930");
+        CurrentPriceService currentPriceService = new CurrentPriceService(
+                provider,
+                new CurrentPriceCache(
+                        new CurrentPriceCacheProperties(Duration.ofSeconds(30)),
+                        Clock.systemUTC()
+                )
+        );
+
+        HarnessToolExecutionResult result = executor(currentPriceService).execute(request, budget);
+
+        assertThat(result.status()).isEqualTo(HarnessToolExecutionStatus.FAILED);
+        assertThat(result.reasonCode()).isEqualTo(
+                HarnessToolExecutionReasonCode.PROVIDER_CALL_LIMIT_EXCEEDED
+        );
+        assertThat(result.reason()).isEqualTo(
+                "Provider call limit exceeded. used=0, max=0"
+        );
+        assertThat(result.output()).isNull();
+        verify(provider, never()).getCurrentPrice("005930");
     }
 
     private HarnessToolExecutor executor() {
@@ -105,6 +151,10 @@ class HarnessToolExecutorTest {
                         Clock.systemUTC()
                 )
         );
+    }
+
+    private HarnessProviderCallBudget providerCallBudget(int maxCalls) {
+        return new HarnessProviderCallBudget(maxCalls);
     }
 
     private PortfolioService portfolioService() {

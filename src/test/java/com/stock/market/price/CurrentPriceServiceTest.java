@@ -5,6 +5,7 @@ import com.stock.market.price.cache.CurrentPriceCacheProperties;
 import com.stock.market.price.lookup.CurrentPriceLookupResult;
 import com.stock.market.price.lookup.CurrentPriceLookupSource;
 import com.stock.market.price.provider.CurrentPriceProvider;
+import com.stock.market.price.provider.CurrentPriceProviderCallGuard;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -21,6 +22,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class CurrentPriceServiceTest {
@@ -32,13 +34,20 @@ class CurrentPriceServiceTest {
         CurrentPriceSnapshot cached = new CurrentPriceSnapshot("005930", 70_000L);
         when(cache.get("005930")).thenReturn(Optional.of(cached));
         CurrentPriceService service = new CurrentPriceService(provider, cache);
+        CurrentPriceProviderCallGuard providerCallGuard = mock(
+                CurrentPriceProviderCallGuard.class
+        );
 
-        CurrentPriceLookupResult result = service.getCurrentPrice("005930");
+        CurrentPriceLookupResult result = service.getCurrentPrice(
+                "005930",
+                providerCallGuard
+        );
 
         assertThat(result.snapshot()).isEqualTo(cached);
         assertThat(result.source()).isEqualTo(CurrentPriceLookupSource.CACHE);
         verify(provider, never()).getCurrentPrice("005930");
         verify(cache, never()).put("005930", cached);
+        verifyNoInteractions(providerCallGuard);
     }
 
     @Test
@@ -49,13 +58,20 @@ class CurrentPriceServiceTest {
         when(cache.get("005930")).thenReturn(Optional.empty());
         when(provider.getCurrentPrice("005930")).thenReturn(loaded);
         CurrentPriceService service = new CurrentPriceService(provider, cache);
+        CurrentPriceProviderCallGuard providerCallGuard = mock(
+                CurrentPriceProviderCallGuard.class
+        );
 
-        CurrentPriceLookupResult result = service.getCurrentPrice("005930");
+        CurrentPriceLookupResult result = service.getCurrentPrice(
+                "005930",
+                providerCallGuard
+        );
 
         assertThat(result.snapshot()).isEqualTo(loaded);
         assertThat(result.source()).isEqualTo(CurrentPriceLookupSource.PROVIDER);
         verify(provider).getCurrentPrice("005930");
         verify(cache).put("005930", loaded);
+        verify(providerCallGuard).beforeCall();
     }
 
     @Test
@@ -69,8 +85,8 @@ class CurrentPriceServiceTest {
         );
         CurrentPriceService service = new CurrentPriceService(provider, cache);
 
-        CurrentPriceLookupResult first = service.getCurrentPrice("005930");
-        CurrentPriceLookupResult second = service.getCurrentPrice("005930");
+        CurrentPriceLookupResult first = service.getCurrentPrice("005930", () -> {});
+        CurrentPriceLookupResult second = service.getCurrentPrice("005930", () -> {});
 
         assertThat(first.snapshot()).isEqualTo(loaded);
         assertThat(first.source()).isEqualTo(CurrentPriceLookupSource.PROVIDER);
@@ -87,7 +103,7 @@ class CurrentPriceServiceTest {
         when(provider.getCurrentPrice("005930")).thenReturn(null);
         CurrentPriceService service = new CurrentPriceService(provider, cache);
 
-        CurrentPriceLookupResult result = service.getCurrentPrice("005930");
+        CurrentPriceLookupResult result = service.getCurrentPrice("005930", () -> {});
 
         assertThat(result.snapshot()).isNull();
         assertThat(result.source()).isEqualTo(CurrentPriceLookupSource.PROVIDER);
@@ -103,7 +119,7 @@ class CurrentPriceServiceTest {
         when(provider.getCurrentPrice("005930")).thenReturn(mismatched);
         CurrentPriceService service = new CurrentPriceService(provider, cache);
 
-        CurrentPriceLookupResult result = service.getCurrentPrice("005930");
+        CurrentPriceLookupResult result = service.getCurrentPrice("005930", () -> {});
 
         assertThat(result.snapshot()).isEqualTo(mismatched);
         assertThat(result.source()).isEqualTo(CurrentPriceLookupSource.PROVIDER);
@@ -119,7 +135,7 @@ class CurrentPriceServiceTest {
         when(provider.getCurrentPrice("005930")).thenReturn(invalid);
         CurrentPriceService service = new CurrentPriceService(provider, cache);
 
-        CurrentPriceLookupResult result = service.getCurrentPrice("005930");
+        CurrentPriceLookupResult result = service.getCurrentPrice("005930", () -> {});
 
         assertThat(result.snapshot()).isEqualTo(invalid);
         assertThat(result.source()).isEqualTo(CurrentPriceLookupSource.PROVIDER);
@@ -135,9 +151,28 @@ class CurrentPriceServiceTest {
                 .thenThrow(new IllegalStateException("Broker timeout"));
         CurrentPriceService service = new CurrentPriceService(provider, cache);
 
-        assertThatThrownBy(() -> service.getCurrentPrice("005930"))
+        assertThatThrownBy(() -> service.getCurrentPrice("005930", () -> {}))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Broker timeout");
+        verify(cache, never()).put(eq("005930"), any());
+    }
+
+    @Test
+    void doesNotCallProviderWhenProviderCallGuardRejectsCacheMiss() {
+        CurrentPriceProvider provider = mock(CurrentPriceProvider.class);
+        CurrentPriceCache cache = mock(CurrentPriceCache.class);
+        when(cache.get("005930")).thenReturn(Optional.empty());
+        CurrentPriceService service = new CurrentPriceService(provider, cache);
+
+        assertThatThrownBy(() -> service.getCurrentPrice(
+                "005930",
+                () -> {
+                    throw new IllegalStateException("Provider call denied");
+                }
+        ))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Provider call denied");
+        verify(provider, never()).getCurrentPrice("005930");
         verify(cache, never()).put(eq("005930"), any());
     }
 }

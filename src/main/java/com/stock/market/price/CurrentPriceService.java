@@ -3,6 +3,7 @@ package com.stock.market.price;
 import com.stock.market.price.cache.CurrentPriceCache;
 import com.stock.market.price.lookup.CurrentPriceLookupResult;
 import com.stock.market.price.provider.CurrentPriceProvider;
+import com.stock.market.price.provider.CurrentPriceProviderCallGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -12,13 +13,20 @@ public class CurrentPriceService {
     private final CurrentPriceProvider currentPriceProvider;
     private final CurrentPriceCache currentPriceCache;
 
-    public CurrentPriceLookupResult getCurrentPrice(String symbol) {
+    public CurrentPriceLookupResult getCurrentPrice(
+            String symbol,
+            CurrentPriceProviderCallGuard providerCallGuard
+    ) {
         return currentPriceCache.get(symbol)
                 .map(CurrentPriceLookupResult::cache)
-                .orElseGet(() -> loadAndCache(symbol));
+                .orElseGet(() -> loadAndCache(symbol, providerCallGuard));
     }
 
-    private CurrentPriceLookupResult loadAndCache(String symbol) {
+    private CurrentPriceLookupResult loadAndCache(
+            String symbol,
+            CurrentPriceProviderCallGuard providerCallGuard
+    ) {
+        providerCallGuard.beforeCall();
         CurrentPriceSnapshot snapshot = currentPriceProvider.getCurrentPrice(symbol);
 
         if (isCacheable(symbol, snapshot)) {

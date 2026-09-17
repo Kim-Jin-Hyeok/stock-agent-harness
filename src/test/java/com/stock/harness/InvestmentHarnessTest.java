@@ -28,6 +28,7 @@ import com.stock.market.MarketService;
 import com.stock.market.price.CurrentPriceService;
 import com.stock.market.price.cache.CurrentPriceCache;
 import com.stock.market.price.cache.CurrentPriceCacheProperties;
+import com.stock.market.price.provider.CurrentPriceProvider;
 import com.stock.market.price.provider.FixedCurrentPriceProvider;
 import com.stock.portfolio.PortfolioPosition;
 import com.stock.portfolio.PortfolioService;
@@ -326,7 +327,7 @@ class InvestmentHarnessTest {
         assertThat(result.steps().getLast().message()).contains(
                 HarnessAgentActionValidationReasonCode.TOOL_REQUEST_MISSING.name()
         );
-        verify(unusedToolExecutor, never()).execute(any());
+        verify(unusedToolExecutor, never()).execute(any(), any());
     }
 
     @Test
@@ -375,7 +376,7 @@ class InvestmentHarnessTest {
                 HarnessToolRequestValidationReasonCode.TOOL_TYPE_MISSING.name()
         );
         verify(unusedAuthorizer, never()).authorize(any(), any());
-        verify(unusedToolExecutor, never()).execute(any());
+        verify(unusedToolExecutor, never()).execute(any(), any());
     }
 
     @Test
@@ -815,7 +816,7 @@ class InvestmentHarnessTest {
     @Test
     void runPreservesFailedToolExecutionResult() {
         HarnessToolExecutor failingToolExecutor = mock(HarnessToolExecutor.class);
-        when(failingToolExecutor.execute(any()))
+        when(failingToolExecutor.execute(any(), any()))
                 .thenReturn(HarnessToolExecutionResult.notSupported(
                         HarnessToolType.GET_PORTFOLIO
                 ));
@@ -852,7 +853,7 @@ class InvestmentHarnessTest {
     @Test
     void runRetriesFailedToolExecutionAndCompletesAfterSuccess() {
         HarnessToolExecutor retryingExecutor = mock(HarnessToolExecutor.class);
-        when(retryingExecutor.execute(any()))
+        when(retryingExecutor.execute(any(), any()))
                 .thenReturn(
                         HarnessToolExecutionResult.executionFailed(
                                 HarnessToolRequest.portfolio(),
@@ -913,7 +914,7 @@ class InvestmentHarnessTest {
                         HarnessStepStatus.FAILED,
                         HarnessStepStatus.COMPLETED
                 );
-        verify(retryingExecutor, times(2)).execute(any());
+        verify(retryingExecutor, times(2)).execute(any(), any());
     }
 
     @Test
@@ -923,7 +924,7 @@ class InvestmentHarnessTest {
                 AgentNextAction.requestTool(HarnessToolRequest.portfolio())
         );
         HarnessToolExecutor failingExecutor = mock(HarnessToolExecutor.class);
-        when(failingExecutor.execute(any())).thenReturn(
+        when(failingExecutor.execute(any(), any())).thenReturn(
                 HarnessToolExecutionResult.executionFailed(
                         HarnessToolRequest.portfolio(),
                         "Broker timeout"
@@ -963,8 +964,55 @@ class InvestmentHarnessTest {
                 .extracting(HarnessStepResult::type)
                 .filteredOn(HarnessStepType.EXECUTE_TOOL_REQUEST::equals)
                 .hasSize(2);
-        verify(failingExecutor, times(2)).execute(any());
+        verify(failingExecutor, times(2)).execute(any(), any());
         verify(requestingAgent).next(any());
+    }
+
+    @Test
+    void runStopsRetryingWhenProviderCallBudgetIsExhausted() {
+        CurrentPriceProvider provider = mock(CurrentPriceProvider.class);
+        when(provider.getCurrentPrice("005930"))
+                .thenThrow(new IllegalStateException("Broker timeout"));
+        CurrentPriceService failingCurrentPriceService = new CurrentPriceService(
+                provider,
+                new CurrentPriceCache(
+                        new CurrentPriceCacheProperties(Duration.ofSeconds(30)),
+                        Clock.systemUTC()
+                )
+        );
+        HarnessToolExecutor providerLimitedExecutor = new HarnessToolExecutor(
+                portfolioService,
+                marketService,
+                failingCurrentPriceService
+        );
+        InvestmentHarness providerLimitedHarness = new InvestmentHarness(
+                riskGuard,
+                tradeExecutor,
+                portfolioService,
+                marketService,
+                harnessRunHistoryService,
+                new CurrentPriceUsingInvestmentAgent(),
+                new HarnessProperties(2, 3, 2, 1),
+                harnessToolAuthorizer,
+                providerLimitedExecutor,
+                harnessToolResultValidator,
+                harnessAgentActionValidator,
+                harnessToolRequestValidator
+        );
+
+        HarnessRunResult result = providerLimitedHarness.run();
+
+        assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
+        assertThat(result.toolResults())
+                .extracting(HarnessToolExecutionResult::reasonCode)
+                .containsExactly(
+                        HarnessToolExecutionReasonCode.TOOL_EXECUTION_FAILED,
+                        HarnessToolExecutionReasonCode.PROVIDER_CALL_LIMIT_EXCEEDED
+                );
+        assertThat(result.toolResults().getLast().reason()).isEqualTo(
+                "Provider call limit exceeded. used=1, max=1"
+        );
+        verify(provider).getCurrentPrice("005930");
     }
 
     @Test
@@ -986,7 +1034,7 @@ class InvestmentHarnessTest {
                 )
         );
         HarnessToolExecutor malformedExecutor = mock(HarnessToolExecutor.class);
-        when(malformedExecutor.execute(any())).thenReturn(malformedResult);
+        when(malformedExecutor.execute(any(), any())).thenReturn(malformedResult);
         InvestmentHarness validatingHarness = new InvestmentHarness(
                 riskGuard,
                 tradeExecutor,
