@@ -6,6 +6,8 @@ import com.stock.market.price.lookup.CurrentPriceLookupResult;
 import com.stock.market.price.lookup.CurrentPriceLookupSource;
 import com.stock.market.price.provider.CurrentPriceProvider;
 import com.stock.market.price.provider.CurrentPriceProviderCallGuard;
+import com.stock.market.price.validation.CurrentPriceFreshnessPolicy;
+import com.stock.market.price.validation.CurrentPriceFreshnessProperties;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -27,6 +29,7 @@ import static org.mockito.Mockito.when;
 
 class CurrentPriceServiceTest {
     private static final Instant OBSERVED_AT = Instant.parse("2026-01-01T00:00:00Z");
+    private static final Duration MAX_AGE = Duration.ofMinutes(1);
 
     @Test
     void returnsCachedCurrentPriceWithoutCallingProvider() {
@@ -34,7 +37,7 @@ class CurrentPriceServiceTest {
         CurrentPriceCache cache = mock(CurrentPriceCache.class);
         CurrentPriceSnapshot cached = new CurrentPriceSnapshot("005930", 70_000L, OBSERVED_AT);
         when(cache.get("005930")).thenReturn(Optional.of(cached));
-        CurrentPriceService service = new CurrentPriceService(provider, cache);
+        CurrentPriceService service = service(provider, cache);
         CurrentPriceProviderCallGuard providerCallGuard = mock(
                 CurrentPriceProviderCallGuard.class
         );
@@ -58,7 +61,7 @@ class CurrentPriceServiceTest {
         CurrentPriceSnapshot loaded = new CurrentPriceSnapshot("005930", 70_000L, OBSERVED_AT);
         when(cache.get("005930")).thenReturn(Optional.empty());
         when(provider.getCurrentPrice("005930")).thenReturn(loaded);
-        CurrentPriceService service = new CurrentPriceService(provider, cache);
+        CurrentPriceService service = service(provider, cache);
         CurrentPriceProviderCallGuard providerCallGuard = mock(
                 CurrentPriceProviderCallGuard.class
         );
@@ -82,9 +85,10 @@ class CurrentPriceServiceTest {
         when(provider.getCurrentPrice("005930")).thenReturn(loaded);
         CurrentPriceCache cache = new CurrentPriceCache(
                 new CurrentPriceCacheProperties(Duration.ofSeconds(30)),
-                Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC)
+                Clock.fixed(OBSERVED_AT, ZoneOffset.UTC),
+                freshnessPolicy(OBSERVED_AT)
         );
-        CurrentPriceService service = new CurrentPriceService(provider, cache);
+        CurrentPriceService service = service(provider, cache);
 
         CurrentPriceLookupResult first = service.getCurrentPrice("005930", () -> {});
         CurrentPriceLookupResult second = service.getCurrentPrice("005930", () -> {});
@@ -102,7 +106,7 @@ class CurrentPriceServiceTest {
         CurrentPriceCache cache = mock(CurrentPriceCache.class);
         when(cache.get("005930")).thenReturn(Optional.empty());
         when(provider.getCurrentPrice("005930")).thenReturn(null);
-        CurrentPriceService service = new CurrentPriceService(provider, cache);
+        CurrentPriceService service = service(provider, cache);
 
         CurrentPriceLookupResult result = service.getCurrentPrice("005930", () -> {});
 
@@ -118,7 +122,7 @@ class CurrentPriceServiceTest {
         CurrentPriceSnapshot mismatched = new CurrentPriceSnapshot("000660", 120_000L, OBSERVED_AT);
         when(cache.get("005930")).thenReturn(Optional.empty());
         when(provider.getCurrentPrice("005930")).thenReturn(mismatched);
-        CurrentPriceService service = new CurrentPriceService(provider, cache);
+        CurrentPriceService service = service(provider, cache);
 
         CurrentPriceLookupResult result = service.getCurrentPrice("005930", () -> {});
 
@@ -134,7 +138,7 @@ class CurrentPriceServiceTest {
         CurrentPriceSnapshot invalid = new CurrentPriceSnapshot("005930", 0L, OBSERVED_AT);
         when(cache.get("005930")).thenReturn(Optional.empty());
         when(provider.getCurrentPrice("005930")).thenReturn(invalid);
-        CurrentPriceService service = new CurrentPriceService(provider, cache);
+        CurrentPriceService service = service(provider, cache);
 
         CurrentPriceLookupResult result = service.getCurrentPrice("005930", () -> {});
 
@@ -150,7 +154,7 @@ class CurrentPriceServiceTest {
         when(cache.get("005930")).thenReturn(Optional.empty());
         when(provider.getCurrentPrice("005930"))
                 .thenThrow(new IllegalStateException("Broker timeout"));
-        CurrentPriceService service = new CurrentPriceService(provider, cache);
+        CurrentPriceService service = service(provider, cache);
 
         assertThatThrownBy(() -> service.getCurrentPrice("005930", () -> {}))
                 .isInstanceOf(IllegalStateException.class)
@@ -165,7 +169,7 @@ class CurrentPriceServiceTest {
         CurrentPriceSnapshot invalid = new CurrentPriceSnapshot("005930", 70_000L, null);
         when(cache.get("005930")).thenReturn(Optional.empty());
         when(provider.getCurrentPrice("005930")).thenReturn(invalid);
-        CurrentPriceService service = new CurrentPriceService(provider, cache);
+        CurrentPriceService service = service(provider, cache);
 
         CurrentPriceLookupResult result = service.getCurrentPrice("005930", () -> {});
 
@@ -179,7 +183,7 @@ class CurrentPriceServiceTest {
         CurrentPriceProvider provider = mock(CurrentPriceProvider.class);
         CurrentPriceCache cache = mock(CurrentPriceCache.class);
         when(cache.get("005930")).thenReturn(Optional.empty());
-        CurrentPriceService service = new CurrentPriceService(provider, cache);
+        CurrentPriceService service = service(provider, cache);
 
         assertThatThrownBy(() -> service.getCurrentPrice(
                 "005930",
@@ -191,5 +195,47 @@ class CurrentPriceServiceTest {
                 .hasMessage("Provider call denied");
         verify(provider, never()).getCurrentPrice("005930");
         verify(cache, never()).put(eq("005930"), any());
+    }
+
+    @Test
+    void doesNotCacheStaleProviderResult() {
+        CurrentPriceProvider provider = mock(CurrentPriceProvider.class);
+        CurrentPriceCache cache = mock(CurrentPriceCache.class);
+        CurrentPriceSnapshot stale = new CurrentPriceSnapshot("005930", 70_000L, OBSERVED_AT);
+        when(cache.get("005930")).thenReturn(Optional.empty());
+        when(provider.getCurrentPrice("005930")).thenReturn(stale);
+        CurrentPriceService service = service(
+                provider,
+                cache,
+                OBSERVED_AT.plus(MAX_AGE)
+        );
+
+        CurrentPriceLookupResult result = service.getCurrentPrice("005930", () -> {});
+
+        assertThat(result.snapshot()).isEqualTo(stale);
+        assertThat(result.source()).isEqualTo(CurrentPriceLookupSource.PROVIDER);
+        verify(cache, never()).put(eq("005930"), any());
+    }
+
+    private CurrentPriceService service(
+            CurrentPriceProvider provider,
+            CurrentPriceCache cache
+    ) {
+        return service(provider, cache, OBSERVED_AT);
+    }
+
+    private CurrentPriceService service(
+            CurrentPriceProvider provider,
+            CurrentPriceCache cache,
+            Instant now
+    ) {
+        return new CurrentPriceService(provider, cache, freshnessPolicy(now));
+    }
+
+    private CurrentPriceFreshnessPolicy freshnessPolicy(Instant now) {
+        return new CurrentPriceFreshnessPolicy(
+                new CurrentPriceFreshnessProperties(MAX_AGE),
+                Clock.fixed(now, ZoneOffset.UTC)
+        );
     }
 }

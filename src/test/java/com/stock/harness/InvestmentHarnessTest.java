@@ -30,6 +30,8 @@ import com.stock.market.price.cache.CurrentPriceCache;
 import com.stock.market.price.cache.CurrentPriceCacheProperties;
 import com.stock.market.price.provider.CurrentPriceProvider;
 import com.stock.market.price.provider.FixedCurrentPriceProvider;
+import com.stock.market.price.validation.CurrentPriceFreshnessPolicy;
+import com.stock.market.price.validation.CurrentPriceFreshnessProperties;
 import com.stock.portfolio.PortfolioPosition;
 import com.stock.portfolio.PortfolioService;
 import com.stock.portfolio.PortfolioSnapshotStore;
@@ -62,6 +64,7 @@ class InvestmentHarnessTest {
     private static final Instant CURRENT_PRICE_OBSERVED_AT = Instant.parse(
             "2026-01-01T00:00:00Z"
     );
+    private static final Duration CURRENT_PRICE_MAX_AGE = Duration.ofMinutes(1);
 
     private final HarnessProperties harnessProperties = new HarnessProperties(
             10,
@@ -86,14 +89,21 @@ class InvestmentHarnessTest {
             tradeHistoryService
     );
     private final MarketService marketService = new MarketService();
+    private final CurrentPriceFreshnessPolicy currentPriceFreshnessPolicy =
+            new CurrentPriceFreshnessPolicy(
+                    new CurrentPriceFreshnessProperties(CURRENT_PRICE_MAX_AGE),
+                    Clock.fixed(CURRENT_PRICE_OBSERVED_AT, ZoneOffset.UTC)
+            );
     private final CurrentPriceService currentPriceService = new CurrentPriceService(
             new FixedCurrentPriceProvider(
                     Clock.fixed(CURRENT_PRICE_OBSERVED_AT, ZoneOffset.UTC)
             ),
             new CurrentPriceCache(
                     new CurrentPriceCacheProperties(Duration.ofSeconds(30)),
-                    Clock.systemUTC()
-            )
+                    Clock.fixed(CURRENT_PRICE_OBSERVED_AT, ZoneOffset.UTC),
+                    currentPriceFreshnessPolicy
+            ),
+            currentPriceFreshnessPolicy
     );
     private final HarnessRunHistoryService harnessRunHistoryService = new HarnessRunHistoryService(
             harnessRunSnapshotJsonConverter,
@@ -107,7 +117,8 @@ class InvestmentHarnessTest {
             marketService,
             currentPriceService
     );
-    private final HarnessToolResultValidator harnessToolResultValidator = new HarnessToolResultValidator();
+    private final HarnessToolResultValidator harnessToolResultValidator =
+            new HarnessToolResultValidator(currentPriceFreshnessPolicy);
     private final HarnessAgentActionValidator harnessAgentActionValidator = new HarnessAgentActionValidator();
     private final HarnessToolRequestValidator harnessToolRequestValidator = new HarnessToolRequestValidator();
 
@@ -984,8 +995,10 @@ class InvestmentHarnessTest {
                 provider,
                 new CurrentPriceCache(
                         new CurrentPriceCacheProperties(Duration.ofSeconds(30)),
-                        Clock.systemUTC()
-                )
+                        Clock.fixed(CURRENT_PRICE_OBSERVED_AT, ZoneOffset.UTC),
+                        currentPriceFreshnessPolicy
+                ),
+                currentPriceFreshnessPolicy
         );
         HarnessToolExecutor providerLimitedExecutor = new HarnessToolExecutor(
                 portfolioService,

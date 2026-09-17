@@ -10,6 +10,8 @@ import com.stock.market.price.cache.CurrentPriceCacheProperties;
 import com.stock.market.price.lookup.CurrentPriceLookupSource;
 import com.stock.market.price.provider.CurrentPriceProvider;
 import com.stock.market.price.provider.FixedCurrentPriceProvider;
+import com.stock.market.price.validation.CurrentPriceFreshnessPolicy;
+import com.stock.market.price.validation.CurrentPriceFreshnessProperties;
 import com.stock.portfolio.PortfolioService;
 import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.portfolio.PortfolioSnapshotStore;
@@ -30,6 +32,7 @@ import static org.mockito.Mockito.when;
 
 class HarnessToolExecutorTest {
     private static final Instant OBSERVED_AT = Instant.parse("2026-01-01T00:00:00Z");
+    private static final Duration MAX_AGE = Duration.ofMinutes(1);
 
     @Test
     void executesPortfolioToolRequest() {
@@ -117,8 +120,10 @@ class HarnessToolExecutorTest {
                 provider,
                 new CurrentPriceCache(
                         new CurrentPriceCacheProperties(Duration.ofSeconds(30)),
-                        Clock.systemUTC()
-                )
+                        Clock.fixed(OBSERVED_AT, ZoneOffset.UTC),
+                        freshnessPolicy()
+                ),
+                freshnessPolicy()
         );
 
         HarnessToolExecutionResult result = executor(currentPriceService).execute(request, budget);
@@ -151,8 +156,17 @@ class HarnessToolExecutorTest {
                 new FixedCurrentPriceProvider(Clock.fixed(OBSERVED_AT, ZoneOffset.UTC)),
                 new CurrentPriceCache(
                         new CurrentPriceCacheProperties(Duration.ofSeconds(30)),
-                        Clock.systemUTC()
-                )
+                        Clock.fixed(OBSERVED_AT, ZoneOffset.UTC),
+                        freshnessPolicy()
+                ),
+                freshnessPolicy()
+        );
+    }
+
+    private CurrentPriceFreshnessPolicy freshnessPolicy() {
+        return new CurrentPriceFreshnessPolicy(
+                new CurrentPriceFreshnessProperties(MAX_AGE),
+                Clock.fixed(OBSERVED_AT, ZoneOffset.UTC)
         );
     }
 

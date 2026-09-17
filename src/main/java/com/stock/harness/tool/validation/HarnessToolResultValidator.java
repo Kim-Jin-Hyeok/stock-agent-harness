@@ -4,10 +4,14 @@ import com.stock.harness.tool.HarnessToolExecutionResult;
 import com.stock.harness.tool.HarnessToolOutput;
 import com.stock.harness.tool.HarnessToolRequest;
 import com.stock.harness.tool.HarnessToolType;
+import com.stock.market.price.validation.CurrentPriceFreshnessPolicy;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class HarnessToolResultValidator {
+    private final CurrentPriceFreshnessPolicy currentPriceFreshnessPolicy;
 
     public HarnessToolResultValidationResult validate(
             HarnessToolRequest request,
@@ -83,6 +87,18 @@ public class HarnessToolResultValidator {
                     requestedType,
                     HarnessToolResultValidationReasonCode.OUTPUT_OBSERVED_AT_MISSING,
                     "Current price observedAt is missing."
+            );
+        }
+
+        if (requestedType == HarnessToolType.GET_CURRENT_PRICE
+                && !currentPriceFreshnessPolicy.isFresh(
+                        output.currentPriceSnapshot().observedAt()
+                )) {
+            return HarnessToolResultValidationResult.invalid(
+                    requestedType,
+                    HarnessToolResultValidationReasonCode.OUTPUT_CURRENT_PRICE_STALE,
+                    "Current price is stale. observedAt="
+                    + output.currentPriceSnapshot().observedAt()
             );
         }
 

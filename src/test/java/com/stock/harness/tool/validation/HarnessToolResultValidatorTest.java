@@ -8,17 +8,23 @@ import com.stock.harness.tool.HarnessToolRequest;
 import com.stock.harness.tool.HarnessToolType;
 import com.stock.market.MarketSnapshot;
 import com.stock.market.price.CurrentPriceSnapshot;
+import com.stock.market.price.validation.CurrentPriceFreshnessPolicy;
+import com.stock.market.price.validation.CurrentPriceFreshnessProperties;
 import com.stock.portfolio.PortfolioSnapshot;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class HarnessToolResultValidatorTest {
     private static final Instant OBSERVED_AT = Instant.parse("2026-01-01T00:00:00Z");
-    private final HarnessToolResultValidator validator = new HarnessToolResultValidator();
+    private static final Duration MAX_AGE = Duration.ofMinutes(1);
+    private final HarnessToolResultValidator validator = validatorAt(OBSERVED_AT);
 
     @Test
     void allowsValidPortfolioResult() {
@@ -179,6 +185,28 @@ class HarnessToolResultValidatorTest {
     }
 
     @Test
+    void rejectsStaleCurrentPriceAtMaxAgeBoundary() {
+        HarnessToolResultValidator stalePriceValidator = validatorAt(
+                OBSERVED_AT.plus(MAX_AGE)
+        );
+
+        HarnessToolResultValidationResult result = stalePriceValidator.validate(
+                HarnessToolRequest.currentPrice("005930"),
+                HarnessToolExecutionResult.executed(
+                        HarnessToolOutput.currentPrice(
+                                currentPrice("005930", 70_000L)
+                        )
+                )
+        );
+
+        assertThat(result.status()).isEqualTo(HarnessToolResultValidationStatus.INVALID);
+        assertThat(result.reasonCode()).isEqualTo(
+                HarnessToolResultValidationReasonCode.OUTPUT_CURRENT_PRICE_STALE
+        );
+        assertThat(result.reason()).contains("observedAt=" + OBSERVED_AT);
+    }
+
+    @Test
     void rejectsMismatchedResultType() {
         HarnessToolExecutionResult executionResult = executedResult(
                 HarnessToolType.GET_MARKET,
@@ -270,6 +298,13 @@ class HarnessToolResultValidatorTest {
 
     private HarnessToolRequest request(HarnessToolType type) {
         return new HarnessToolRequest(type);
+    }
+
+    private HarnessToolResultValidator validatorAt(Instant now) {
+        return new HarnessToolResultValidator(new CurrentPriceFreshnessPolicy(
+                new CurrentPriceFreshnessProperties(MAX_AGE),
+                Clock.fixed(now, ZoneOffset.UTC)
+        ));
     }
 
     private CurrentPriceSnapshot currentPrice(String symbol, long priceKrw) {

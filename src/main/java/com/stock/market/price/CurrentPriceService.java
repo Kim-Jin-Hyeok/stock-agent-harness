@@ -4,6 +4,7 @@ import com.stock.market.price.cache.CurrentPriceCache;
 import com.stock.market.price.lookup.CurrentPriceLookupResult;
 import com.stock.market.price.provider.CurrentPriceProvider;
 import com.stock.market.price.provider.CurrentPriceProviderCallGuard;
+import com.stock.market.price.validation.CurrentPriceFreshnessPolicy;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Component;
 public class CurrentPriceService {
     private final CurrentPriceProvider currentPriceProvider;
     private final CurrentPriceCache currentPriceCache;
+    private final CurrentPriceFreshnessPolicy currentPriceFreshnessPolicy;
 
     public CurrentPriceLookupResult getCurrentPrice(
             String symbol,
@@ -40,6 +42,6 @@ public class CurrentPriceService {
         return snapshot != null
                 && symbol.equals(snapshot.symbol())
                 && snapshot.priceKrw() > 0
-                && snapshot.observedAt() != null;
+                && currentPriceFreshnessPolicy.isFresh(snapshot.observedAt());
     }
 }

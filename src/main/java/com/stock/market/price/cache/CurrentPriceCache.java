@@ -1,6 +1,7 @@
 package com.stock.market.price.cache;
 
 import com.stock.market.price.CurrentPriceSnapshot;
+import com.stock.market.price.validation.CurrentPriceFreshnessPolicy;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -15,6 +16,7 @@ import java.util.concurrent.ConcurrentMap;
 public class CurrentPriceCache {
     private final CurrentPriceCacheProperties properties;
     private final Clock clock;
+    private final CurrentPriceFreshnessPolicy currentPriceFreshnessPolicy;
     private final ConcurrentMap<String, CacheEntry> entries = new ConcurrentHashMap<>();
 
     public Optional<CurrentPriceSnapshot> get(String symbol) {
@@ -51,8 +53,12 @@ public class CurrentPriceCache {
     }
 
     private boolean isExpired(CacheEntry entry, Instant now) {
-        Instant expiresAt = entry.cachedAt().plus(properties.ttl());
-        return !now.isBefore(expiresAt);
+        Instant cacheExpiresAt = entry.cachedAt().plus(properties.ttl());
+        return !now.isBefore(cacheExpiresAt)
+                || !currentPriceFreshnessPolicy.isFreshAt(
+                        entry.snapshot().observedAt(),
+                        now
+                );
     }
 
     private record CacheEntry(
