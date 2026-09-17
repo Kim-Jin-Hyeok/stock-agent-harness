@@ -18,7 +18,12 @@ public record HarnessToolRetryPolicy(
             int usedRetries
     ) {
         return result.status() == HarnessToolExecutionStatus.FAILED
-                && result.reasonCode() == HarnessToolExecutionReasonCode.TOOL_EXECUTION_FAILED
+                && isRetryable(result.reasonCode())
                 && usedRetries < maxRetries;
+    }
+
+    private boolean isRetryable(HarnessToolExecutionReasonCode reasonCode) {
+        return reasonCode == HarnessToolExecutionReasonCode.TOOL_EXECUTION_FAILED
+                || reasonCode == HarnessToolExecutionReasonCode.PROVIDER_TEMPORARY_FAILURE;
     }
 }

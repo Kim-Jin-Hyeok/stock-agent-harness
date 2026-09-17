@@ -115,4 +115,41 @@ public record HarnessToolExecutionResult(
                 null
         );
     }
+
+    public static HarnessToolExecutionResult providerTemporaryFailure(
+            HarnessToolRequest request,
+            String cause
+    ) {
+        return providerFailure(
+                request,
+                HarnessToolExecutionReasonCode.PROVIDER_TEMPORARY_FAILURE,
+                "Current price provider temporary failure. cause=" + cause
+        );
+    }
+
+    public static HarnessToolExecutionResult providerPermanentFailure(
+            HarnessToolRequest request,
+            String cause
+    ) {
+        return providerFailure(
+                request,
+                HarnessToolExecutionReasonCode.PROVIDER_PERMANENT_FAILURE,
+                "Current price provider permanent failure. cause=" + cause
+        );
+    }
+
+    private static HarnessToolExecutionResult providerFailure(
+            HarnessToolRequest request,
+            HarnessToolExecutionReasonCode reasonCode,
+            String reason
+    ) {
+        return new HarnessToolExecutionResult(
+                HarnessToolExecutionStatus.FAILED,
+                request.type(),
+                request,
+                reasonCode,
+                reason,
+                null
+        );
+    }
 }

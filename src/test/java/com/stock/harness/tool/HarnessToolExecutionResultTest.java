@@ -50,6 +50,42 @@ class HarnessToolExecutionResultTest {
     }
 
     @Test
+    void createsTemporaryProviderFailureResult() {
+        HarnessToolExecutionResult result = HarnessToolExecutionResult.providerTemporaryFailure(
+                HarnessToolRequest.currentPrice("005930"),
+                "Broker timeout"
+        );
+
+        assertThat(result.status()).isEqualTo(HarnessToolExecutionStatus.FAILED);
+        assertThat(result.request()).isEqualTo(HarnessToolRequest.currentPrice("005930"));
+        assertThat(result.reasonCode()).isEqualTo(
+                HarnessToolExecutionReasonCode.PROVIDER_TEMPORARY_FAILURE
+        );
+        assertThat(result.reason()).isEqualTo(
+                "Current price provider temporary failure. cause=Broker timeout"
+        );
+        assertThat(result.output()).isNull();
+    }
+
+    @Test
+    void createsPermanentProviderFailureResult() {
+        HarnessToolExecutionResult result = HarnessToolExecutionResult.providerPermanentFailure(
+                HarnessToolRequest.currentPrice("005930"),
+                "Invalid authentication"
+        );
+
+        assertThat(result.status()).isEqualTo(HarnessToolExecutionStatus.FAILED);
+        assertThat(result.request()).isEqualTo(HarnessToolRequest.currentPrice("005930"));
+        assertThat(result.reasonCode()).isEqualTo(
+                HarnessToolExecutionReasonCode.PROVIDER_PERMANENT_FAILURE
+        );
+        assertThat(result.reason()).isEqualTo(
+                "Current price provider permanent failure. cause=Invalid authentication"
+        );
+        assertThat(result.output()).isNull();
+    }
+
+    @Test
     void createsAuthorizationDeniedResult() {
         HarnessToolExecutionResult result = authorizationDeniedPortfolioToolResult();
 

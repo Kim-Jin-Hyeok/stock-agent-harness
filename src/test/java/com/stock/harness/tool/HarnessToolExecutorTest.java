@@ -10,6 +10,8 @@ import com.stock.market.price.cache.CurrentPriceCacheProperties;
 import com.stock.market.price.lookup.CurrentPriceLookupSource;
 import com.stock.market.price.provider.CurrentPriceProvider;
 import com.stock.market.price.provider.FixedCurrentPriceProvider;
+import com.stock.market.price.provider.error.CurrentPriceProviderException;
+import com.stock.market.price.provider.error.CurrentPriceProviderFailureType;
 import com.stock.market.price.validation.CurrentPriceFreshnessPolicy;
 import com.stock.market.price.validation.CurrentPriceFreshnessProperties;
 import com.stock.portfolio.PortfolioService;
@@ -112,6 +114,62 @@ class HarnessToolExecutorTest {
     }
 
     @Test
+    void returnsTemporaryFailureAndConsumesBudgetWhenProviderTemporarilyFails() {
+        CurrentPriceProvider provider = mock(CurrentPriceProvider.class);
+        when(provider.getCurrentPrice("005930")).thenThrow(
+                new CurrentPriceProviderException(
+                        CurrentPriceProviderFailureType.TEMPORARY,
+                        "Broker timeout"
+                )
+        );
+        HarnessProviderCallBudget budget = providerCallBudget(1);
+
+        HarnessToolExecutionResult result = executor(
+                currentPriceService(provider)
+        ).execute(HarnessToolRequest.currentPrice("005930"), budget);
+
+        assertThat(result.status()).isEqualTo(HarnessToolExecutionStatus.FAILED);
+        assertThat(result.request()).isEqualTo(HarnessToolRequest.currentPrice("005930"));
+        assertThat(result.reasonCode()).isEqualTo(
+                HarnessToolExecutionReasonCode.PROVIDER_TEMPORARY_FAILURE
+        );
+        assertThat(result.reason()).isEqualTo(
+                "Current price provider temporary failure. cause=Broker timeout"
+        );
+        assertThat(result.output()).isNull();
+        assertThat(budget.usedCalls()).isEqualTo(1);
+        verify(provider).getCurrentPrice("005930");
+    }
+
+    @Test
+    void returnsPermanentFailureAndConsumesBudgetWhenProviderPermanentlyFails() {
+        CurrentPriceProvider provider = mock(CurrentPriceProvider.class);
+        when(provider.getCurrentPrice("005930")).thenThrow(
+                new CurrentPriceProviderException(
+                        CurrentPriceProviderFailureType.PERMANENT,
+                        "Invalid authentication"
+                )
+        );
+        HarnessProviderCallBudget budget = providerCallBudget(1);
+
+        HarnessToolExecutionResult result = executor(
+                currentPriceService(provider)
+        ).execute(HarnessToolRequest.currentPrice("005930"), budget);
+
+        assertThat(result.status()).isEqualTo(HarnessToolExecutionStatus.FAILED);
+        assertThat(result.request()).isEqualTo(HarnessToolRequest.currentPrice("005930"));
+        assertThat(result.reasonCode()).isEqualTo(
+                HarnessToolExecutionReasonCode.PROVIDER_PERMANENT_FAILURE
+        );
+        assertThat(result.reason()).isEqualTo(
+                "Current price provider permanent failure. cause=Invalid authentication"
+        );
+        assertThat(result.output()).isNull();
+        assertThat(budget.usedCalls()).isEqualTo(1);
+        verify(provider).getCurrentPrice("005930");
+    }
+
+    @Test
     void returnsFailedResultWithoutCallingProviderWhenProviderCallLimitIsExceeded() {
         CurrentPriceProvider provider = mock(CurrentPriceProvider.class);
         HarnessProviderCallBudget budget = providerCallBudget(0);
@@ -152,8 +210,16 @@ class HarnessToolExecutorTest {
     }
 
     private CurrentPriceService currentPriceService() {
+        return currentPriceService(
+                new FixedCurrentPriceProvider(
+                        Clock.fixed(OBSERVED_AT, ZoneOffset.UTC)
+                )
+        );
+    }
+
+    private CurrentPriceService currentPriceService(CurrentPriceProvider provider) {
         return new CurrentPriceService(
-                new FixedCurrentPriceProvider(Clock.fixed(OBSERVED_AT, ZoneOffset.UTC)),
+                provider,
                 new CurrentPriceCache(
                         new CurrentPriceCacheProperties(Duration.ofSeconds(30)),
                         Clock.fixed(OBSERVED_AT, ZoneOffset.UTC),

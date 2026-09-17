@@ -1,6 +1,7 @@
 package com.stock.harness.execution.retry;
 
 import com.stock.harness.tool.HarnessToolExecutionResult;
+import com.stock.harness.tool.HarnessToolRequest;
 import com.stock.harness.tool.HarnessToolType;
 import org.junit.jupiter.api.Test;
 
@@ -34,6 +35,20 @@ class HarnessToolRetryPolicyTest {
     }
 
     @Test
+    void retriesTemporaryProviderFailureWhenRetryRemains() {
+        HarnessToolRetryPolicy policy = new HarnessToolRetryPolicy(1);
+
+        assertThat(policy.shouldRetry(temporaryProviderFailure(), 0)).isTrue();
+    }
+
+    @Test
+    void doesNotRetryPermanentProviderFailure() {
+        HarnessToolRetryPolicy policy = new HarnessToolRetryPolicy(1);
+
+        assertThat(policy.shouldRetry(permanentProviderFailure(), 0)).isFalse();
+    }
+
+    @Test
     void rejectsNegativeMaxRetries() {
         assertThatThrownBy(() -> new HarnessToolRetryPolicy(-1))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -44,6 +59,20 @@ class HarnessToolRetryPolicyTest {
         return HarnessToolExecutionResult.executionFailed(
                 HarnessToolType.GET_CURRENT_PRICE,
                 "Broker timeout"
+        );
+    }
+
+    private HarnessToolExecutionResult temporaryProviderFailure() {
+        return HarnessToolExecutionResult.providerTemporaryFailure(
+                HarnessToolRequest.currentPrice("005930"),
+                "Broker timeout"
+        );
+    }
+
+    private HarnessToolExecutionResult permanentProviderFailure() {
+        return HarnessToolExecutionResult.providerPermanentFailure(
+                HarnessToolRequest.currentPrice("005930"),
+                "Invalid authentication"
         );
     }
 }

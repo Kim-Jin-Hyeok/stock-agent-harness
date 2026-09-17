@@ -4,6 +4,7 @@ import com.stock.harness.execution.limit.HarnessProviderCallBudget;
 import com.stock.harness.execution.limit.HarnessProviderCallLimitExceededException;
 import com.stock.market.MarketService;
 import com.stock.market.price.CurrentPriceService;
+import com.stock.market.price.provider.error.CurrentPriceProviderException;
 import com.stock.portfolio.PortfolioService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -44,6 +45,17 @@ public class HarnessToolExecutor {
                     request,
                     e.getMessage()
             );
+        } catch (CurrentPriceProviderException e) {
+            return switch (e.failureType()) {
+                case TEMPORARY -> HarnessToolExecutionResult.providerTemporaryFailure(
+                        request,
+                        e.getMessage()
+                );
+                case PERMANENT -> HarnessToolExecutionResult.providerPermanentFailure(
+                        request,
+                        e.getMessage()
+                );
+            };
         } catch (RuntimeException e) {
             return HarnessToolExecutionResult.executionFailed(
                     request,
