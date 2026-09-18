@@ -649,7 +649,11 @@ maxSteps = 2
 ```yaml
 harness:
   max-tool-retries: 1
+  retry:
+    delay: 500ms
 ```
+
+`harness.retry.delay`는 재시도 가능 판정 후 다음 Tool 실행까지 기다리는 고정 시간이다. 현재 기본값은 `500ms`다. `0`이면 대기 없이 재시도하며, null 또는 음수는 `HarnessRetryProperties` 생성 시 거부한다.
 
 현재가 Provider 호출 한도는 한 Run에서 캐시 미스 이후 실제 Provider를 호출할 수 있는 최대 횟수다.
 
@@ -681,6 +685,8 @@ src/main/java/com/stock/harness/execution/limit/HarnessAgentStepBudget.java
 src/main/java/com/stock/harness/execution/limit/HarnessToolCallBudget.java
 src/main/java/com/stock/harness/execution/limit/HarnessProviderCallBudget.java
 src/main/java/com/stock/harness/execution/limit/HarnessProviderCallLimitExceededException.java
+src/main/java/com/stock/harness/execution/retry/HarnessRetryProperties.java
+src/main/java/com/stock/harness/execution/retry/HarnessRetryWaiter.java
 src/main/java/com/stock/harness/execution/retry/HarnessToolRetryPolicy.java
 ```
 
@@ -696,6 +702,12 @@ usedRetries < maxRetries
 ```
 
 `PROVIDER_PERMANENT_FAILURE`, `TOOL_NOT_SUPPORTED`, 권한 거절, 중복 요청, Provider 호출 한도 초과, 요청 및 결과 계약 위반은 같은 호출을 반복해도 해결되지 않으므로 재시도하지 않는다.
+
+`HarnessRetryWaiter`는 `HarnessToolRetryPolicy`가 재시도를 허용한 뒤 실제 시간 대기를 수행하는 Spring Bean이다. 정책 객체는 재시도 여부만 판단하고, `Thread.sleep`처럼 실행 부작용이 있는 책임은 Waiter에 분리한다. 이 구조를 통해 Harness 테스트에서는 Waiter를 mock으로 교체해 실제로 기다리지 않고 호출 여부만 검증한다.
+
+대기 중 thread interrupt가 발생하면 `HarnessRetryWaiter`는 interrupt 상태를 복구하고 `IllegalStateException`을 상위로 전달한다. `InvestmentHarness`는 이를 실행 실패로 처리해 Run을 종료한다. 애플리케이션 종료나 작업 취소 요청을 무시한 채 재시도를 계속하지 않기 위한 정책이다.
+
+현재 재시도 대기는 별도 Harness Step으로 기록하지 않는다. 실행 이력에는 실패한 `EXECUTE_TOOL_REQUEST`와 다음 `CHECK_TOOL_CALL_LIMIT` 사이의 시각 차이로만 나타난다. 대기 시간과 중단 여부를 명시적인 실행 이력으로 제공할 필요가 생기면 별도 Step 추가를 검토한다.
 
 `HarnessRunContext`는 `maxSteps`를 직접 들지 않고 `HarnessRunLimits`를 가진다.
 
@@ -1026,7 +1038,7 @@ HarnessToolRequest
 -> HarnessStepType.EXECUTE_TOOL_REQUEST
 ```
 
-결과가 `TOOL_EXECUTION_FAILED` 또는 `PROVIDER_TEMPORARY_FAILURE`이고 재시도 횟수가 남았다면 `CHECK_TOOL_CALL_LIMIT`와 `EXECUTE_TOOL_REQUEST`를 다시 수행한다. 권한과 요청 내용은 이미 확인됐으므로 `VALIDATE_TOOL_REQUEST`, `AUTHORIZE_TOOL_REQUEST`, `CHECK_DUPLICATE_TOOL_REQUEST`는 반복하지 않는다. `PROVIDER_PERMANENT_FAILURE`는 재시도하지 않는다.
+결과가 `TOOL_EXECUTION_FAILED` 또는 `PROVIDER_TEMPORARY_FAILURE`이고 재시도 횟수가 남았다면 `HarnessRetryWaiter`로 고정 시간만큼 대기한 뒤 `CHECK_TOOL_CALL_LIMIT`와 `EXECUTE_TOOL_REQUEST`를 다시 수행한다. 권한과 요청 내용은 이미 확인됐으므로 `VALIDATE_TOOL_REQUEST`, `AUTHORIZE_TOOL_REQUEST`, `CHECK_DUPLICATE_TOOL_REQUEST`는 반복하지 않는다. 최초 Tool 실행 전에는 대기하지 않으며 `PROVIDER_PERMANENT_FAILURE`와 재시도 횟수가 소진된 실패에도 대기하지 않는다.
 
 권한 판정이 거절되면 Tool 실행기로 넘어가지 않는다. 이 경우 `AUTHORIZE_TOOL_REQUEST`는 `FAILED`로 기록되고, Run은 `RUN_FAILED`로 종료된다.
 
@@ -1223,7 +1235,7 @@ REQUEST_TOOL이면 HarnessToolRequestValidator가 요청 계약을 검증하고 
 권한이 허용되면 HarnessToolRequestTracker로 중복 여부를 확인하고 CHECK_DUPLICATE_TOOL_REQUEST Step을 기록함
 중복 검사를 통과하면 HarnessToolCallBudget을 확인하고 CHECK_TOOL_CALL_LIMIT Step을 기록함
 Tool Call Budget을 통과하면 HarnessToolExecutor로 실행을 시도하고 EXECUTE_TOOL_REQUEST Step을 기록함
-TOOL_EXECUTION_FAILED 또는 PROVIDER_TEMPORARY_FAILURE이고 재시도 횟수가 남으면 Budget 확인과 Tool 실행을 반복함
+TOOL_EXECUTION_FAILED 또는 PROVIDER_TEMPORARY_FAILURE이고 재시도 횟수가 남으면 고정 시간 대기 후 Budget 확인과 Tool 실행을 반복함
 HarnessToolExecutor는 GET_PORTFOLIO, GET_MARKET, GET_CURRENT_PRICE 조회 Tool을 실행함
 HarnessToolExecutionResult 모델 있음
 HarnessToolResultValidator가 실행 결과 계약을 검증하고 VALIDATE_TOOL_RESULT Step을 기록함
@@ -1585,10 +1597,12 @@ FAILED
 -> 실패한 HarnessToolExecutionResult를 Run 이력에 저장
 
 TOOL_EXECUTION_FAILED이고 재시도 가능
+-> HarnessRetryWaiter로 설정된 고정 시간만큼 대기
 -> CHECK_TOOL_CALL_LIMIT와 EXECUTE_TOOL_REQUEST를 다시 수행
 -> 실패한 시도와 후속 시도를 모두 Run 이력에 저장
 
 PROVIDER_TEMPORARY_FAILURE이고 재시도 가능
+-> HarnessRetryWaiter로 설정된 고정 시간만큼 대기
 -> Tool Call Budget과 Provider Call Budget을 다시 소비
 -> CHECK_TOOL_CALL_LIMIT와 EXECUTE_TOOL_REQUEST를 다시 수행
 
@@ -1642,15 +1656,16 @@ VALIDATE_AGENT_ACTION
 
 Agent Loop는 `FINAL_DECISION`이 반환되거나 실행 Budget이 소진될 때까지 반복된다. `FINAL_DECISION`이 반환되면 Risk Guard와 Trade Executor 흐름으로 진행한다. Agent Step Budget이 소진되면 다음 Agent 호출 전에 중단하고, Tool Call Budget이 소진되면 다음 Tool 실행 전에 중단한다. 현재가 Provider Budget이 소진되면 캐시 적중 결과는 계속 사용할 수 있지만 새로운 Provider 호출은 실행하지 않는다.
 
-`TOOL_EXECUTION_FAILED`와 `PROVIDER_TEMPORARY_FAILURE`는 `HarnessToolRetryPolicy`가 허용하는 동안 즉시 재시도한다. 최초 실패 후 재시도에 성공하면 실패한 실행 Step은 `FAILED`로 유지하지만 복구된 실패로 판단해 최종 Run은 `COMPLETED`가 될 수 있다. 실패한 시도와 성공한 시도는 모두 동일한 원본 `HarnessToolRequest`와 함께 Run 이력에 남고, 최종 성공 결과만 검증 후 Agent Context에 전달한다.
+`TOOL_EXECUTION_FAILED`와 `PROVIDER_TEMPORARY_FAILURE`는 `HarnessToolRetryPolicy`가 허용하면 `HarnessRetryWaiter`의 고정 대기 후 재시도한다. 대기는 다음 Tool Call Budget을 소비하기 전에 수행한다. 최초 실패 후 재시도에 성공하면 실패한 실행 Step은 `FAILED`로 유지하지만 복구된 실패로 판단해 최종 Run은 `COMPLETED`가 될 수 있다. 실패한 시도와 성공한 시도는 모두 동일한 원본 `HarnessToolRequest`와 함께 Run 이력에 남고, 최종 성공 결과만 검증 후 Agent Context에 전달한다.
 
-`PROVIDER_PERMANENT_FAILURE`는 재시도하지 않고 Run을 실패시킨다. 재시도 가능한 실패라도 횟수가 소진되거나 Tool Call Budget 또는 Provider Call Budget이 부족하면 Run을 실패시킨다. 현재는 재시도 사이의 대기 시간과 Backoff를 적용하지 않는다. 그 밖의 재시도 불가능한 실행 실패와 결과 계약 검증 실패도 재시도하지 않는다.
+`PROVIDER_PERMANENT_FAILURE`는 재시도하거나 대기하지 않고 Run을 실패시킨다. 재시도 가능한 실패라도 횟수가 소진되면 추가 대기 없이 Run을 실패시킨다. Tool Call Budget 또는 Provider Call Budget이 부족한 경우에도 Run을 실패시킨다. 현재는 모든 재시도에 같은 고정 시간을 적용하며 지수 Backoff는 구현하지 않는다. 그 밖의 재시도 불가능한 실행 실패와 결과 계약 검증 실패도 재시도하지 않는다.
 
 이후 판단해야 할 질문은 다음과 같다.
 
 ```text
-1. 재시도 사이에 고정 대기 또는 지수 Backoff를 적용할 것인가?
-2. 여러 Run과 서버가 공유하는 분당 또는 시간당 Provider Rate Limit을 어디에서 관리할 것인가?
+1. 재시도 횟수를 늘릴 때 고정 대기를 지수 Backoff로 확장할 것인가?
+2. 재시도 대기를 별도 Harness Step으로 기록할 것인가?
+3. 여러 Run과 서버가 공유하는 분당 또는 시간당 Provider Rate Limit을 어디에서 관리할 것인가?
 ```
 
 설정 책임은 현재 다음처럼 분리되어 있다.
@@ -1662,6 +1677,12 @@ maxSteps
 maxToolCalls
 maxToolRetries
 maxProviderCalls
+```
+
+`HarnessRetryProperties`는 현재 다음 값을 가진다.
+
+```text
+delay
 ```
 
 `RiskProperties`는 현재 다음 값을 가진다.
@@ -1689,7 +1710,7 @@ ttl
 maxAge
 ```
 
-`maxSteps`, `maxToolCalls`, `maxToolRetries`, `maxProviderCalls`는 Harness 실행 통제 값이고, `maxOrderRatio`, `maxPositionRatio`는 Risk Guard 정책 값이다.
+`maxSteps`, `maxToolCalls`, `maxToolRetries`, `maxProviderCalls`는 Harness 실행 통제 값이고, `delay`는 재시도 실행 간격을 결정하는 Harness 실행 정책 값이다. `maxOrderRatio`, `maxPositionRatio`는 Risk Guard 정책 값이다.
 
 `ttl`은 캐시 저장 시각을 기준으로 현재가 Entry의 보관 시간을 결정하고, `maxAge`는 Provider 관측 시각을 기준으로 현재가 데이터의 신선도를 결정하는 시장 데이터 조회 정책 값이다.
 
@@ -1701,8 +1722,8 @@ maxAge
 
 `harness.scheduler.fixed-delay-ms`는 현재 `@Scheduled(fixedDelayString = "${harness.scheduler.fixed-delay-ms}")` 속성에서 직접 참조한다. `@Scheduled`는 어노테이션 속성으로 스케줄 간격을 받아야 하므로, 이 단계에서는 `fixed-delay-ms`를 별도 record 필드로 옮기지 않는다.
 
-현재 Tool 실행 결과의 계약 검증, Run 결과 포함, JSON 저장, 상세 조회까지 구현되어 있다. 각 실행 결과는 원본 Tool 요청을 함께 보존하므로 출력이 없는 실패, 권한 거절, 중복 차단 결과에서도 요청 타입과 symbol을 확인할 수 있다. `GET_CURRENT_PRICE`는 요청 symbol 필수 검증과 응답 symbol·양수 가격·관측 시각·신선도 검증, Provider 경계, TTL과 관측 시각을 함께 확인하는 인메모리 캐시, `CACHE`와 `PROVIDER` 조회 출처 기록, Run별 Provider 호출 한도까지 포함한다. 관측 시각은 런타임 결과, JSON 저장, 상세 조회 API까지 보존되며 캐시 적중 시에도 원래 값이 유지된다. 일반 Tool Service의 `RuntimeException`은 `TOOL_EXECUTION_FAILED`로, 현재가 Provider의 분류된 예외는 일시적 또는 영구적 Provider 실패 결과로 변환되어 실행 이력에 저장된다. 일시적 실패와 기존 Tool 실행 실패만 설정된 횟수 안에서 재시도된다.
+현재 Tool 실행 결과의 계약 검증, Run 결과 포함, JSON 저장, 상세 조회까지 구현되어 있다. 각 실행 결과는 원본 Tool 요청을 함께 보존하므로 출력이 없는 실패, 권한 거절, 중복 차단 결과에서도 요청 타입과 symbol을 확인할 수 있다. `GET_CURRENT_PRICE`는 요청 symbol 필수 검증과 응답 symbol·양수 가격·관측 시각·신선도 검증, Provider 경계, TTL과 관측 시각을 함께 확인하는 인메모리 캐시, `CACHE`와 `PROVIDER` 조회 출처 기록, Run별 Provider 호출 한도까지 포함한다. 관측 시각은 런타임 결과, JSON 저장, 상세 조회 API까지 보존되며 캐시 적중 시에도 원래 값이 유지된다. 일반 Tool Service의 `RuntimeException`은 `TOOL_EXECUTION_FAILED`로, 현재가 Provider의 분류된 예외는 일시적 또는 영구적 Provider 실패 결과로 변환되어 실행 이력에 저장된다. 일시적 실패와 기존 Tool 실행 실패만 설정된 횟수 안에서 고정 대기 후 재시도된다.
 
 동일 Run의 중복 Tool 요청 차단까지 구현되어 있다.
 
-현재가 Cache 경계, Tool 실패 재시도 정책, Provider 실패의 일시적·영구적 분류, 논리적인 Tool Call Budget과 실제 Provider Call Budget의 분리는 구현되어 있다. 실제 Broker API를 연결하기 전에는 인증과 응답 매핑, HTTP 상태 및 Broker 오류 코드와 실패 유형의 구체적인 매핑, 여러 Run에 걸친 시간 단위 Rate Limit 정책을 결정해야 한다.
+현재가 Cache 경계, Tool 실패 재시도 정책, Provider 실패의 일시적·영구적 분류, 고정 재시도 대기, 논리적인 Tool Call Budget과 실제 Provider Call Budget의 분리는 구현되어 있다. 실제 Broker API를 연결하기 전에는 인증과 응답 매핑, HTTP 상태 및 Broker 오류 코드와 실패 유형의 구체적인 매핑, 여러 Run에 걸친 시간 단위 Rate Limit 정책을 결정해야 한다.
