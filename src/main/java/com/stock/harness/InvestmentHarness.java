@@ -413,7 +413,11 @@ public class InvestmentHarness {
                 return executionResult;
             }
 
-            harnessRetryWaiter.waitBeforeRetry();
+            stepRecorder.record(
+                    HarnessStepType.WAIT_TOOL_RETRY,
+                    harnessRetryWaiter::waitBeforeRetry,
+                    delay -> "Tool retry wait completed. delay=" + delay
+            );
             usedRetries++;
         }
     }

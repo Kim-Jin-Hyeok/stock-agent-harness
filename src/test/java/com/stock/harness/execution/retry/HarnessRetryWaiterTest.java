@@ -15,7 +15,9 @@ class HarnessRetryWaiterTest {
                 new HarnessRetryProperties(Duration.ZERO)
         );
 
-        waiter.waitBeforeRetry();
+        Duration waited = waiter.waitBeforeRetry();
+
+        assertThat(waited).isZero();
     }
 
     @Test

@@ -43,6 +43,33 @@ class HarnessStepRepositoryTest {
                 );
     }
 
+    @Test
+    void savesRetryWaitStepWithRecordedTimes() {
+        LocalDateTime startedAt = LocalDateTime.of(2026, 1, 1, 0, 0, 0);
+        LocalDateTime finishedAt = startedAt.plusNanos(500_000_000);
+        harnessStepRepository.save(HarnessStepEntity.of(
+                "run-retry",
+                1,
+                HarnessStepType.WAIT_TOOL_RETRY,
+                HarnessStepStatus.COMPLETED,
+                "Tool retry wait completed. delay=PT0.5S",
+                startedAt,
+                finishedAt
+        ));
+
+        HarnessStepEntity entity = harnessStepRepository
+                .findAllByRunIdOrderByStepOrderAsc("run-retry")
+                .getFirst();
+
+        assertThat(entity.getType()).isEqualTo(HarnessStepType.WAIT_TOOL_RETRY);
+        assertThat(entity.getStatus()).isEqualTo(HarnessStepStatus.COMPLETED);
+        assertThat(entity.getMessage()).isEqualTo(
+                "Tool retry wait completed. delay=PT0.5S"
+        );
+        assertThat(entity.getStartedAt()).isEqualTo(startedAt);
+        assertThat(entity.getFinishedAt()).isEqualTo(finishedAt);
+    }
+
     private HarnessStepEntity completedStepEntity(String runId, Integer stepOrder) {
         return stepEntity(
                 runId,

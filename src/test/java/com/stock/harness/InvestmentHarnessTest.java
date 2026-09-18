@@ -44,6 +44,7 @@ import com.stock.trade.TradeExecutor;
 import com.stock.trade.TradeHistoryService;
 import com.stock.trade.TradeStatus;
 import com.stock.trade.persistence.TradeRecordRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -125,6 +126,11 @@ class InvestmentHarnessTest {
     private final HarnessAgentActionValidator harnessAgentActionValidator = new HarnessAgentActionValidator();
     private final HarnessToolRequestValidator harnessToolRequestValidator = new HarnessToolRequestValidator();
     private final HarnessRetryWaiter harnessRetryWaiter = mock(HarnessRetryWaiter.class);
+
+    @BeforeEach
+    void setUpRetryWaiter() {
+        when(harnessRetryWaiter.waitBeforeRetry()).thenReturn(Duration.ofMillis(500));
+    }
 
     private final InvestmentHarness investmentHarness = new InvestmentHarness(
             riskGuard,
@@ -951,6 +957,15 @@ class InvestmentHarnessTest {
                         HarnessStepStatus.FAILED,
                         HarnessStepStatus.COMPLETED
                 );
+        assertThat(result.steps())
+                .filteredOn(step -> step.type() == HarnessStepType.WAIT_TOOL_RETRY)
+                .singleElement()
+                .satisfies(step -> {
+                    assertThat(step.status()).isEqualTo(HarnessStepStatus.COMPLETED);
+                    assertThat(step.message()).isEqualTo(
+                            "Tool retry wait completed. delay=PT0.5S"
+                    );
+                });
         verify(retryingExecutor, times(2)).execute(any(), any());
         verify(harnessRetryWaiter).waitBeforeRetry();
     }
@@ -1026,6 +1041,23 @@ class InvestmentHarnessTest {
                         HarnessStepStatus.FAILED,
                         HarnessStepStatus.COMPLETED
                 );
+        assertThat(result.steps())
+                .extracting(HarnessStepResult::type)
+                .containsSubsequence(
+                        HarnessStepType.EXECUTE_TOOL_REQUEST,
+                        HarnessStepType.WAIT_TOOL_RETRY,
+                        HarnessStepType.CHECK_TOOL_CALL_LIMIT,
+                        HarnessStepType.EXECUTE_TOOL_REQUEST
+                );
+        assertThat(result.steps())
+                .filteredOn(step -> step.type() == HarnessStepType.WAIT_TOOL_RETRY)
+                .singleElement()
+                .satisfies(step -> {
+                    assertThat(step.status()).isEqualTo(HarnessStepStatus.COMPLETED);
+                    assertThat(step.message()).isEqualTo(
+                            "Tool retry wait completed. delay=PT0.5S"
+                    );
+                });
         verify(retryingExecutor, times(2)).execute(any(), any());
         verify(harnessRetryWaiter).waitBeforeRetry();
     }
@@ -1078,10 +1110,68 @@ class InvestmentHarnessTest {
                 .hasSize(1);
         assertThat(result.steps())
                 .extracting(HarnessStepResult::type)
-                .doesNotContain(HarnessStepType.VALIDATE_TOOL_RESULT);
+                .doesNotContain(
+                        HarnessStepType.WAIT_TOOL_RETRY,
+                        HarnessStepType.VALIDATE_TOOL_RESULT
+                );
         verify(failingExecutor).execute(any(), any());
         verify(requestingAgent).next(any());
         verifyNoInteractions(harnessRetryWaiter);
+    }
+
+    @Test
+    void runRecordsFailedRetryWaitStepWhenWaitIsInterrupted() {
+        HarnessToolRequest request = HarnessToolRequest.portfolio();
+        InvestmentAgent requestingAgent = mock(InvestmentAgent.class);
+        when(requestingAgent.next(any())).thenReturn(AgentNextAction.requestTool(request));
+        HarnessToolExecutor failingExecutor = mock(HarnessToolExecutor.class);
+        when(failingExecutor.execute(any(), any())).thenReturn(
+                HarnessToolExecutionResult.executionFailed(request, "Broker timeout")
+        );
+        when(harnessRetryWaiter.waitBeforeRetry()).thenThrow(
+                new IllegalStateException("Tool retry wait interrupted.")
+        );
+        InvestmentHarness interruptedHarness = new InvestmentHarness(
+                riskGuard,
+                tradeExecutor,
+                portfolioService,
+                marketService,
+                harnessRunHistoryService,
+                requestingAgent,
+                new HarnessProperties(2, 2, 1),
+                harnessToolAuthorizer,
+                failingExecutor,
+                harnessToolResultValidator,
+                harnessAgentActionValidator,
+                harnessToolRequestValidator,
+                harnessRetryWaiter
+        );
+
+        HarnessRunResult result = interruptedHarness.run();
+
+        assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
+        assertThat(result.toolResults())
+                .singleElement()
+                .satisfies(toolResult -> assertThat(toolResult.reasonCode()).isEqualTo(
+                        HarnessToolExecutionReasonCode.TOOL_EXECUTION_FAILED
+                ));
+        assertThat(result.steps())
+                .extracting(HarnessStepResult::type)
+                .containsSubsequence(
+                        HarnessStepType.EXECUTE_TOOL_REQUEST,
+                        HarnessStepType.WAIT_TOOL_RETRY,
+                        HarnessStepType.RUN_FAILED
+                );
+        assertThat(result.steps())
+                .filteredOn(step -> step.type() == HarnessStepType.WAIT_TOOL_RETRY)
+                .singleElement()
+                .satisfies(step -> {
+                    assertThat(step.status()).isEqualTo(HarnessStepStatus.FAILED);
+                    assertThat(step.message()).isEqualTo("Tool retry wait interrupted.");
+                });
+        verify(failingExecutor).execute(any(), any());
+        verify(harnessRetryWaiter).waitBeforeRetry();
+        verify(requestingAgent).next(any());
     }
 
     @Test
@@ -1132,6 +1222,10 @@ class InvestmentHarnessTest {
                 .extracting(HarnessStepResult::type)
                 .filteredOn(HarnessStepType.EXECUTE_TOOL_REQUEST::equals)
                 .hasSize(2);
+        assertThat(result.steps())
+                .extracting(HarnessStepResult::type)
+                .filteredOn(HarnessStepType.WAIT_TOOL_RETRY::equals)
+                .hasSize(1);
         verify(failingExecutor, times(2)).execute(any(), any());
         verify(requestingAgent).next(any());
         verify(harnessRetryWaiter).waitBeforeRetry();
