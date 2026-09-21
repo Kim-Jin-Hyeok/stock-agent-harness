@@ -1,8 +1,21 @@
 package com.stock.harness.persistence;
 
-import com.stock.harness.*;
+import com.stock.harness.HarnessRunDetail;
+import com.stock.harness.HarnessRunResult;
+import com.stock.harness.HarnessRunStatus;
+import com.stock.harness.HarnessRunSummary;
+import com.stock.harness.HarnessStepResult;
+import com.stock.strategy.profile.InvestmentHorizon;
+import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import com.stock.trade.TradeRecord;
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Lob;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -19,6 +32,16 @@ public class HarnessRunEntity {
     private Long id;
 
     private String runId;
+
+    @Column(nullable = false)
+    private String strategyId;
+
+    @Column(nullable = false)
+    private int strategyVersion;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private InvestmentHorizon horizon;
 
     @Enumerated(EnumType.STRING)
     private HarnessRunStatus status;
@@ -40,6 +63,7 @@ public class HarnessRunEntity {
 
     public static HarnessRunEntity of(
             String runId,
+            InvestmentStrategyIdentity strategyIdentity,
             HarnessRunStatus status,
             LocalDateTime startedAt,
             LocalDateTime finishedAt,
@@ -51,6 +75,9 @@ public class HarnessRunEntity {
     ) {
         HarnessRunEntity entity = new HarnessRunEntity();
         entity.runId = runId;
+        entity.strategyId = strategyIdentity.strategyId();
+        entity.strategyVersion = strategyIdentity.strategyVersion();
+        entity.horizon = strategyIdentity.horizon();
         entity.status = status;
         entity.startedAt = startedAt;
         entity.finishedAt = finishedAt;
@@ -64,6 +91,7 @@ public class HarnessRunEntity {
 
     public static HarnessRunEntity of(
             String runId,
+            InvestmentStrategyIdentity strategyIdentity,
             HarnessRunStatus status,
             LocalDateTime startedAt,
             LocalDateTime finishedAt,
@@ -74,6 +102,7 @@ public class HarnessRunEntity {
     ) {
         return of(
                 runId,
+                strategyIdentity,
                 status,
                 startedAt,
                 finishedAt,
@@ -95,6 +124,7 @@ public class HarnessRunEntity {
     ) {
         return of(
                 result.runId(),
+                result.strategyIdentity(),
                 result.status(),
                 result.startedAt(),
                 result.finishedAt(),
@@ -126,6 +156,7 @@ public class HarnessRunEntity {
     public HarnessRunSummary toSummary() {
         return new HarnessRunSummary(
                 runId,
+                strategyIdentity(),
                 status,
                 startedAt,
                 finishedAt
@@ -143,6 +174,7 @@ public class HarnessRunEntity {
     ) {
         return new HarnessRunDetail(
                 runId,
+                strategyIdentity(),
                 status,
                 startedAt,
                 finishedAt,
@@ -153,6 +185,14 @@ public class HarnessRunEntity {
                 toolExecutionSnapshots,
                 steps,
                 tradeRecords
+        );
+    }
+
+    private InvestmentStrategyIdentity strategyIdentity() {
+        return new InvestmentStrategyIdentity(
+                strategyId,
+                strategyVersion,
+                horizon
         );
     }
 }

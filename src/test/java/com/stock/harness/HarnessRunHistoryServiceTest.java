@@ -59,6 +59,9 @@ class HarnessRunHistoryServiceTest {
         verify(harnessRunRepository).save(captor.capture());
 
         HarnessRunEntity savedEntity = captor.getValue();
+        assertThat(savedEntity.getStrategyId()).isEqualTo(STRATEGY_IDENTITY.strategyId());
+        assertThat(savedEntity.getStrategyVersion()).isEqualTo(STRATEGY_IDENTITY.strategyVersion());
+        assertThat(savedEntity.getHorizon()).isEqualTo(STRATEGY_IDENTITY.horizon());
         assertThat(savedEntity.getDecisionSnapshotJson()).isEqualTo("{\"action\":\"BUY\"}");
         assertThat(savedEntity.getRiskCheckSnapshotJson()).isEqualTo("{\"status\":\"APPROVED\"}");
 
@@ -155,6 +158,7 @@ class HarnessRunHistoryServiceTest {
         String runId = "run-1";
         HarnessRunEntity entity = HarnessRunEntity.of(
                 runId,
+                STRATEGY_IDENTITY,
                 HarnessRunStatus.COMPLETED,
                 startedAt(),
                 finishedAt(),
@@ -176,6 +180,7 @@ class HarnessRunHistoryServiceTest {
         );
 
         assertThat(result).isPresent();
+        assertThat(result.get().strategyIdentity()).isEqualTo(STRATEGY_IDENTITY);
         assertThat(result.get().portfolioSnapshot()).isEqualTo(harnessPortfolioSnapshot());
         assertThat(result.get().portfolioSnapshot().positions()).hasSize(2);
 
@@ -187,6 +192,7 @@ class HarnessRunHistoryServiceTest {
         String runId = "run-1";
         HarnessRunEntity entity = HarnessRunEntity.of(
                 runId,
+                STRATEGY_IDENTITY,
                 HarnessRunStatus.COMPLETED,
                 startedAt(),
                 finishedAt(),
@@ -224,6 +230,7 @@ class HarnessRunHistoryServiceTest {
         );
         HarnessRunEntity entity = HarnessRunEntity.of(
                 runId,
+                STRATEGY_IDENTITY,
                 HarnessRunStatus.COMPLETED,
                 startedAt(),
                 finishedAt(),
@@ -280,6 +287,7 @@ class HarnessRunHistoryServiceTest {
 
         HarnessRunSummary summary = summaries.getFirst();
         assertThat(summary.runId()).isEqualTo("run-1");
+        assertThat(summary.strategyIdentity()).isEqualTo(STRATEGY_IDENTITY);
         assertThat(summary.status()).isEqualTo(HarnessRunStatus.COMPLETED);
         assertThat(summary.startedAt()).isEqualTo(startedAt());
         assertThat(summary.finishedAt()).isEqualTo(finishedAt());
@@ -356,6 +364,7 @@ class HarnessRunHistoryServiceTest {
     private HarnessRunEntity completedRunEntity(String runId) {
         return HarnessRunEntity.of(
                 runId,
+                STRATEGY_IDENTITY,
                 HarnessRunStatus.COMPLETED,
                 startedAt(),
                 finishedAt(),

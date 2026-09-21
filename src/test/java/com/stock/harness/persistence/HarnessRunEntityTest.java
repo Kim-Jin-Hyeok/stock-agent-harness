@@ -43,6 +43,9 @@ class HarnessRunEntityTest {
 
         // then
         assertThat(entity.getRunId()).isEqualTo(result.runId());
+        assertThat(entity.getStrategyId()).isEqualTo(STRATEGY_IDENTITY.strategyId());
+        assertThat(entity.getStrategyVersion()).isEqualTo(STRATEGY_IDENTITY.strategyVersion());
+        assertThat(entity.getHorizon()).isEqualTo(STRATEGY_IDENTITY.horizon());
         assertThat(entity.getStatus()).isEqualTo(result.status());
         assertThat(entity.getStartedAt()).isEqualTo(result.startedAt());
         assertThat(entity.getFinishedAt()).isEqualTo(result.finishedAt());
@@ -107,6 +110,7 @@ class HarnessRunEntityTest {
         );
 
         assertThat(detail.toolExecutionSnapshots()).containsExactlyElementsOf(snapshots);
+        assertThat(detail.strategyIdentity()).isEqualTo(STRATEGY_IDENTITY);
     }
 
     @Test
@@ -127,6 +131,7 @@ class HarnessRunEntityTest {
 
         // then
         assertThat(summary.runId()).isEqualTo(entity.getRunId());
+        assertThat(summary.strategyIdentity()).isEqualTo(STRATEGY_IDENTITY);
         assertThat(summary.status()).isEqualTo(entity.getStatus());
         assertThat(summary.startedAt()).isEqualTo(entity.getStartedAt());
         assertThat(summary.finishedAt()).isEqualTo(entity.getFinishedAt());

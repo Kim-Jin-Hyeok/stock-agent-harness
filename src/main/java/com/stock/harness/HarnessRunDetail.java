@@ -5,6 +5,7 @@ import com.stock.harness.persistence.HarnessMarketSnapshot;
 import com.stock.harness.persistence.HarnessPortfolioSnapshot;
 import com.stock.harness.persistence.HarnessRiskCheckSnapshot;
 import com.stock.harness.persistence.HarnessToolExecutionSnapshot;
+import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import com.stock.trade.TradeRecord;
 
 import java.time.LocalDateTime;
@@ -12,6 +13,7 @@ import java.util.List;
 
 public record HarnessRunDetail(
         String runId,
+        InvestmentStrategyIdentity strategyIdentity,
         HarnessRunStatus status,
         LocalDateTime startedAt,
         LocalDateTime finishedAt,

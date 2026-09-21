@@ -1,6 +1,8 @@
 package com.stock.harness.persistence;
 
 import com.stock.harness.HarnessRunStatus;
+import com.stock.strategy.profile.InvestmentHorizon;
+import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -13,6 +15,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
 class HarnessRunRepositoryTest {
+    private static final InvestmentStrategyIdentity STRATEGY_IDENTITY =
+            new InvestmentStrategyIdentity("DAY_TRADING_V1", 1, InvestmentHorizon.DAY_TRADING);
 
     @Autowired
     private HarnessRunRepository harnessRunRepository;
@@ -29,6 +33,9 @@ class HarnessRunRepositoryTest {
         // then
         assertThat(entity.isPresent()).isTrue();
         assertThat(entity.get().getRunId()).isEqualTo(runId);
+        assertThat(entity.get().getStrategyId()).isEqualTo(STRATEGY_IDENTITY.strategyId());
+        assertThat(entity.get().getStrategyVersion()).isEqualTo(STRATEGY_IDENTITY.strategyVersion());
+        assertThat(entity.get().getHorizon()).isEqualTo(STRATEGY_IDENTITY.horizon());
         assertThat(entity.get().getStatus()).isEqualTo(HarnessRunStatus.COMPLETED);
         assertThat(entity.get().getStartedAt()).isEqualTo(startedAt());
         assertThat(entity.get().getFinishedAt()).isEqualTo(finishedAt());
@@ -71,6 +78,7 @@ class HarnessRunRepositoryTest {
     ) {
         return HarnessRunEntity.of(
                 runId,
+                STRATEGY_IDENTITY,
                 HarnessRunStatus.COMPLETED,
                 startedAt,
                 finishedAt(startedAt),

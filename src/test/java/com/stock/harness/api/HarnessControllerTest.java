@@ -151,6 +151,12 @@ class HarnessControllerTest {
         mockMvc.perform(get("/api/harness/runs"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].runId").value(runId))
+                .andExpect(jsonPath("$[0].strategyIdentity.strategyId")
+                        .value(STRATEGY_IDENTITY.strategyId()))
+                .andExpect(jsonPath("$[0].strategyIdentity.strategyVersion")
+                        .value(STRATEGY_IDENTITY.strategyVersion()))
+                .andExpect(jsonPath("$[0].strategyIdentity.horizon")
+                        .value(STRATEGY_IDENTITY.horizon().name()))
                 .andExpect(jsonPath("$[0].status").value("COMPLETED"));
 
         verify(harnessRunHistoryService).getRunSummaries();
@@ -169,6 +175,12 @@ class HarnessControllerTest {
         mockMvc.perform(get("/api/harness/runs/{runId}", runId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.runId").value(runId))
+                .andExpect(jsonPath("$.strategyIdentity.strategyId")
+                        .value(STRATEGY_IDENTITY.strategyId()))
+                .andExpect(jsonPath("$.strategyIdentity.strategyVersion")
+                        .value(STRATEGY_IDENTITY.strategyVersion()))
+                .andExpect(jsonPath("$.strategyIdentity.horizon")
+                        .value(STRATEGY_IDENTITY.horizon().name()))
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.decisionSnapshot.action").value("BUY"))
                 .andExpect(jsonPath("$.riskCheckSnapshot.status").value("APPROVED"))
@@ -290,6 +302,7 @@ class HarnessControllerTest {
 
         return new HarnessRunSummary(
                 runId,
+                STRATEGY_IDENTITY,
                 HarnessRunStatus.COMPLETED,
                 startedAt,
                 finishedAt
@@ -302,6 +315,7 @@ class HarnessControllerTest {
 
         return new HarnessRunDetail(
                 runId,
+                STRATEGY_IDENTITY,
                 HarnessRunStatus.COMPLETED,
                 startedAt,
                 finishedAt,
