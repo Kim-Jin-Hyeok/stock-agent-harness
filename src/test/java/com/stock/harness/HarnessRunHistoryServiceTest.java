@@ -19,6 +19,8 @@ import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.risk.RiskCheckResult;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskReasonCode;
+import com.stock.strategy.profile.InvestmentHorizon;
+import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -31,6 +33,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 class HarnessRunHistoryServiceTest {
+    private static final InvestmentStrategyIdentity STRATEGY_IDENTITY =
+            new InvestmentStrategyIdentity("DAY_TRADING_V1", 1, InvestmentHorizon.DAY_TRADING);
     private final HarnessRunSnapshotJsonConverter harnessRunSnapshotJsonConverter =
             mock(HarnessRunSnapshotJsonConverter.class);
     private final HarnessRunRepository harnessRunRepository = mock(HarnessRunRepository.class);
@@ -326,6 +330,7 @@ class HarnessRunHistoryServiceTest {
     private HarnessRunResult completedRun(String runId) {
         return HarnessRunResult.of(
                 runId,
+                STRATEGY_IDENTITY,
                 HarnessRunStatus.COMPLETED,
                 startedAt(),
                 finishedAt(),
@@ -341,6 +346,7 @@ class HarnessRunHistoryServiceTest {
     private HarnessRunResult failedRun(String runId) {
         return HarnessRunResult.failed(
                 runId,
+                STRATEGY_IDENTITY,
                 startedAt(),
                 finishedAt(),
                 List.of(failedStep())
@@ -363,6 +369,7 @@ class HarnessRunHistoryServiceTest {
     private HarnessRunResult completedBuyRun(String runId) {
         return HarnessRunResult.of(
                 runId,
+                STRATEGY_IDENTITY,
                 HarnessRunStatus.COMPLETED,
                 startedAt(),
                 finishedAt(),
@@ -378,6 +385,7 @@ class HarnessRunHistoryServiceTest {
     private HarnessRunResult completedBuyRunWithPortfolio(String runId) {
         return HarnessRunResult.of(
                 runId,
+                STRATEGY_IDENTITY,
                 HarnessRunStatus.COMPLETED,
                 startedAt(),
                 finishedAt(),
@@ -393,6 +401,7 @@ class HarnessRunHistoryServiceTest {
     private HarnessRunResult completedBuyRunWithMarket(String runId) {
         return HarnessRunResult.of(
                 runId,
+                STRATEGY_IDENTITY,
                 HarnessRunStatus.COMPLETED,
                 startedAt(),
                 finishedAt(),
@@ -411,6 +420,7 @@ class HarnessRunHistoryServiceTest {
     ) {
         return HarnessRunResult.of(
                 runId,
+                STRATEGY_IDENTITY,
                 HarnessRunStatus.COMPLETED,
                 startedAt(),
                 finishedAt(),

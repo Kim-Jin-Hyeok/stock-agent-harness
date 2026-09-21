@@ -6,6 +6,8 @@ import com.stock.harness.persistence.HarnessRunSnapshotJsonConverter;
 import com.stock.harness.persistence.HarnessStepRepository;
 import com.stock.portfolio.PortfolioService;
 import com.stock.portfolio.PortfolioSnapshotStore;
+import com.stock.strategy.profile.InvestmentHorizon;
+import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import com.stock.trade.TradeHistoryService;
 import com.stock.trade.TradeReasonCode;
 import com.stock.trade.TradeResult;
@@ -21,6 +23,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 class HarnessStateServiceTest {
+    private static final InvestmentStrategyIdentity STRATEGY_IDENTITY =
+            new InvestmentStrategyIdentity("DAY_TRADING_V1", 1, InvestmentHorizon.DAY_TRADING);
     private final HarnessRunSnapshotJsonConverter harnessRunSnapshotJsonConverter =
             mock(HarnessRunSnapshotJsonConverter.class);
     private final HarnessRunRepository harnessRunRepository = mock(HarnessRunRepository.class);
@@ -82,6 +86,7 @@ class HarnessStateServiceTest {
 
         return HarnessRunResult.of(
                 runId,
+                STRATEGY_IDENTITY,
                 HarnessRunStatus.COMPLETED,
                 startedAt,
                 finishedAt,

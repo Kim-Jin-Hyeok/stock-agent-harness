@@ -28,6 +28,7 @@ import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.risk.RiskCheckResult;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskGuard;
+import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import com.stock.trade.TradeExecutor;
 import com.stock.trade.TradeResult;
 import com.stock.trade.TradeStatus;
@@ -38,6 +39,7 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Slf4j
@@ -58,9 +60,15 @@ public class InvestmentHarness {
     private final HarnessToolRequestValidator harnessToolRequestValidator;
     private final HarnessRetryWaiter harnessRetryWaiter;
 
-    public HarnessRunResult run() {
+    public HarnessRunResult run(InvestmentStrategyIdentity strategyIdentity) {
+        Objects.requireNonNull(strategyIdentity, "strategyIdentity must not be null.");
         LocalDateTime startedAt = LocalDateTime.now();
-        log.info("Investment Harness started.");
+        log.info(
+                "Investment Harness started. strategyId={}, strategyVersion={}, horizon={}",
+                strategyIdentity.strategyId(),
+                strategyIdentity.strategyVersion(),
+                strategyIdentity.horizon()
+        );
 
         String runId = UUID.randomUUID().toString();
         HarnessStepRecorder stepRecorder = new HarnessStepRecorder();
@@ -80,6 +88,7 @@ public class InvestmentHarness {
 
             HarnessRunContext context = createContext(
                     runId,
+                    strategyIdentity,
                     portfolioSnapshot,
                     marketSnapshot
             );
@@ -147,8 +156,9 @@ public class InvestmentHarness {
             LocalDateTime finishedAt = LocalDateTime.now();
 
             log.info(
-                    "Investment Harness finished. runId={}, status={}, decision={}, riskStatus={}, tradeStatus={}",
+                    "Investment Harness finished. runId={}, strategyId={}, status={}, decision={}, riskStatus={}, tradeStatus={}",
                     context.runId(),
+                    context.strategyIdentity().strategyId(),
                     runStatus,
                     decision.action(),
                     riskCheckResult.status(),
@@ -157,6 +167,7 @@ public class InvestmentHarness {
 
             HarnessRunResult result = HarnessRunResult.of(
                     context.runId(),
+                    context.strategyIdentity(),
                     runStatus,
                     startedAt,
                     finishedAt,
@@ -175,6 +186,7 @@ public class InvestmentHarness {
         } catch (Exception e) {
             HarnessRunResult result = createFailedResult(
                     runId,
+                    strategyIdentity,
                     startedAt,
                     e,
                     stepRecorder.steps(),
@@ -189,6 +201,7 @@ public class InvestmentHarness {
 
     private HarnessRunContext createContext(
             String runId,
+            InvestmentStrategyIdentity strategyIdentity,
             PortfolioSnapshot portfolioSnapshot,
             MarketSnapshot marketSnapshot
     ) {
@@ -203,6 +216,7 @@ public class InvestmentHarness {
 
         return new HarnessRunContext(
                 runId,
+                strategyIdentity,
                 limits,
                 allowedTools,
                 portfolioSnapshot,
@@ -223,6 +237,7 @@ public class InvestmentHarness {
 
     private HarnessRunResult createFailedResult(
             String runId,
+            InvestmentStrategyIdentity strategyIdentity,
             LocalDateTime startedAt,
             Exception e,
             List<HarnessStepResult> recordedSteps,
@@ -230,7 +245,12 @@ public class InvestmentHarness {
     ) {
         LocalDateTime finishedAt = LocalDateTime.now();
 
-        log.error("Investment Harness failed. runId={}", runId, e);
+        log.error(
+                "Investment Harness failed. runId={}, strategyId={}",
+                runId,
+                strategyIdentity.strategyId(),
+                e
+        );
 
         String failureMessage = e.getMessage() != null
                 ? e.getMessage()
@@ -249,6 +269,7 @@ public class InvestmentHarness {
 
         return HarnessRunResult.failed(
                 runId,
+                strategyIdentity,
                 startedAt,
                 finishedAt,
                 steps,

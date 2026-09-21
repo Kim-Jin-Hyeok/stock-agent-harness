@@ -5,6 +5,8 @@ import com.stock.harness.HarnessRunLimits;
 import com.stock.harness.tool.HarnessAllowedTools;
 import com.stock.market.MarketSnapshot;
 import com.stock.portfolio.PortfolioSnapshot;
+import com.stock.strategy.profile.InvestmentHorizon;
+import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -58,6 +60,7 @@ class InvestmentAgentTest {
     private HarnessRunContext runContext() {
         return new HarnessRunContext(
                 "run-1",
+                new InvestmentStrategyIdentity("DAY_TRADING_V1", 1, InvestmentHorizon.DAY_TRADING),
                 runLimits(),
                 allowedTools(),
                 portfolioSnapshot(),

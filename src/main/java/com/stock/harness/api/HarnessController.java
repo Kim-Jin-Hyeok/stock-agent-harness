@@ -1,8 +1,10 @@
 package com.stock.harness.api;
 
 import com.stock.harness.*;
+import com.stock.harness.api.request.HarnessRunRequest;
 import com.stock.trade.TradeHistoryService;
 import com.stock.trade.TradeRecord;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -20,8 +22,8 @@ public class HarnessController {
     private final HarnessStateService harnessStateService;
 
     @PostMapping("/run")
-    public HarnessRunResponse run() {
-        HarnessRunResult result = investmentHarness.run();
+    public HarnessRunResponse run(@Valid @RequestBody HarnessRunRequest request) {
+        HarnessRunResult result = investmentHarness.run(request.toStrategyIdentity());
 
         List<TradeRecord> tradeRecords = tradeHistoryService.getRecordsByRunId(result.runId());
 

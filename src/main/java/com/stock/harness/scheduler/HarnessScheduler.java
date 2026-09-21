@@ -23,7 +23,9 @@ public class HarnessScheduler {
 
         log.info("Harness scheduler triggered");
 
-        HarnessRunResult result = investmentHarness.run();
+        HarnessRunResult result = investmentHarness.run(
+                harnessSchedulerProperties.strategyIdentity()
+        );
 
         log.info(
                 "Harness scheduler completed. runId={}, status={}",

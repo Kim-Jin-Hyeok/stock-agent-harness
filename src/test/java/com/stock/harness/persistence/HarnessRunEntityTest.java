@@ -11,6 +11,8 @@ import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.risk.RiskCheckResult;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskReasonCode;
+import com.stock.strategy.profile.InvestmentHorizon;
+import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import com.stock.trade.TradeReasonCode;
 import com.stock.trade.TradeResult;
 import com.stock.trade.TradeStatus;
@@ -22,6 +24,8 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class HarnessRunEntityTest {
+    private static final InvestmentStrategyIdentity STRATEGY_IDENTITY =
+            new InvestmentStrategyIdentity("DAY_TRADING_V1", 1, InvestmentHorizon.DAY_TRADING);
     @Test
     void fromCreatesEntityWithRunMetadata() {
         // given
@@ -131,6 +135,7 @@ class HarnessRunEntityTest {
     private HarnessRunResult completedRunResult(String runId) {
         return HarnessRunResult.of(
                 runId,
+                STRATEGY_IDENTITY,
                 HarnessRunStatus.COMPLETED,
                 startedAt(),
                 finishedAt(),

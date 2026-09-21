@@ -5,13 +5,16 @@ import com.stock.harness.tool.HarnessToolExecutionResult;
 import com.stock.market.MarketSnapshot;
 import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.risk.RiskCheckResult;
+import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import com.stock.trade.TradeResult;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 
 public record HarnessRunResult(
         String runId,
+        InvestmentStrategyIdentity strategyIdentity,
         HarnessRunStatus status,
         LocalDateTime startedAt,
         LocalDateTime finishedAt,
@@ -24,12 +27,14 @@ public record HarnessRunResult(
         MarketSnapshot marketSnapshot
 ) {
     public HarnessRunResult {
+        Objects.requireNonNull(strategyIdentity, "strategyIdentity must not be null.");
         steps = List.copyOf(steps);
         toolResults = List.copyOf(toolResults);
     }
 
     public static HarnessRunResult of(
             String runId,
+            InvestmentStrategyIdentity strategyIdentity,
             HarnessRunStatus status,
             LocalDateTime startedAt,
             LocalDateTime finishedAt,
@@ -43,6 +48,7 @@ public record HarnessRunResult(
     ) {
         return new HarnessRunResult(
                 runId,
+                strategyIdentity,
                 status,
                 startedAt,
                 finishedAt,
@@ -58,6 +64,7 @@ public record HarnessRunResult(
 
     public static HarnessRunResult of(
             String runId,
+            InvestmentStrategyIdentity strategyIdentity,
             HarnessRunStatus status,
             LocalDateTime startedAt,
             LocalDateTime finishedAt,
@@ -70,6 +77,7 @@ public record HarnessRunResult(
     ) {
         return of(
                 runId,
+                strategyIdentity,
                 status,
                 startedAt,
                 finishedAt,
@@ -85,6 +93,7 @@ public record HarnessRunResult(
 
     public static HarnessRunResult failed(
             String runId,
+            InvestmentStrategyIdentity strategyIdentity,
             LocalDateTime startedAt,
             LocalDateTime finishedAt,
             List<HarnessStepResult> steps,
@@ -92,6 +101,7 @@ public record HarnessRunResult(
     ) {
         return new HarnessRunResult(
                 runId,
+                strategyIdentity,
                 HarnessRunStatus.FAILED,
                 startedAt,
                 finishedAt,
@@ -107,12 +117,14 @@ public record HarnessRunResult(
 
     public static HarnessRunResult failed(
             String runId,
+            InvestmentStrategyIdentity strategyIdentity,
             LocalDateTime startedAt,
             LocalDateTime finishedAt,
             List<HarnessStepResult> steps
     ) {
         return failed(
                 runId,
+                strategyIdentity,
                 startedAt,
                 finishedAt,
                 steps,

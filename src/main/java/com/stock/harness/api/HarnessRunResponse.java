@@ -8,6 +8,7 @@ import com.stock.harness.tool.HarnessToolExecutionResult;
 import com.stock.market.MarketSnapshot;
 import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.risk.RiskCheckResult;
+import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import com.stock.trade.TradeRecord;
 import com.stock.trade.TradeResult;
 
@@ -16,6 +17,7 @@ import java.util.List;
 
 public record HarnessRunResponse(
         String runId,
+        InvestmentStrategyIdentity strategyIdentity,
         HarnessRunStatus status,
         LocalDateTime startedAt,
         LocalDateTime finishedAt,
@@ -31,6 +33,7 @@ public record HarnessRunResponse(
     public static HarnessRunResponse from(HarnessRunResult result, List<TradeRecord> tradeRecords) {
         return new HarnessRunResponse(
                 result.runId(),
+                result.strategyIdentity(),
                 result.status(),
                 result.startedAt(),
                 result.finishedAt(),

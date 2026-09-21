@@ -3,6 +3,8 @@ package com.stock.harness.scheduler;
 import com.stock.harness.InvestmentHarness;
 import com.stock.harness.HarnessRunResult;
 import com.stock.harness.HarnessRunStatus;
+import com.stock.strategy.profile.InvestmentHorizon;
+import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -15,6 +17,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class HarnessSchedulerTest {
+    private static final InvestmentStrategyIdentity STRATEGY_IDENTITY =
+            new InvestmentStrategyIdentity("DAY_TRADING_V1", 1, InvestmentHorizon.DAY_TRADING);
 
     @Test
     void doesNotRunHarnessWhenSchedulerDisabled() {
@@ -26,7 +30,7 @@ class HarnessSchedulerTest {
 
         scheduler.run();
 
-        verify(investmentHarness, never()).run();
+        verify(investmentHarness, never()).run(STRATEGY_IDENTITY);
     }
 
     @Test
@@ -37,11 +41,11 @@ class HarnessSchedulerTest {
                 true
         );
 
-        when(investmentHarness.run()).thenReturn(completedRunResult());
+        when(investmentHarness.run(STRATEGY_IDENTITY)).thenReturn(completedRunResult());
 
         scheduler.run();
 
-        verify(investmentHarness, times(1)).run();
+        verify(investmentHarness, times(1)).run(STRATEGY_IDENTITY);
     }
 
     private HarnessScheduler scheduler(
@@ -50,13 +54,19 @@ class HarnessSchedulerTest {
     ) {
         return new HarnessScheduler(
                 investmentHarness,
-                new HarnessSchedulerProperties(enabled)
+                new HarnessSchedulerProperties(
+                        enabled,
+                        STRATEGY_IDENTITY.strategyId(),
+                        STRATEGY_IDENTITY.strategyVersion(),
+                        STRATEGY_IDENTITY.horizon()
+                )
         );
     }
 
     private HarnessRunResult completedRunResult() {
         return HarnessRunResult.of(
                 "run-1",
+                STRATEGY_IDENTITY,
                 HarnessRunStatus.COMPLETED,
                 startedAt(),
                 finishedAt(),

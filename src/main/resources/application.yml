@@ -27,6 +27,9 @@ harness:
   scheduler:
     enabled: false
     fixed-delay-ms: 600000
+    strategy-id: DAY_TRADING_V1
+    strategy-version: 1
+    horizon: DAY_TRADING
 
 risk:
   max-order-ratio: 0.1

@@ -34,6 +34,8 @@ import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.risk.RiskCheckResult;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskReasonCode;
+import com.stock.strategy.profile.InvestmentHorizon;
+import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import com.stock.trade.TradeReasonCode;
 import com.stock.trade.TradeRecord;
 import com.stock.trade.TradeHistoryService;
@@ -42,6 +44,7 @@ import com.stock.trade.TradeStatus;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -58,6 +61,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(HarnessController.class)
 class HarnessControllerTest {
+    private static final InvestmentStrategyIdentity STRATEGY_IDENTITY =
+            new InvestmentStrategyIdentity("DAY_TRADING_V1", 1, InvestmentHorizon.DAY_TRADING);
     private static final Instant CURRENT_PRICE_OBSERVED_AT = Instant.parse(
             "2026-01-01T00:00:00Z"
     );
@@ -81,14 +86,25 @@ class HarnessControllerTest {
     void runReturnsHarnessRunResponseWithTradeRecords() throws Exception {
         String runId = "run-id";
 
-        when(investmentHarness.run())
+        when(investmentHarness.run(STRATEGY_IDENTITY))
                 .thenReturn(completedRun(runId));
         when(tradeHistoryService.getRecordsByRunId(runId))
                 .thenReturn(List.of(executedBuyTradeRecord(runId)));
 
-        mockMvc.perform(post("/api/harness/run"))
+        mockMvc.perform(post("/api/harness/run")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "strategyId": "DAY_TRADING_V1",
+                                  "strategyVersion": 1,
+                                  "horizon": "DAY_TRADING"
+                                }
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.runId").value(runId))
+                .andExpect(jsonPath("$.strategyIdentity.strategyId").value("DAY_TRADING_V1"))
+                .andExpect(jsonPath("$.strategyIdentity.strategyVersion").value(1))
+                .andExpect(jsonPath("$.strategyIdentity.horizon").value("DAY_TRADING"))
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.toolResults[0].status").value("EXECUTED"))
                 .andExpect(jsonPath("$.toolResults[0].type").value("GET_PORTFOLIO"))
@@ -105,8 +121,24 @@ class HarnessControllerTest {
                 .andExpect(jsonPath("$.tradeRecords[0].runId").value(runId))
                 .andExpect(jsonPath("$.tradeRecords[0].status").value("EXECUTED"));
 
-        verify(investmentHarness).run();
+        verify(investmentHarness).run(STRATEGY_IDENTITY);
         verify(tradeHistoryService).getRecordsByRunId(runId);
+    }
+
+    @Test
+    void runRejectsInvalidStrategyRequest() throws Exception {
+        mockMvc.perform(post("/api/harness/run")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "strategyId": " ",
+                                  "strategyVersion": 0,
+                                  "horizon": null
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+
+        verify(investmentHarness, never()).run(any());
     }
 
     @Test
@@ -214,6 +246,7 @@ class HarnessControllerTest {
 
         return HarnessRunResult.of(
                 runId,
+                STRATEGY_IDENTITY,
                 HarnessRunStatus.COMPLETED,
                 startedAt,
                 finishedAt,

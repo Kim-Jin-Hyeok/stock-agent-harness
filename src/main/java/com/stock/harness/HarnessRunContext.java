@@ -4,12 +4,15 @@ import com.stock.harness.tool.HarnessAllowedTools;
 import com.stock.harness.tool.HarnessToolExecutionResult;
 import com.stock.market.MarketSnapshot;
 import com.stock.portfolio.PortfolioSnapshot;
+import com.stock.strategy.profile.InvestmentStrategyIdentity;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public record HarnessRunContext(
         String runId,
+        InvestmentStrategyIdentity strategyIdentity,
         HarnessRunLimits limits,
         HarnessAllowedTools allowedTools,
         PortfolioSnapshot portfolioSnapshot,
@@ -17,6 +20,7 @@ public record HarnessRunContext(
         List<HarnessToolExecutionResult> toolResults
 ) {
     public HarnessRunContext {
+        Objects.requireNonNull(strategyIdentity, "strategyIdentity must not be null.");
         toolResults = List.copyOf(toolResults);
     }
 
@@ -26,6 +30,7 @@ public record HarnessRunContext(
 
         return new HarnessRunContext(
                 runId,
+                strategyIdentity,
                 limits,
                 allowedTools,
                 portfolioSnapshot,

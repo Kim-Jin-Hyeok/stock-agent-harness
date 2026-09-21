@@ -40,6 +40,8 @@ import com.stock.portfolio.PortfolioSnapshotStore;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskGuard;
 import com.stock.risk.RiskProperties;
+import com.stock.strategy.profile.InvestmentHorizon;
+import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import com.stock.trade.TradeExecutor;
 import com.stock.trade.TradeHistoryService;
 import com.stock.trade.TradeStatus;
@@ -65,6 +67,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class InvestmentHarnessTest {
+    private static final InvestmentStrategyIdentity STRATEGY_IDENTITY =
+            new InvestmentStrategyIdentity("DAY_TRADING_V1", 1, InvestmentHorizon.DAY_TRADING);
     private static final Instant CURRENT_PRICE_OBSERVED_AT = Instant.parse(
             "2026-01-01T00:00:00Z"
     );
@@ -150,8 +154,9 @@ class InvestmentHarnessTest {
 
     @Test
     void runCompletesWithHoldDecision() {
-        HarnessRunResult result = investmentHarness.run();
+        HarnessRunResult result = investmentHarness.run(STRATEGY_IDENTITY);
 
+        assertThat(result.strategyIdentity()).isEqualTo(STRATEGY_IDENTITY);
         assertThat(result.status()).isEqualTo(HarnessRunStatus.COMPLETED);
         assertThat(result.decision().action()).isEqualTo(InvestmentAction.HOLD);
         assertThat(result.riskCheckResult().status()).isEqualTo(RiskCheckStatus.APPROVED);
@@ -243,7 +248,7 @@ class InvestmentHarnessTest {
                 harnessRetryWaiter
         );
 
-        HarnessRunResult result = limitedHarness.run();
+        HarnessRunResult result = limitedHarness.run(STRATEGY_IDENTITY);
 
         assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
         assertThat(result.steps())
@@ -291,7 +296,7 @@ class InvestmentHarnessTest {
                 harnessRetryWaiter
         );
 
-        HarnessRunResult result = failingHarness.run();
+        HarnessRunResult result = failingHarness.run(STRATEGY_IDENTITY);
 
         assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
         assertThat(result.steps())
@@ -312,6 +317,13 @@ class InvestmentHarnessTest {
         assertThat(agentStep.startedAt()).isBeforeOrEqualTo(agentStep.finishedAt());
 
         assertThat(result.steps().getLast().status()).isEqualTo(HarnessStepStatus.FAILED);
+    }
+
+    @Test
+    void runRejectsNullStrategyIdentity() {
+        assertThatThrownBy(() -> investmentHarness.run(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("strategyIdentity must not be null.");
     }
 
     @Test
@@ -339,7 +351,7 @@ class InvestmentHarnessTest {
                 harnessRetryWaiter
         );
 
-        HarnessRunResult result = validatingHarness.run();
+        HarnessRunResult result = validatingHarness.run(STRATEGY_IDENTITY);
 
         assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
         assertThat(result.steps())
@@ -386,7 +398,7 @@ class InvestmentHarnessTest {
                 harnessRetryWaiter
         );
 
-        HarnessRunResult result = validatingHarness.run();
+        HarnessRunResult result = validatingHarness.run(STRATEGY_IDENTITY);
 
         assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
         assertThat(result.toolResults()).isEmpty();
@@ -430,7 +442,7 @@ class InvestmentHarnessTest {
                 harnessRetryWaiter
         );
 
-        HarnessRunResult result = successHarness.run();
+        HarnessRunResult result = successHarness.run(STRATEGY_IDENTITY);
 
         assertThat(result.status()).isEqualTo(HarnessRunStatus.COMPLETED);
         assertThat(result.decision().action()).isEqualTo(InvestmentAction.BUY);
@@ -475,7 +487,7 @@ class InvestmentHarnessTest {
                 harnessRetryWaiter
         );
 
-        HarnessRunResult result = deniedHarness.run();
+        HarnessRunResult result = deniedHarness.run(STRATEGY_IDENTITY);
 
         assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
         assertThat(result.riskCheckResult().status()).isEqualTo(RiskCheckStatus.DENIED);
@@ -529,7 +541,7 @@ class InvestmentHarnessTest {
                 harnessRetryWaiter
         );
 
-        HarnessRunResult result = sellHarness.run();
+        HarnessRunResult result = sellHarness.run(STRATEGY_IDENTITY);
 
         assertThat(result.status()).isEqualTo(HarnessRunStatus.COMPLETED);
         assertThat(result.decision().action()).isEqualTo(InvestmentAction.SELL);
@@ -560,7 +572,7 @@ class InvestmentHarnessTest {
                 harnessRetryWaiter
         );
 
-        HarnessRunResult result = toolRequestingHarness.run();
+        HarnessRunResult result = toolRequestingHarness.run(STRATEGY_IDENTITY);
 
         assertThat(result.status()).isEqualTo(HarnessRunStatus.COMPLETED);
         assertThat(result.decision().action()).isEqualTo(InvestmentAction.HOLD);
@@ -670,7 +682,7 @@ class InvestmentHarnessTest {
                 harnessRetryWaiter
         );
 
-        HarnessRunResult result = multipleToolHarness.run();
+        HarnessRunResult result = multipleToolHarness.run(STRATEGY_IDENTITY);
 
         assertThat(result.status()).isEqualTo(HarnessRunStatus.COMPLETED);
         assertThat(result.decision().action()).isEqualTo(InvestmentAction.HOLD);
@@ -736,7 +748,7 @@ class InvestmentHarnessTest {
                 harnessRetryWaiter
         );
 
-        HarnessRunResult result = currentPriceHarness.run();
+        HarnessRunResult result = currentPriceHarness.run(STRATEGY_IDENTITY);
 
         assertThat(result.status()).isEqualTo(HarnessRunStatus.COMPLETED);
         assertThat(result.decision().reason()).isEqualTo(
@@ -771,7 +783,7 @@ class InvestmentHarnessTest {
                 harnessRetryWaiter
         );
 
-        HarnessRunResult result = limitedToolHarness.run();
+        HarnessRunResult result = limitedToolHarness.run(STRATEGY_IDENTITY);
 
         assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
         assertThat(result.steps())
@@ -838,7 +850,7 @@ class InvestmentHarnessTest {
                 harnessRetryWaiter
         );
 
-        HarnessRunResult result = deniedHarness.run();
+        HarnessRunResult result = deniedHarness.run(STRATEGY_IDENTITY);
 
         assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
         assertThat(result.toolResults())
@@ -877,7 +889,7 @@ class InvestmentHarnessTest {
                 harnessRetryWaiter
         );
 
-        HarnessRunResult result = failingToolHarness.run();
+        HarnessRunResult result = failingToolHarness.run(STRATEGY_IDENTITY);
 
         assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
         assertThat(result.toolResults())
@@ -922,7 +934,7 @@ class InvestmentHarnessTest {
                 harnessRetryWaiter
         );
 
-        HarnessRunResult result = retryingHarness.run();
+        HarnessRunResult result = retryingHarness.run(STRATEGY_IDENTITY);
 
         assertThat(result.status()).isEqualTo(HarnessRunStatus.COMPLETED);
         assertThat(result.toolResults())
@@ -1005,7 +1017,7 @@ class InvestmentHarnessTest {
                 harnessRetryWaiter
         );
 
-        HarnessRunResult result = retryingHarness.run();
+        HarnessRunResult result = retryingHarness.run(STRATEGY_IDENTITY);
 
         assertThat(result.status()).isEqualTo(HarnessRunStatus.COMPLETED);
         assertThat(result.toolResults())
@@ -1090,8 +1102,9 @@ class InvestmentHarnessTest {
                 harnessRetryWaiter
         );
 
-        HarnessRunResult result = failingHarness.run();
+        HarnessRunResult result = failingHarness.run(STRATEGY_IDENTITY);
 
+        assertThat(result.strategyIdentity()).isEqualTo(STRATEGY_IDENTITY);
         assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
         assertThat(result.toolResults())
                 .singleElement()
@@ -1147,7 +1160,7 @@ class InvestmentHarnessTest {
                 harnessRetryWaiter
         );
 
-        HarnessRunResult result = interruptedHarness.run();
+        HarnessRunResult result = interruptedHarness.run(STRATEGY_IDENTITY);
 
         assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
         assertThat(result.toolResults())
@@ -1203,7 +1216,7 @@ class InvestmentHarnessTest {
                 harnessRetryWaiter
         );
 
-        HarnessRunResult result = retryingHarness.run();
+        HarnessRunResult result = retryingHarness.run(STRATEGY_IDENTITY);
 
         assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
         assertThat(result.toolResults())
@@ -1266,7 +1279,7 @@ class InvestmentHarnessTest {
                 harnessRetryWaiter
         );
 
-        HarnessRunResult result = providerLimitedHarness.run();
+        HarnessRunResult result = providerLimitedHarness.run(STRATEGY_IDENTITY);
 
         assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
         assertThat(result.toolResults())
@@ -1317,7 +1330,7 @@ class InvestmentHarnessTest {
                 harnessRetryWaiter
         );
 
-        HarnessRunResult result = validatingHarness.run();
+        HarnessRunResult result = validatingHarness.run(STRATEGY_IDENTITY);
 
         assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
         assertThat(result.toolResults()).containsExactly(malformedResult);
@@ -1367,7 +1380,7 @@ class InvestmentHarnessTest {
                 harnessRetryWaiter
         );
 
-        HarnessRunResult result = toolRequestingHarness.run();
+        HarnessRunResult result = toolRequestingHarness.run(STRATEGY_IDENTITY);
 
         assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
         assertThat(result.steps())

@@ -5,6 +5,8 @@ import com.stock.harness.tool.HarnessToolExecutionResult;
 import com.stock.harness.tool.HarnessToolOutput;
 import com.stock.market.MarketSnapshot;
 import com.stock.portfolio.PortfolioSnapshot;
+import com.stock.strategy.profile.InvestmentHorizon;
+import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -33,6 +35,7 @@ class HarnessRunContextTest {
 
         assertThat(context.toolResults()).isEmpty();
         assertThat(updatedContext).isNotSameAs(context);
+        assertThat(updatedContext.strategyIdentity()).isEqualTo(context.strategyIdentity());
     }
 
     @Test
@@ -50,6 +53,7 @@ class HarnessRunContextTest {
     private HarnessRunContext runContext(List<HarnessToolExecutionResult> toolResults) {
         return new HarnessRunContext(
                 "run-1",
+                new InvestmentStrategyIdentity("DAY_TRADING_V1", 1, InvestmentHorizon.DAY_TRADING),
                 new HarnessRunLimits(10, 5),
                 HarnessAllowedTools.readOnly(),
                 portfolioSnapshot(),
