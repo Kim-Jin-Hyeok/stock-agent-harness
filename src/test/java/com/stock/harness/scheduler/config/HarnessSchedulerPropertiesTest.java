@@ -4,8 +4,11 @@ import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import org.junit.jupiter.api.Test;
 
+import java.time.DayOfWeek;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -57,6 +60,16 @@ class HarnessSchedulerPropertiesTest {
             String strategyId,
             InvestmentHorizon horizon
     ) {
-        return new ScheduledStrategyProperties(true, strategyId, 1, horizon);
+        return new ScheduledStrategyProperties(
+                true,
+                strategyId,
+                1,
+                horizon,
+                new StrategyRunWindowProperties(
+                        Set.of(DayOfWeek.MONDAY),
+                        LocalTime.of(9, 0),
+                        LocalTime.of(15, 30)
+                )
+        );
     }
 }

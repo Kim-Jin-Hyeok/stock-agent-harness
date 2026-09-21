@@ -6,6 +6,7 @@ import com.stock.harness.InvestmentHarness;
 import com.stock.harness.scheduler.config.HarnessSchedulerProperties;
 import com.stock.harness.scheduler.config.ScheduledStrategyProperties;
 import com.stock.harness.scheduler.policy.StrategyRunCadencePolicy;
+import com.stock.harness.scheduler.policy.StrategyRunWindowPolicy;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +24,7 @@ public class HarnessScheduler {
     private final HarnessSchedulerProperties harnessSchedulerProperties;
     private final HarnessRunHistoryService harnessRunHistoryService;
     private final StrategyRunCadencePolicy strategyRunCadencePolicy;
+    private final StrategyRunWindowPolicy strategyRunWindowPolicy;
     private final Clock clock;
 
     @Scheduled(fixedDelayString = "${harness.scheduler.fixed-delay-ms}")
@@ -41,6 +43,16 @@ public class HarnessScheduler {
             if (!strategy.enabled()) {
                 continue;
             }
+
+            if (!strategyRunWindowPolicy.isWithinWindow(strategy.runWindow(), evaluatedAt)) {
+                log.info(
+                        "Harness scheduler skipped strategy outside run window. strategyId={}, evaluatedAt={}",
+                        strategy.strategyId(),
+                        evaluatedAt
+                );
+                continue;
+            }
+
             runStrategy(strategy.strategyIdentity(), evaluatedAt);
         }
     }

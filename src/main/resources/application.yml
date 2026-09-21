@@ -33,14 +33,26 @@ harness:
         strategy-id: DAY_TRADING_V1
         strategy-version: 1
         horizon: DAY_TRADING
+        window:
+          allowed-days: [MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY]
+          starts-at: "09:00"
+          ends-at: "15:30"
       - enabled: true
         strategy-id: SWING_V1
         strategy-version: 1
         horizon: SWING
+        window:
+          allowed-days: [MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY]
+          starts-at: "15:00"
+          ends-at: "15:30"
       - enabled: true
         strategy-id: LONG_TERM_V1
         strategy-version: 1
         horizon: LONG_TERM
+        window:
+          allowed-days: [FRIDAY]
+          starts-at: "15:00"
+          ends-at: "15:30"
 
 risk:
   max-order-ratio: 0.1

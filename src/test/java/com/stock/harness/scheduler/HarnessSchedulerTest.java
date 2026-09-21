@@ -6,17 +6,22 @@ import com.stock.harness.HarnessRunStatus;
 import com.stock.harness.InvestmentHarness;
 import com.stock.harness.scheduler.config.HarnessSchedulerProperties;
 import com.stock.harness.scheduler.config.ScheduledStrategyProperties;
+import com.stock.harness.scheduler.config.StrategyRunWindowProperties;
 import com.stock.harness.scheduler.policy.StrategyRunCadencePolicy;
+import com.stock.harness.scheduler.policy.StrategyRunWindowPolicy;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -120,6 +125,31 @@ class HarnessSchedulerTest {
         verify(investmentHarness, never()).run(LONG_TERM);
     }
 
+    @Test
+    void doesNotInspectRunHistoryOutsideStrategyRunWindow() {
+        InvestmentHarness investmentHarness = mock(InvestmentHarness.class);
+        HarnessRunHistoryService historyService = mock(HarnessRunHistoryService.class);
+        ScheduledStrategyProperties strategy = scheduledStrategy(
+                true,
+                DAY_TRADING,
+                new StrategyRunWindowProperties(
+                        Set.of(DayOfWeek.MONDAY),
+                        LocalTime.of(9, 1),
+                        LocalTime.of(15, 30)
+                )
+        );
+        HarnessScheduler scheduler = scheduler(
+                investmentHarness,
+                historyService,
+                properties(true, List.of(strategy))
+        );
+
+        scheduler.run();
+
+        verifyNoInteractions(historyService);
+        verify(investmentHarness, never()).run(any());
+    }
+
     private HarnessScheduler scheduler(
             InvestmentHarness investmentHarness,
             HarnessRunHistoryService historyService,
@@ -130,6 +160,7 @@ class HarnessSchedulerTest {
                 properties,
                 historyService,
                 new StrategyRunCadencePolicy(),
+                new StrategyRunWindowPolicy(),
                 Clock.fixed(NOW, ZoneOffset.UTC)
         );
     }
@@ -153,11 +184,28 @@ class HarnessSchedulerTest {
             boolean enabled,
             InvestmentStrategyIdentity strategyIdentity
     ) {
+        return scheduledStrategy(enabled, strategyIdentity, defaultRunWindow());
+    }
+
+    private ScheduledStrategyProperties scheduledStrategy(
+            boolean enabled,
+            InvestmentStrategyIdentity strategyIdentity,
+            StrategyRunWindowProperties window
+    ) {
         return new ScheduledStrategyProperties(
                 enabled,
                 strategyIdentity.strategyId(),
                 strategyIdentity.strategyVersion(),
-                strategyIdentity.horizon()
+                strategyIdentity.horizon(),
+                window
+        );
+    }
+
+    private StrategyRunWindowProperties defaultRunWindow() {
+        return new StrategyRunWindowProperties(
+                Set.of(DayOfWeek.MONDAY),
+                LocalTime.of(9, 0),
+                LocalTime.of(15, 30)
         );
     }
 
