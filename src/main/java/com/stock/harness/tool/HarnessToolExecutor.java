@@ -6,8 +6,11 @@ import com.stock.market.MarketService;
 import com.stock.market.price.CurrentPriceService;
 import com.stock.market.price.provider.error.CurrentPriceProviderException;
 import com.stock.portfolio.PortfolioService;
+import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+
+import java.util.Objects;
 
 @Component
 @RequiredArgsConstructor
@@ -17,14 +20,19 @@ public class HarnessToolExecutor {
     private final CurrentPriceService currentPriceService;
 
     public HarnessToolExecutionResult execute(
+            InvestmentStrategyIdentity strategyIdentity,
             HarnessToolRequest request,
             HarnessProviderCallBudget providerCallBudget
     ) {
+        Objects.requireNonNull(strategyIdentity, "strategyIdentity must not be null.");
+
         try {
             return switch (request.type()) {
                 case GET_PORTFOLIO -> HarnessToolExecutionResult.executed(
                         request,
-                        HarnessToolOutput.portfolio(portfolioService.getCurrentSnapshot())
+                        HarnessToolOutput.portfolio(
+                                portfolioService.getCurrentSnapshot(strategyIdentity)
+                        )
                 );
                 case GET_MARKET -> HarnessToolExecutionResult.executed(
                         request,

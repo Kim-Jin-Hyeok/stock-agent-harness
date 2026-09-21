@@ -7,6 +7,8 @@ import com.stock.portfolio.PortfolioSnapshotStore;
 import com.stock.risk.RiskCheckResult;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskReasonCode;
+import com.stock.strategy.profile.InvestmentHorizon;
+import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import com.stock.trade.persistence.TradeRecordRepository;
 import org.junit.jupiter.api.Test;
 
@@ -16,6 +18,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 class TradeExecutorTest {
+    private static final InvestmentStrategyIdentity STRATEGY_IDENTITY =
+            new InvestmentStrategyIdentity("DAY_TRADING_V1", 1, InvestmentHorizon.DAY_TRADING);
     private final PortfolioSnapshotStore store = new PortfolioSnapshotStore();
     private final PortfolioService portfolioService = new PortfolioService(store);
     private final TradeRecordRepository tradeRecordRepository = mock(TradeRecordRepository.class);
@@ -30,6 +34,7 @@ class TradeExecutorTest {
 
         TradeResult result = tradeExecutor.execute(
                 "abc",
+                STRATEGY_IDENTITY,
                 decision,
                 deniedRiskCheckResult(decision)
         );
@@ -44,6 +49,7 @@ class TradeExecutorTest {
 
         TradeResult result = tradeExecutor.execute(
                 "abc",
+                STRATEGY_IDENTITY,
                 decision,
                 approvedRiskCheckResult(decision)
         );
@@ -58,6 +64,7 @@ class TradeExecutorTest {
 
         TradeResult result = tradeExecutor.execute(
                 "abc",
+                STRATEGY_IDENTITY,
                 decision,
                 approvedRiskCheckResult(decision)
         );
@@ -65,10 +72,10 @@ class TradeExecutorTest {
         assertThat(result.status()).isEqualTo(TradeStatus.EXECUTED);
         assertThat(result.reasonCode()).isEqualTo(TradeReasonCode.EXECUTION_COMPLETED);
 
-        assertThat(portfolioService.getCurrentSnapshot().cashAmountKrw()).isEqualTo(10_000_000L - decision.estimatedOrderAmountKrw());
+        assertThat(portfolioService.getCurrentSnapshot(STRATEGY_IDENTITY).cashAmountKrw()).isEqualTo(10_000_000L - decision.estimatedOrderAmountKrw());
 
-        assertThat(portfolioService.getCurrentSnapshot().positions()).hasSize(1);
-        assertThat(portfolioService.getCurrentSnapshot().positions().getFirst().symbol()).isEqualTo("TEST");
+        assertThat(portfolioService.getCurrentSnapshot(STRATEGY_IDENTITY).positions()).hasSize(1);
+        assertThat(portfolioService.getCurrentSnapshot(STRATEGY_IDENTITY).positions().getFirst().symbol()).isEqualTo("TEST");
 
         verify(tradeRecordRepository).save(any());
     }
@@ -76,17 +83,20 @@ class TradeExecutorTest {
     @Test
     void approvedSellDecisionIsExecuted() {
         portfolioService.applyBuy(
+                STRATEGY_IDENTITY,
                 "TEST",
                 15L,
                 50_000L
         );
 
-        long buyingCashAmountKrw = 10_000_000L - portfolioService.getCurrentSnapshot().cashAmountKrw();
+        long buyingCashAmountKrw = 10_000_000L
+                - portfolioService.getCurrentSnapshot(STRATEGY_IDENTITY).cashAmountKrw();
 
         InvestmentDecision decision = sellDecision();
 
         TradeResult result = tradeExecutor.execute(
                 "abc",
+                STRATEGY_IDENTITY,
                 decision,
                 approvedRiskCheckResult(decision)
         );
@@ -94,11 +104,11 @@ class TradeExecutorTest {
         assertThat(result.status()).isEqualTo(TradeStatus.EXECUTED);
         assertThat(result.reasonCode()).isEqualTo(TradeReasonCode.EXECUTION_COMPLETED);
 
-        assertThat(portfolioService.getCurrentSnapshot().cashAmountKrw()).isEqualTo(10_000_000L - buyingCashAmountKrw + decision.estimatedOrderAmountKrw());
+        assertThat(portfolioService.getCurrentSnapshot(STRATEGY_IDENTITY).cashAmountKrw()).isEqualTo(10_000_000L - buyingCashAmountKrw + decision.estimatedOrderAmountKrw());
 
-        assertThat(portfolioService.getCurrentSnapshot().positions()).hasSize(1);
-        assertThat(portfolioService.getCurrentSnapshot().positions().getFirst().symbol()).isEqualTo("TEST");
-        assertThat(portfolioService.getCurrentSnapshot().positions().getFirst().quantity()).isEqualTo(5L);
+        assertThat(portfolioService.getCurrentSnapshot(STRATEGY_IDENTITY).positions()).hasSize(1);
+        assertThat(portfolioService.getCurrentSnapshot(STRATEGY_IDENTITY).positions().getFirst().symbol()).isEqualTo("TEST");
+        assertThat(portfolioService.getCurrentSnapshot(STRATEGY_IDENTITY).positions().getFirst().quantity()).isEqualTo(5L);
 
         verify(tradeRecordRepository).save(any());
     }

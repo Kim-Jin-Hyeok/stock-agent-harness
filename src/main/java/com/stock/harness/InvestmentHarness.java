@@ -77,7 +77,7 @@ public class InvestmentHarness {
         try {
             PortfolioSnapshot portfolioSnapshot = stepRecorder.record(
                     HarnessStepType.LOAD_PORTFOLIO,
-                    portfolioService::getCurrentSnapshot,
+                    () -> portfolioService.getCurrentSnapshot(strategyIdentity),
                     "Portfolio loading complete."
             );
             MarketSnapshot marketSnapshot = stepRecorder.record(
@@ -129,7 +129,12 @@ public class InvestmentHarness {
 
             TradeResult tradeResult = stepRecorder.record(
                     HarnessStepType.EXECUTE_TRADE,
-                    () -> tradeExecutor.execute(runId, decision, riskCheckResult),
+                    () -> tradeExecutor.execute(
+                            runId,
+                            strategyIdentity,
+                            decision,
+                            riskCheckResult
+                    ),
                     result -> result.status() == TradeStatus.REJECTED
                             ? HarnessStepStatus.FAILED
                             : HarnessStepStatus.COMPLETED,
@@ -138,7 +143,7 @@ public class InvestmentHarness {
 
             PortfolioSnapshot finalPortfolioSnapshot = stepRecorder.record(
                     HarnessStepType.LOAD_FINAL_PORTFOLIO,
-                    portfolioService::getCurrentSnapshot,
+                    () -> portfolioService.getCurrentSnapshot(strategyIdentity),
                     "Final portfolio loading complete."
             );
 
@@ -369,6 +374,7 @@ public class InvestmentHarness {
             );
 
             HarnessToolExecutionResult executionResult = executeToolRequest(
+                    currentContext.strategyIdentity(),
                     action.toolRequest(),
                     stepRecorder,
                     toolCallBudget,
@@ -408,6 +414,7 @@ public class InvestmentHarness {
     }
 
     private HarnessToolExecutionResult executeToolRequest(
+            InvestmentStrategyIdentity strategyIdentity,
             HarnessToolRequest request,
             HarnessStepRecorder stepRecorder,
             HarnessToolCallBudget toolCallBudget,
@@ -422,7 +429,11 @@ public class InvestmentHarness {
 
             HarnessToolExecutionResult executionResult = stepRecorder.record(
                     HarnessStepType.EXECUTE_TOOL_REQUEST,
-                    () -> harnessToolExecutor.execute(request, providerCallBudget),
+                    () -> harnessToolExecutor.execute(
+                            strategyIdentity,
+                            request,
+                            providerCallBudget
+                    ),
                     result -> result.status() == HarnessToolExecutionStatus.EXECUTED
                             ? HarnessStepStatus.COMPLETED
                             : HarnessStepStatus.FAILED,

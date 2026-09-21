@@ -13,7 +13,7 @@ public class HarnessStateService {
     private final HarnessRunHistoryService harnessRunHistoryService;
 
     public void reset() {
-        portfolioService.reset();
+        portfolioService.resetAll();
         tradeHistoryService.clear();
         harnessRunHistoryService.clear();
     }

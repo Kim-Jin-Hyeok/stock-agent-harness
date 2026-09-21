@@ -46,6 +46,7 @@ class HarnessStateServiceTest {
     @Test
     void resetClearsPortfolioTradeHistoryAndRunHistory() {
         portfolioService.applyBuy(
+                STRATEGY_IDENTITY,
                 "TEST",
                 10L,
                 100L
@@ -60,7 +61,7 @@ class HarnessStateServiceTest {
 
         harnessStateService.reset();
 
-        assertThat(portfolioService.getCurrentSnapshot().positions()).isEmpty();
+        assertThat(portfolioService.getCurrentSnapshot(STRATEGY_IDENTITY).positions()).isEmpty();
         assertThat(tradeHistoryService.getRecords()).isEmpty();
 
         verify(harnessRunRepository).deleteAll();

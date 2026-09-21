@@ -371,7 +371,7 @@ class InvestmentHarnessTest {
         assertThat(result.steps().getLast().message()).contains(
                 HarnessAgentActionValidationReasonCode.TOOL_REQUEST_MISSING.name()
         );
-        verify(unusedToolExecutor, never()).execute(any(), any());
+        verify(unusedToolExecutor, never()).execute(any(), any(), any());
     }
 
     @Test
@@ -421,7 +421,7 @@ class InvestmentHarnessTest {
                 HarnessToolRequestValidationReasonCode.TOOL_TYPE_MISSING.name()
         );
         verify(unusedAuthorizer, never()).authorize(any(), any());
-        verify(unusedToolExecutor, never()).execute(any(), any());
+        verify(unusedToolExecutor, never()).execute(any(), any(), any());
     }
 
     @Test
@@ -515,6 +515,7 @@ class InvestmentHarnessTest {
     void runCompletesWhenAgentDecidesSell() {
         PortfolioService sellPortfolioService = new PortfolioService(store);
         sellPortfolioService.applyBuy(
+                STRATEGY_IDENTITY,
                 "TEST",
                 10L,
                 100_000L
@@ -869,7 +870,7 @@ class InvestmentHarnessTest {
     @Test
     void runPreservesFailedToolExecutionResult() {
         HarnessToolExecutor failingToolExecutor = mock(HarnessToolExecutor.class);
-        when(failingToolExecutor.execute(any(), any()))
+        when(failingToolExecutor.execute(any(), any(), any()))
                 .thenReturn(HarnessToolExecutionResult.notSupported(
                         HarnessToolType.GET_PORTFOLIO
                 ));
@@ -907,7 +908,7 @@ class InvestmentHarnessTest {
     @Test
     void runRetriesFailedToolExecutionAndCompletesAfterSuccess() {
         HarnessToolExecutor retryingExecutor = mock(HarnessToolExecutor.class);
-        when(retryingExecutor.execute(any(), any()))
+        when(retryingExecutor.execute(any(), any(), any()))
                 .thenReturn(
                         HarnessToolExecutionResult.executionFailed(
                                 HarnessToolRequest.portfolio(),
@@ -915,7 +916,9 @@ class InvestmentHarnessTest {
                         ),
                         HarnessToolExecutionResult.executed(
                                 HarnessToolRequest.portfolio(),
-                                HarnessToolOutput.portfolio(portfolioService.getCurrentSnapshot())
+                                HarnessToolOutput.portfolio(
+                                        portfolioService.getCurrentSnapshot(STRATEGY_IDENTITY)
+                                )
                         )
                 );
         InvestmentHarness retryingHarness = new InvestmentHarness(
@@ -978,7 +981,7 @@ class InvestmentHarnessTest {
                             "Tool retry wait completed. delay=PT0.5S"
                     );
                 });
-        verify(retryingExecutor, times(2)).execute(any(), any());
+        verify(retryingExecutor, times(2)).execute(any(), any(), any());
         verify(harnessRetryWaiter).waitBeforeRetry();
     }
 
@@ -986,7 +989,7 @@ class InvestmentHarnessTest {
     void runRetriesTemporaryProviderFailureAndCompletesAfterSuccess() {
         HarnessToolRequest request = HarnessToolRequest.currentPrice("005930");
         HarnessToolExecutor retryingExecutor = mock(HarnessToolExecutor.class);
-        when(retryingExecutor.execute(any(), any()))
+        when(retryingExecutor.execute(any(), any(), any()))
                 .thenReturn(
                         HarnessToolExecutionResult.providerTemporaryFailure(
                                 request,
@@ -1070,7 +1073,7 @@ class InvestmentHarnessTest {
                             "Tool retry wait completed. delay=PT0.5S"
                     );
                 });
-        verify(retryingExecutor, times(2)).execute(any(), any());
+        verify(retryingExecutor, times(2)).execute(any(), any(), any());
         verify(harnessRetryWaiter).waitBeforeRetry();
     }
 
@@ -1080,7 +1083,7 @@ class InvestmentHarnessTest {
         InvestmentAgent requestingAgent = mock(InvestmentAgent.class);
         when(requestingAgent.next(any())).thenReturn(AgentNextAction.requestTool(request));
         HarnessToolExecutor failingExecutor = mock(HarnessToolExecutor.class);
-        when(failingExecutor.execute(any(), any())).thenReturn(
+        when(failingExecutor.execute(any(), any(), any())).thenReturn(
                 HarnessToolExecutionResult.providerPermanentFailure(
                         request,
                         "Invalid authentication"
@@ -1127,7 +1130,7 @@ class InvestmentHarnessTest {
                         HarnessStepType.WAIT_TOOL_RETRY,
                         HarnessStepType.VALIDATE_TOOL_RESULT
                 );
-        verify(failingExecutor).execute(any(), any());
+        verify(failingExecutor).execute(any(), any(), any());
         verify(requestingAgent).next(any());
         verifyNoInteractions(harnessRetryWaiter);
     }
@@ -1138,7 +1141,7 @@ class InvestmentHarnessTest {
         InvestmentAgent requestingAgent = mock(InvestmentAgent.class);
         when(requestingAgent.next(any())).thenReturn(AgentNextAction.requestTool(request));
         HarnessToolExecutor failingExecutor = mock(HarnessToolExecutor.class);
-        when(failingExecutor.execute(any(), any())).thenReturn(
+        when(failingExecutor.execute(any(), any(), any())).thenReturn(
                 HarnessToolExecutionResult.executionFailed(request, "Broker timeout")
         );
         when(harnessRetryWaiter.waitBeforeRetry()).thenThrow(
@@ -1182,7 +1185,7 @@ class InvestmentHarnessTest {
                     assertThat(step.status()).isEqualTo(HarnessStepStatus.FAILED);
                     assertThat(step.message()).isEqualTo("Tool retry wait interrupted.");
                 });
-        verify(failingExecutor).execute(any(), any());
+        verify(failingExecutor).execute(any(), any(), any());
         verify(harnessRetryWaiter).waitBeforeRetry();
         verify(requestingAgent).next(any());
     }
@@ -1194,7 +1197,7 @@ class InvestmentHarnessTest {
                 AgentNextAction.requestTool(HarnessToolRequest.portfolio())
         );
         HarnessToolExecutor failingExecutor = mock(HarnessToolExecutor.class);
-        when(failingExecutor.execute(any(), any())).thenReturn(
+        when(failingExecutor.execute(any(), any(), any())).thenReturn(
                 HarnessToolExecutionResult.executionFailed(
                         HarnessToolRequest.portfolio(),
                         "Broker timeout"
@@ -1239,7 +1242,7 @@ class InvestmentHarnessTest {
                 .extracting(HarnessStepResult::type)
                 .filteredOn(HarnessStepType.WAIT_TOOL_RETRY::equals)
                 .hasSize(1);
-        verify(failingExecutor, times(2)).execute(any(), any());
+        verify(failingExecutor, times(2)).execute(any(), any(), any());
         verify(requestingAgent).next(any());
         verify(harnessRetryWaiter).waitBeforeRetry();
     }
@@ -1313,7 +1316,7 @@ class InvestmentHarnessTest {
                 )
         );
         HarnessToolExecutor malformedExecutor = mock(HarnessToolExecutor.class);
-        when(malformedExecutor.execute(any(), any())).thenReturn(malformedResult);
+        when(malformedExecutor.execute(any(), any(), any())).thenReturn(malformedResult);
         InvestmentHarness validatingHarness = new InvestmentHarness(
                 riskGuard,
                 tradeExecutor,

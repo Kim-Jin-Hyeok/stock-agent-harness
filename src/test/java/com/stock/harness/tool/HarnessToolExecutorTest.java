@@ -17,6 +17,8 @@ import com.stock.market.price.validation.CurrentPriceFreshnessProperties;
 import com.stock.portfolio.PortfolioService;
 import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.portfolio.PortfolioSnapshotStore;
+import com.stock.strategy.profile.InvestmentHorizon;
+import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -33,6 +35,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class HarnessToolExecutorTest {
+    private static final InvestmentStrategyIdentity STRATEGY_IDENTITY =
+            new InvestmentStrategyIdentity("DAY_TRADING_V1", 1, InvestmentHorizon.DAY_TRADING);
     private static final Instant OBSERVED_AT = Instant.parse("2026-01-01T00:00:00Z");
     private static final Duration MAX_AGE = Duration.ofMinutes(1);
 
@@ -41,6 +45,7 @@ class HarnessToolExecutorTest {
         HarnessProviderCallBudget budget = providerCallBudget(0);
 
         HarnessToolExecutionResult result = executor().execute(
+                STRATEGY_IDENTITY,
                 portfolioToolRequest(),
                 budget
         );
@@ -58,6 +63,7 @@ class HarnessToolExecutorTest {
     @Test
     void executesMarketToolRequest() {
         HarnessToolExecutionResult result = executor().execute(
+                STRATEGY_IDENTITY,
                 marketToolRequest(),
                 providerCallBudget(1)
         );
@@ -76,6 +82,7 @@ class HarnessToolExecutorTest {
         HarnessProviderCallBudget budget = providerCallBudget(1);
 
         HarnessToolExecutionResult result = executor().execute(
+                STRATEGY_IDENTITY,
                 HarnessToolRequest.currentPrice("005930"),
                 budget
         );
@@ -99,6 +106,7 @@ class HarnessToolExecutorTest {
                 .thenThrow(new IllegalStateException("Broker timeout"));
 
         HarnessToolExecutionResult result = executor(failingService).execute(
+                STRATEGY_IDENTITY,
                 HarnessToolRequest.currentPrice("005930"),
                 providerCallBudget(1)
         );
@@ -126,7 +134,11 @@ class HarnessToolExecutorTest {
 
         HarnessToolExecutionResult result = executor(
                 currentPriceService(provider)
-        ).execute(HarnessToolRequest.currentPrice("005930"), budget);
+        ).execute(
+                STRATEGY_IDENTITY,
+                HarnessToolRequest.currentPrice("005930"),
+                budget
+        );
 
         assertThat(result.status()).isEqualTo(HarnessToolExecutionStatus.FAILED);
         assertThat(result.request()).isEqualTo(HarnessToolRequest.currentPrice("005930"));
@@ -154,7 +166,11 @@ class HarnessToolExecutorTest {
 
         HarnessToolExecutionResult result = executor(
                 currentPriceService(provider)
-        ).execute(HarnessToolRequest.currentPrice("005930"), budget);
+        ).execute(
+                STRATEGY_IDENTITY,
+                HarnessToolRequest.currentPrice("005930"),
+                budget
+        );
 
         assertThat(result.status()).isEqualTo(HarnessToolExecutionStatus.FAILED);
         assertThat(result.request()).isEqualTo(HarnessToolRequest.currentPrice("005930"));
@@ -184,7 +200,11 @@ class HarnessToolExecutorTest {
                 freshnessPolicy()
         );
 
-        HarnessToolExecutionResult result = executor(currentPriceService).execute(request, budget);
+        HarnessToolExecutionResult result = executor(currentPriceService).execute(
+                STRATEGY_IDENTITY,
+                request,
+                budget
+        );
 
         assertThat(result.status()).isEqualTo(HarnessToolExecutionStatus.FAILED);
         assertThat(result.reasonCode()).isEqualTo(
@@ -269,7 +289,7 @@ class HarnessToolExecutorTest {
     }
 
     private PortfolioSnapshot portfolioSnapshot() {
-        return portfolioSnapshotStore().getCurrentSnapshot();
+        return portfolioSnapshotStore().getCurrentSnapshot(STRATEGY_IDENTITY);
     }
 
     private MarketSnapshot marketSnapshot() {

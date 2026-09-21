@@ -5,8 +5,11 @@ import com.stock.agent.InvestmentDecision;
 import com.stock.portfolio.PortfolioService;
 import com.stock.risk.RiskCheckResult;
 import com.stock.risk.RiskCheckStatus;
+import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+
+import java.util.Objects;
 
 @Component
 @RequiredArgsConstructor
@@ -14,7 +17,14 @@ public class TradeExecutor {
     private final PortfolioService portfolioService;
     private final TradeHistoryService tradeHistoryService;
 
-    public TradeResult execute(String runId, InvestmentDecision decision, RiskCheckResult riskCheckResult) {
+    public TradeResult execute(
+            String runId,
+            InvestmentStrategyIdentity strategyIdentity,
+            InvestmentDecision decision,
+            RiskCheckResult riskCheckResult
+    ) {
+        Objects.requireNonNull(strategyIdentity, "strategyIdentity must not be null.");
+
         if (riskCheckResult.status() == RiskCheckStatus.DENIED) {
             TradeResult tradeResult = new TradeResult(
                     TradeStatus.REJECTED,
@@ -47,6 +57,7 @@ public class TradeExecutor {
 
         if (decision.action() == InvestmentAction.BUY) {
             portfolioService.applyBuy(
+                    strategyIdentity,
                     decision.symbol(),
                     decision.quantity(),
                     decision.expectedPriceKrw()
@@ -68,6 +79,7 @@ public class TradeExecutor {
 
         if (decision.action() == InvestmentAction.SELL) {
             portfolioService.applySell(
+                    strategyIdentity,
                     decision.symbol(),
                     decision.quantity(),
                     decision.expectedPriceKrw()

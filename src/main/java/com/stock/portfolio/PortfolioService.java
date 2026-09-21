@@ -1,5 +1,6 @@
 package com.stock.portfolio;
 
+import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -11,12 +12,17 @@ import java.util.List;
 public class PortfolioService {
     private final PortfolioSnapshotStore store;
 
-    public PortfolioSnapshot getCurrentSnapshot() {
-        return store.getCurrentSnapshot();
+    public PortfolioSnapshot getCurrentSnapshot(InvestmentStrategyIdentity strategyIdentity) {
+        return store.getCurrentSnapshot(strategyIdentity);
     }
 
-    public PortfolioSnapshot applyBuy(String symbol, long quantity, long priceKrw) {
-        PortfolioSnapshot currentSnapshot = store.getCurrentSnapshot();
+    public PortfolioSnapshot applyBuy(
+            InvestmentStrategyIdentity strategyIdentity,
+            String symbol,
+            long quantity,
+            long priceKrw
+    ) {
+        PortfolioSnapshot currentSnapshot = store.getCurrentSnapshot(strategyIdentity);
 
         long buyAmountKrw = quantity * priceKrw;
         List<PortfolioPosition> updatedPositions = new ArrayList<>();
@@ -46,13 +52,18 @@ public class PortfolioService {
                 List.copyOf(updatedPositions)
         );
 
-        store.update(currentSnapshot);
+        store.update(strategyIdentity, currentSnapshot);
 
         return currentSnapshot;
     }
 
-    public PortfolioSnapshot applySell(String symbol, long quantity, long priceKrw) {
-        PortfolioSnapshot currentSnapshot = store.getCurrentSnapshot();
+    public PortfolioSnapshot applySell(
+            InvestmentStrategyIdentity strategyIdentity,
+            String symbol,
+            long quantity,
+            long priceKrw
+    ) {
+        PortfolioSnapshot currentSnapshot = store.getCurrentSnapshot(strategyIdentity);
 
         long sellAmountKrw = priceKrw * quantity;
         List<PortfolioPosition> updatedPositions = new ArrayList<>();
@@ -88,13 +99,17 @@ public class PortfolioService {
                 List.copyOf(updatedPositions)
         );
 
-        store.update(currentSnapshot);
+        store.update(strategyIdentity, currentSnapshot);
 
         return currentSnapshot;
     }
 
-    public PortfolioSnapshot reset() {
-        return store.reset();
+    public PortfolioSnapshot reset(InvestmentStrategyIdentity strategyIdentity) {
+        return store.reset(strategyIdentity);
+    }
+
+    public void resetAll() {
+        store.resetAll();
     }
 
     private PortfolioPosition mergePosition(
