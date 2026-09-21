@@ -1,10 +1,12 @@
 package com.stock.harness;
 
 import com.stock.harness.persistence.*;
+import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import com.stock.trade.TradeRecord;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -81,6 +83,18 @@ public class HarnessRunHistoryService {
         return harnessRunRepository.findAllByOrderByStartedAtDesc().stream()
                 .map(HarnessRunEntity::toSummary)
                 .toList();
+    }
+
+    public Optional<LocalDateTime> getLatestRunStartedAt(
+            InvestmentStrategyIdentity strategyIdentity
+    ) {
+        return harnessRunRepository
+                .findFirstByStrategyIdAndStrategyVersionAndHorizonOrderByStartedAtDesc(
+                        strategyIdentity.strategyId(),
+                        strategyIdentity.strategyVersion(),
+                        strategyIdentity.horizon()
+                )
+                .map(HarnessRunEntity::getStartedAt);
     }
 
     public Optional<HarnessRunEntity> findRunEntityById(String runId) {

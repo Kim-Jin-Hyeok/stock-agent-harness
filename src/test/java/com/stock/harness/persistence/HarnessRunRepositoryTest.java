@@ -68,6 +68,72 @@ class HarnessRunRepositoryTest {
         assertThat(entities.getLast().getRunId()).isEqualTo("run-1");
     }
 
+    @Test
+    void findFirstByStrategyIdentityReturnsLatestMatchingRun() {
+        LocalDateTime olderStartedAt = LocalDateTime.of(2026, 1, 1, 9, 0);
+        LocalDateTime latestStartedAt = LocalDateTime.of(2026, 1, 1, 9, 10);
+        harnessRunRepository.save(completedRunEntity(
+                "older-run",
+                STRATEGY_IDENTITY,
+                olderStartedAt
+        ));
+        harnessRunRepository.save(completedRunEntity(
+                "latest-run",
+                STRATEGY_IDENTITY,
+                latestStartedAt
+        ));
+        harnessRunRepository.save(completedRunEntity(
+                "different-version-run",
+                new InvestmentStrategyIdentity(
+                        STRATEGY_IDENTITY.strategyId(),
+                        2,
+                        STRATEGY_IDENTITY.horizon()
+                ),
+                latestStartedAt.plusMinutes(10)
+        ));
+        harnessRunRepository.save(completedRunEntity(
+                "different-horizon-run",
+                new InvestmentStrategyIdentity(
+                        STRATEGY_IDENTITY.strategyId(),
+                        STRATEGY_IDENTITY.strategyVersion(),
+                        InvestmentHorizon.SWING
+                ),
+                latestStartedAt.plusMinutes(20)
+        ));
+        harnessRunRepository.save(completedRunEntity(
+                "different-strategy-id-run",
+                new InvestmentStrategyIdentity(
+                        "ANOTHER_DAY_TRADING_V1",
+                        STRATEGY_IDENTITY.strategyVersion(),
+                        STRATEGY_IDENTITY.horizon()
+                ),
+                latestStartedAt.plusMinutes(30)
+        ));
+
+        Optional<HarnessRunEntity> result = harnessRunRepository
+                .findFirstByStrategyIdAndStrategyVersionAndHorizonOrderByStartedAtDesc(
+                        STRATEGY_IDENTITY.strategyId(),
+                        STRATEGY_IDENTITY.strategyVersion(),
+                        STRATEGY_IDENTITY.horizon()
+                );
+
+        assertThat(result).isPresent();
+        assertThat(result.get().getRunId()).isEqualTo("latest-run");
+        assertThat(result.get().getStartedAt()).isEqualTo(latestStartedAt);
+    }
+
+    @Test
+    void findFirstByStrategyIdentityReturnsEmptyWhenRunDoesNotExist() {
+        Optional<HarnessRunEntity> result = harnessRunRepository
+                .findFirstByStrategyIdAndStrategyVersionAndHorizonOrderByStartedAtDesc(
+                        STRATEGY_IDENTITY.strategyId(),
+                        STRATEGY_IDENTITY.strategyVersion(),
+                        STRATEGY_IDENTITY.horizon()
+                );
+
+        assertThat(result).isEmpty();
+    }
+
     private HarnessRunEntity completedRunEntity(String runId) {
         return completedRunEntity(runId, startedAt());
     }
@@ -76,9 +142,17 @@ class HarnessRunRepositoryTest {
             String runId,
             LocalDateTime startedAt
     ) {
+        return completedRunEntity(runId, STRATEGY_IDENTITY, startedAt);
+    }
+
+    private HarnessRunEntity completedRunEntity(
+            String runId,
+            InvestmentStrategyIdentity strategyIdentity,
+            LocalDateTime startedAt
+    ) {
         return HarnessRunEntity.of(
                 runId,
-                STRATEGY_IDENTITY,
+                strategyIdentity,
                 HarnessRunStatus.COMPLETED,
                 startedAt,
                 finishedAt(startedAt),

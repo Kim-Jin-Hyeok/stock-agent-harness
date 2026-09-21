@@ -294,6 +294,47 @@ class HarnessRunHistoryServiceTest {
     }
 
     @Test
+    void getLatestRunStartedAtReturnsPersistedStartedAt() {
+        HarnessRunEntity entity = completedRunEntity("run-1");
+        when(harnessRunRepository
+                .findFirstByStrategyIdAndStrategyVersionAndHorizonOrderByStartedAtDesc(
+                        STRATEGY_IDENTITY.strategyId(),
+                        STRATEGY_IDENTITY.strategyVersion(),
+                        STRATEGY_IDENTITY.horizon()
+                ))
+                .thenReturn(Optional.of(entity));
+
+        Optional<LocalDateTime> result = harnessRunHistoryService.getLatestRunStartedAt(
+                STRATEGY_IDENTITY
+        );
+
+        assertThat(result).contains(startedAt());
+        verify(harnessRunRepository)
+                .findFirstByStrategyIdAndStrategyVersionAndHorizonOrderByStartedAtDesc(
+                        STRATEGY_IDENTITY.strategyId(),
+                        STRATEGY_IDENTITY.strategyVersion(),
+                        STRATEGY_IDENTITY.horizon()
+                );
+    }
+
+    @Test
+    void getLatestRunStartedAtReturnsEmptyWhenRunDoesNotExist() {
+        when(harnessRunRepository
+                .findFirstByStrategyIdAndStrategyVersionAndHorizonOrderByStartedAtDesc(
+                        STRATEGY_IDENTITY.strategyId(),
+                        STRATEGY_IDENTITY.strategyVersion(),
+                        STRATEGY_IDENTITY.horizon()
+                ))
+                .thenReturn(Optional.empty());
+
+        Optional<LocalDateTime> result = harnessRunHistoryService.getLatestRunStartedAt(
+                STRATEGY_IDENTITY
+        );
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
     void getStepsByRunIdReturnsStepResults() {
         String runId = "run-1";
         when(harnessStepRepository.findAllByRunIdOrderByStepOrderAsc(runId))
