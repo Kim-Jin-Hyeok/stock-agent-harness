@@ -7,8 +7,11 @@ import com.stock.harness.InvestmentHarness;
 import com.stock.harness.scheduler.config.HarnessSchedulerProperties;
 import com.stock.harness.scheduler.config.ScheduledStrategyProperties;
 import com.stock.harness.scheduler.config.StrategyRunWindowProperties;
+import com.stock.harness.scheduler.policy.StrategyExecutionDatePolicy;
 import com.stock.harness.scheduler.policy.StrategyRunCadencePolicy;
 import com.stock.harness.scheduler.policy.StrategyRunWindowPolicy;
+import com.stock.market.calendar.MarketCalendarProperties;
+import com.stock.market.calendar.MarketTradingDayPolicy;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import org.junit.jupiter.api.Test;
@@ -16,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
@@ -37,8 +41,8 @@ class HarnessSchedulerTest {
             new InvestmentStrategyIdentity("SWING_V1", 1, InvestmentHorizon.SWING);
     private static final InvestmentStrategyIdentity LONG_TERM =
             new InvestmentStrategyIdentity("LONG_TERM_V1", 1, InvestmentHorizon.LONG_TERM);
-    private static final Instant NOW = Instant.parse("2026-01-05T00:00:00Z");
-    private static final LocalDateTime SEOUL_NOW = LocalDateTime.of(2026, 1, 5, 9, 0);
+    private static final Instant NOW = Instant.parse("2026-01-09T00:00:00Z");
+    private static final LocalDateTime SEOUL_NOW = LocalDateTime.of(2026, 1, 9, 9, 0);
 
     @Test
     void doesNotInspectStrategiesWhenSchedulerDisabled() {
@@ -150,17 +154,47 @@ class HarnessSchedulerTest {
         verify(investmentHarness, never()).run(any());
     }
 
+    @Test
+    void doesNotInspectRunHistoryOutsideStrategyExecutionDate() {
+        InvestmentHarness investmentHarness = mock(InvestmentHarness.class);
+        HarnessRunHistoryService historyService = mock(HarnessRunHistoryService.class);
+        HarnessScheduler scheduler = scheduler(
+                investmentHarness,
+                historyService,
+                properties(true, List.of(scheduledStrategy(true, DAY_TRADING))),
+                Set.of(SEOUL_NOW.toLocalDate())
+        );
+
+        scheduler.run();
+
+        verifyNoInteractions(historyService);
+        verify(investmentHarness, never()).run(any());
+    }
+
     private HarnessScheduler scheduler(
             InvestmentHarness investmentHarness,
             HarnessRunHistoryService historyService,
             HarnessSchedulerProperties properties
     ) {
+        return scheduler(investmentHarness, historyService, properties, Set.of());
+    }
+
+    private HarnessScheduler scheduler(
+            InvestmentHarness investmentHarness,
+            HarnessRunHistoryService historyService,
+            HarnessSchedulerProperties properties,
+            Set<LocalDate> closedDates
+    ) {
+        MarketTradingDayPolicy marketTradingDayPolicy = new MarketTradingDayPolicy(
+                new MarketCalendarProperties(closedDates)
+        );
         return new HarnessScheduler(
                 investmentHarness,
                 properties,
                 historyService,
                 new StrategyRunCadencePolicy(),
                 new StrategyRunWindowPolicy(),
+                new StrategyExecutionDatePolicy(marketTradingDayPolicy),
                 Clock.fixed(NOW, ZoneOffset.UTC)
         );
     }
@@ -203,7 +237,7 @@ class HarnessSchedulerTest {
 
     private StrategyRunWindowProperties defaultRunWindow() {
         return new StrategyRunWindowProperties(
-                Set.of(DayOfWeek.MONDAY),
+                Set.of(DayOfWeek.FRIDAY),
                 LocalTime.of(9, 0),
                 LocalTime.of(15, 30)
         );

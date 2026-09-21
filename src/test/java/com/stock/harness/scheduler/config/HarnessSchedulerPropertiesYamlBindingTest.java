@@ -39,7 +39,13 @@ class HarnessSchedulerPropertiesYamlBindingTest {
         assertThat(properties.strategies().get(1).runWindow().startsAt())
                 .isEqualTo(LocalTime.of(15, 0));
         assertThat(properties.strategies().get(2).runWindow().allowedDays())
-                .containsExactly(DayOfWeek.FRIDAY);
+                .containsExactly(
+                        DayOfWeek.MONDAY,
+                        DayOfWeek.TUESDAY,
+                        DayOfWeek.WEDNESDAY,
+                        DayOfWeek.THURSDAY,
+                        DayOfWeek.FRIDAY
+                );
         assertThat(properties.strategies().get(2).runWindow().endsAt())
                 .isEqualTo(LocalTime.of(15, 30));
     }

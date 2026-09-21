@@ -11,6 +11,8 @@ logging:
     com.stock: DEBUG
 
 market:
+  calendar:
+    closed-dates: []
   current-price:
     cache:
       ttl: 30s
@@ -50,7 +52,7 @@ harness:
         strategy-version: 1
         horizon: LONG_TERM
         window:
-          allowed-days: [FRIDAY]
+          allowed-days: [MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY]
           starts-at: "15:00"
           ends-at: "15:30"
 

@@ -5,6 +5,7 @@ import com.stock.harness.HarnessRunResult;
 import com.stock.harness.InvestmentHarness;
 import com.stock.harness.scheduler.config.HarnessSchedulerProperties;
 import com.stock.harness.scheduler.config.ScheduledStrategyProperties;
+import com.stock.harness.scheduler.policy.StrategyExecutionDatePolicy;
 import com.stock.harness.scheduler.policy.StrategyRunCadencePolicy;
 import com.stock.harness.scheduler.policy.StrategyRunWindowPolicy;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
@@ -25,6 +26,7 @@ public class HarnessScheduler {
     private final HarnessRunHistoryService harnessRunHistoryService;
     private final StrategyRunCadencePolicy strategyRunCadencePolicy;
     private final StrategyRunWindowPolicy strategyRunWindowPolicy;
+    private final StrategyExecutionDatePolicy strategyExecutionDatePolicy;
     private final Clock clock;
 
     @Scheduled(fixedDelayString = "${harness.scheduler.fixed-delay-ms}")
@@ -44,6 +46,19 @@ public class HarnessScheduler {
                 continue;
             }
 
+            InvestmentStrategyIdentity strategyIdentity = strategy.strategyIdentity();
+            if (!strategyExecutionDatePolicy.isExecutionDate(
+                    strategyIdentity,
+                    evaluatedAt.toLocalDate()
+            )) {
+                log.info(
+                        "Harness scheduler skipped strategy outside execution date. strategyId={}, evaluatedAt={}",
+                        strategy.strategyId(),
+                        evaluatedAt
+                );
+                continue;
+            }
+
             if (!strategyRunWindowPolicy.isWithinWindow(strategy.runWindow(), evaluatedAt)) {
                 log.info(
                         "Harness scheduler skipped strategy outside run window. strategyId={}, evaluatedAt={}",
@@ -53,7 +68,7 @@ public class HarnessScheduler {
                 continue;
             }
 
-            runStrategy(strategy.strategyIdentity(), evaluatedAt);
+            runStrategy(strategyIdentity, evaluatedAt);
         }
     }
 
