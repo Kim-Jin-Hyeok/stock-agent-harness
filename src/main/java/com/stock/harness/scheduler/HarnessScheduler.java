@@ -3,6 +3,8 @@ package com.stock.harness.scheduler;
 import com.stock.harness.HarnessRunHistoryService;
 import com.stock.harness.HarnessRunResult;
 import com.stock.harness.InvestmentHarness;
+import com.stock.harness.scheduler.config.HarnessSchedulerProperties;
+import com.stock.harness.scheduler.config.ScheduledStrategyProperties;
 import com.stock.harness.scheduler.policy.StrategyRunCadencePolicy;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import lombok.RequiredArgsConstructor;
@@ -12,7 +14,6 @@ import org.springframework.stereotype.Component;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
@@ -31,19 +32,26 @@ public class HarnessScheduler {
             return;
         }
 
-        InvestmentStrategyIdentity strategyIdentity = harnessSchedulerProperties.strategyIdentity();
         LocalDateTime evaluatedAt = LocalDateTime.ofInstant(
                 clock.instant(),
                 harnessSchedulerProperties.schedulerZoneId()
         );
-        Optional<LocalDateTime> latestRunStartedAt = harnessRunHistoryService
-                .getLatestRunStartedAt(strategyIdentity);
 
-        if (!strategyRunCadencePolicy.isDue(
-                strategyIdentity,
-                evaluatedAt,
-                latestRunStartedAt
-        )) {
+        for (ScheduledStrategyProperties strategy : harnessSchedulerProperties.strategies()) {
+            if (!strategy.enabled()) {
+                continue;
+            }
+            runStrategy(strategy.strategyIdentity(), evaluatedAt);
+        }
+    }
+
+    private void runStrategy(
+            InvestmentStrategyIdentity strategyIdentity,
+            LocalDateTime evaluatedAt
+    ) {
+        var latestRunStartedAt = harnessRunHistoryService.getLatestRunStartedAt(strategyIdentity);
+
+        if (!strategyRunCadencePolicy.isDue(strategyIdentity, evaluatedAt, latestRunStartedAt)) {
             log.info(
                     "Harness scheduler skipped strategy. strategyId={}, evaluatedAt={}, latestRunStartedAt={}",
                     strategyIdentity.strategyId(),
@@ -62,8 +70,9 @@ public class HarnessScheduler {
         HarnessRunResult result = investmentHarness.run(strategyIdentity);
 
         log.info(
-                "Harness scheduler completed. runId={}, status={}",
+                "Harness scheduler completed. runId={}, strategyId={}, status={}",
                 result.runId(),
+                strategyIdentity.strategyId(),
                 result.status()
         );
     }

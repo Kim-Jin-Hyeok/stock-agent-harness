@@ -4,6 +4,8 @@ import com.stock.harness.HarnessRunHistoryService;
 import com.stock.harness.HarnessRunResult;
 import com.stock.harness.HarnessRunStatus;
 import com.stock.harness.InvestmentHarness;
+import com.stock.harness.scheduler.config.HarnessSchedulerProperties;
+import com.stock.harness.scheduler.config.ScheduledStrategyProperties;
 import com.stock.harness.scheduler.policy.StrategyRunCadencePolicy;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
@@ -24,105 +26,147 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class HarnessSchedulerTest {
-    private static final InvestmentStrategyIdentity STRATEGY_IDENTITY =
+    private static final InvestmentStrategyIdentity DAY_TRADING =
             new InvestmentStrategyIdentity("DAY_TRADING_V1", 1, InvestmentHorizon.DAY_TRADING);
-    private static final Instant NOW = Instant.parse("2026-01-01T00:00:00Z");
-    private static final LocalDateTime SEOUL_NOW = LocalDateTime.of(2026, 1, 1, 9, 0);
+    private static final InvestmentStrategyIdentity SWING =
+            new InvestmentStrategyIdentity("SWING_V1", 1, InvestmentHorizon.SWING);
+    private static final InvestmentStrategyIdentity LONG_TERM =
+            new InvestmentStrategyIdentity("LONG_TERM_V1", 1, InvestmentHorizon.LONG_TERM);
+    private static final Instant NOW = Instant.parse("2026-01-05T00:00:00Z");
+    private static final LocalDateTime SEOUL_NOW = LocalDateTime.of(2026, 1, 5, 9, 0);
 
     @Test
-    void doesNotCheckCadenceOrRunHarnessWhenSchedulerDisabled() {
+    void doesNotInspectStrategiesWhenSchedulerDisabled() {
         InvestmentHarness investmentHarness = mock(InvestmentHarness.class);
-        HarnessRunHistoryService harnessRunHistoryService = mock(HarnessRunHistoryService.class);
+        HarnessRunHistoryService historyService = mock(HarnessRunHistoryService.class);
         HarnessScheduler scheduler = scheduler(
                 investmentHarness,
-                harnessRunHistoryService,
-                false
+                historyService,
+                properties(false, enabledStrategies())
         );
 
         scheduler.run();
 
-        verifyNoInteractions(harnessRunHistoryService);
+        verifyNoInteractions(historyService);
         verify(investmentHarness, never()).run(any());
     }
 
     @Test
-    void runsHarnessWhenStrategyHasNoRunHistory() {
+    void doesNotInspectDisabledStrategy() {
         InvestmentHarness investmentHarness = mock(InvestmentHarness.class);
-        HarnessRunHistoryService harnessRunHistoryService = mock(HarnessRunHistoryService.class);
+        HarnessRunHistoryService historyService = mock(HarnessRunHistoryService.class);
         HarnessScheduler scheduler = scheduler(
                 investmentHarness,
-                harnessRunHistoryService,
-                true
+                historyService,
+                properties(true, List.of(
+                        scheduledStrategy(false, DAY_TRADING),
+                        scheduledStrategy(true, SWING)
+                ))
         );
-        when(harnessRunHistoryService.getLatestRunStartedAt(STRATEGY_IDENTITY))
-                .thenReturn(Optional.empty());
-        when(investmentHarness.run(STRATEGY_IDENTITY)).thenReturn(completedRunResult());
+        when(historyService.getLatestRunStartedAt(SWING)).thenReturn(Optional.empty());
+        when(investmentHarness.run(SWING)).thenReturn(completedRunResult(SWING));
 
         scheduler.run();
 
-        verify(harnessRunHistoryService).getLatestRunStartedAt(STRATEGY_IDENTITY);
-        verify(investmentHarness).run(STRATEGY_IDENTITY);
+        verify(historyService, never()).getLatestRunStartedAt(DAY_TRADING);
+        verify(investmentHarness, never()).run(DAY_TRADING);
+        verify(historyService).getLatestRunStartedAt(SWING);
+        verify(investmentHarness).run(SWING);
     }
 
     @Test
-    void doesNotRunHarnessBeforeDayTradingCadenceBoundary() {
+    void runsAllEnabledStrategiesWithoutRunHistory() {
         InvestmentHarness investmentHarness = mock(InvestmentHarness.class);
-        HarnessRunHistoryService harnessRunHistoryService = mock(HarnessRunHistoryService.class);
+        HarnessRunHistoryService historyService = mock(HarnessRunHistoryService.class);
         HarnessScheduler scheduler = scheduler(
                 investmentHarness,
-                harnessRunHistoryService,
-                true
+                historyService,
+                properties(true, enabledStrategies())
         );
-        when(harnessRunHistoryService.getLatestRunStartedAt(STRATEGY_IDENTITY))
-                .thenReturn(Optional.of(SEOUL_NOW.minusMinutes(5).plusNanos(1)));
+        when(historyService.getLatestRunStartedAt(any())).thenReturn(Optional.empty());
+        when(investmentHarness.run(any())).thenAnswer(invocation ->
+                completedRunResult(invocation.getArgument(0))
+        );
 
         scheduler.run();
 
-        verify(investmentHarness, never()).run(any());
+        verify(investmentHarness).run(DAY_TRADING);
+        verify(investmentHarness).run(SWING);
+        verify(investmentHarness).run(LONG_TERM);
     }
 
     @Test
-    void runsHarnessAtDayTradingCadenceBoundaryUsingConfiguredTimeZone() {
+    void runsOnlyStrategiesWhoseCadenceIsDue() {
         InvestmentHarness investmentHarness = mock(InvestmentHarness.class);
-        HarnessRunHistoryService harnessRunHistoryService = mock(HarnessRunHistoryService.class);
+        HarnessRunHistoryService historyService = mock(HarnessRunHistoryService.class);
         HarnessScheduler scheduler = scheduler(
                 investmentHarness,
-                harnessRunHistoryService,
-                true
+                historyService,
+                properties(true, enabledStrategies())
         );
-        when(harnessRunHistoryService.getLatestRunStartedAt(STRATEGY_IDENTITY))
+        when(historyService.getLatestRunStartedAt(DAY_TRADING))
                 .thenReturn(Optional.of(SEOUL_NOW.minusMinutes(5)));
-        when(investmentHarness.run(STRATEGY_IDENTITY)).thenReturn(completedRunResult());
+        when(historyService.getLatestRunStartedAt(SWING))
+                .thenReturn(Optional.of(SEOUL_NOW.minusDays(1).plusHours(1)));
+        when(historyService.getLatestRunStartedAt(LONG_TERM))
+                .thenReturn(Optional.of(SEOUL_NOW.minusHours(1)));
+        when(investmentHarness.run(DAY_TRADING)).thenReturn(completedRunResult(DAY_TRADING));
+        when(investmentHarness.run(SWING)).thenReturn(completedRunResult(SWING));
 
         scheduler.run();
 
-        verify(investmentHarness).run(STRATEGY_IDENTITY);
+        verify(investmentHarness).run(DAY_TRADING);
+        verify(investmentHarness).run(SWING);
+        verify(investmentHarness, never()).run(LONG_TERM);
     }
 
     private HarnessScheduler scheduler(
             InvestmentHarness investmentHarness,
-            HarnessRunHistoryService harnessRunHistoryService,
-            boolean enabled
+            HarnessRunHistoryService historyService,
+            HarnessSchedulerProperties properties
     ) {
         return new HarnessScheduler(
                 investmentHarness,
-                new HarnessSchedulerProperties(
-                        enabled,
-                        STRATEGY_IDENTITY.strategyId(),
-                        STRATEGY_IDENTITY.strategyVersion(),
-                        STRATEGY_IDENTITY.horizon(),
-                        "Asia/Seoul"
-                ),
-                harnessRunHistoryService,
+                properties,
+                historyService,
                 new StrategyRunCadencePolicy(),
                 Clock.fixed(NOW, ZoneOffset.UTC)
         );
     }
 
-    private HarnessRunResult completedRunResult() {
+    private HarnessSchedulerProperties properties(
+            boolean enabled,
+            List<ScheduledStrategyProperties> strategies
+    ) {
+        return new HarnessSchedulerProperties(enabled, "Asia/Seoul", strategies);
+    }
+
+    private List<ScheduledStrategyProperties> enabledStrategies() {
+        return List.of(
+                scheduledStrategy(true, DAY_TRADING),
+                scheduledStrategy(true, SWING),
+                scheduledStrategy(true, LONG_TERM)
+        );
+    }
+
+    private ScheduledStrategyProperties scheduledStrategy(
+            boolean enabled,
+            InvestmentStrategyIdentity strategyIdentity
+    ) {
+        return new ScheduledStrategyProperties(
+                enabled,
+                strategyIdentity.strategyId(),
+                strategyIdentity.strategyVersion(),
+                strategyIdentity.horizon()
+        );
+    }
+
+    private HarnessRunResult completedRunResult(
+            InvestmentStrategyIdentity strategyIdentity
+    ) {
         return HarnessRunResult.of(
-                "run-1",
-                STRATEGY_IDENTITY,
+                "run-" + strategyIdentity.strategyId(),
+                strategyIdentity,
                 HarnessRunStatus.COMPLETED,
                 SEOUL_NOW,
                 SEOUL_NOW.plusSeconds(1),
