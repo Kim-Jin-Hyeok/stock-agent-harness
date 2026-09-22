@@ -38,7 +38,7 @@ class BrokerAccountSnapshotTest {
                 List.of(),
                 OBSERVED_AT
         )).isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("availableCashAmountKrw must not be negative.");
+                .hasMessage("depositAmountKrw must not be negative.");
 
         assertThatThrownBy(() -> new BrokerAccountSnapshot(
                 0L,

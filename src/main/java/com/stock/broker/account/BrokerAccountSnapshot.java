@@ -5,15 +5,15 @@ import java.util.List;
 import java.util.Objects;
 
 public record BrokerAccountSnapshot(
-        long availableCashAmountKrw,
+        long depositAmountKrw,
         long totalAssetAmountKrw,
         List<BrokerAccountPosition> positions,
         Instant observedAt
 ) {
     public BrokerAccountSnapshot {
-        if (availableCashAmountKrw < 0) {
+        if (depositAmountKrw < 0) {
             throw new IllegalArgumentException(
-                    "availableCashAmountKrw must not be negative."
+                    "depositAmountKrw must not be negative."
             );
         }
         if (totalAssetAmountKrw < 0) {
