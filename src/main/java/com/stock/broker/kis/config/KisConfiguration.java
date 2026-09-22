@@ -1,6 +1,7 @@
 package com.stock.broker.kis.config;
 
 import com.stock.broker.kis.account.KisAccountBalanceClient;
+import com.stock.broker.kis.account.provider.KisBrokerAccountProvider;
 import com.stock.broker.kis.auth.KisTokenClient;
 import com.stock.broker.kis.auth.KisTokenProvider;
 import com.stock.market.price.provider.kis.KisCurrentPriceClient;
@@ -73,6 +74,21 @@ public class KisConfiguration {
                 properties.appKey(),
                 properties.appSecret(),
                 properties.accountBalanceMaxPages()
+        );
+    }
+
+    @Bean
+    public KisBrokerAccountProvider kisBrokerAccountProvider(
+            KisAccountBalanceClient kisAccountBalanceClient,
+            KisTokenProvider kisTokenProvider,
+            KisProperties properties,
+            Clock clock
+    ) {
+        return new KisBrokerAccountProvider(
+                kisAccountBalanceClient,
+                kisTokenProvider,
+                properties,
+                clock
         );
     }
 }
