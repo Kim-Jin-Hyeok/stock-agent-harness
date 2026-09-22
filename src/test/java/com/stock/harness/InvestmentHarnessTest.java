@@ -57,6 +57,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static com.stock.portfolio.support.PortfolioSnapshotStoreFixture.create;
 import static org.assertj.core.groups.Tuple.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -89,7 +90,7 @@ class InvestmentHarnessTest {
             mock(HarnessRunSnapshotJsonConverter.class);
     private final HarnessStepRepository harnessStepRepository = mock(HarnessStepRepository.class);
     private final RiskGuard riskGuard = new RiskGuard(riskProperties);
-    private final PortfolioSnapshotStore store = new PortfolioSnapshotStore();
+    private final PortfolioSnapshotStore store = create();
     private final PortfolioService portfolioService = new PortfolioService(store);
     private final TradeHistoryService tradeHistoryService = new TradeHistoryService(mock(TradeRecordRepository.class));
     private final TradeExecutor tradeExecutor = new TradeExecutor(
@@ -908,6 +909,9 @@ class InvestmentHarnessTest {
     @Test
     void runRetriesFailedToolExecutionAndCompletesAfterSuccess() {
         HarnessToolExecutor retryingExecutor = mock(HarnessToolExecutor.class);
+        HarnessToolOutput portfolioOutput = HarnessToolOutput.portfolio(
+                portfolioService.getCurrentSnapshot(STRATEGY_IDENTITY)
+        );
         when(retryingExecutor.execute(any(), any(), any()))
                 .thenReturn(
                         HarnessToolExecutionResult.executionFailed(
@@ -916,9 +920,7 @@ class InvestmentHarnessTest {
                         ),
                         HarnessToolExecutionResult.executed(
                                 HarnessToolRequest.portfolio(),
-                                HarnessToolOutput.portfolio(
-                                        portfolioService.getCurrentSnapshot(STRATEGY_IDENTITY)
-                                )
+                                portfolioOutput
                         )
                 );
         InvestmentHarness retryingHarness = new InvestmentHarness(

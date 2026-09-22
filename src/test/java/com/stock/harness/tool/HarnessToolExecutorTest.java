@@ -27,6 +27,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static com.stock.portfolio.support.PortfolioSnapshotStoreFixture.create;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -265,7 +266,7 @@ class HarnessToolExecutorTest {
     }
 
     private PortfolioSnapshotStore portfolioSnapshotStore() {
-        return new PortfolioSnapshotStore();
+        return create();
     }
 
     private MarketService marketService() {

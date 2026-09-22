@@ -19,6 +19,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static com.stock.portfolio.support.PortfolioSnapshotStoreFixture.create;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -29,7 +30,7 @@ class HarnessStateServiceTest {
             mock(HarnessRunSnapshotJsonConverter.class);
     private final HarnessRunRepository harnessRunRepository = mock(HarnessRunRepository.class);
     private final HarnessStepRepository harnessStepRepository = mock(HarnessStepRepository.class);
-    private final PortfolioSnapshotStore portfolioSnapshotStore = new PortfolioSnapshotStore();
+    private final PortfolioSnapshotStore portfolioSnapshotStore = create();
     private final PortfolioService portfolioService = new PortfolioService(portfolioSnapshotStore);
     private final TradeHistoryService tradeHistoryService = new TradeHistoryService(mock(TradeRecordRepository.class));
     private final HarnessRunHistoryService harnessRunHistoryService = new HarnessRunHistoryService(

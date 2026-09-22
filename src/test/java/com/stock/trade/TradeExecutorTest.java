@@ -13,6 +13,7 @@ import com.stock.trade.persistence.TradeRecordRepository;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static com.stock.portfolio.support.PortfolioSnapshotStoreFixture.create;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -20,7 +21,7 @@ import static org.mockito.Mockito.verify;
 class TradeExecutorTest {
     private static final InvestmentStrategyIdentity STRATEGY_IDENTITY =
             new InvestmentStrategyIdentity("DAY_TRADING_V1", 1, InvestmentHorizon.DAY_TRADING);
-    private final PortfolioSnapshotStore store = new PortfolioSnapshotStore();
+    private final PortfolioSnapshotStore store = create();
     private final PortfolioService portfolioService = new PortfolioService(store);
     private final TradeRecordRepository tradeRecordRepository = mock(TradeRecordRepository.class);
     private final TradeHistoryService tradeHistoryService = new TradeHistoryService(tradeRecordRepository);

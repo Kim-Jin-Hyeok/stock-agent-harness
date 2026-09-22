@@ -5,6 +5,7 @@ import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static com.stock.portfolio.support.PortfolioSnapshotStoreFixture.create;
 
 class PortfolioServiceTest {
     private static final InvestmentStrategyIdentity STRATEGY_IDENTITY =
@@ -13,7 +14,7 @@ class PortfolioServiceTest {
             new InvestmentStrategyIdentity("SWING_V1", 1, InvestmentHorizon.SWING);
     private static final InvestmentStrategyIdentity OTHER_VERSION_IDENTITY =
             new InvestmentStrategyIdentity("DAY_TRADING_V1", 2, InvestmentHorizon.DAY_TRADING);
-    private final PortfolioSnapshotStore store = new PortfolioSnapshotStore();
+    private final PortfolioSnapshotStore store = create();
     private final PortfolioService portfolioService = new PortfolioService(store);
 
     @Test
