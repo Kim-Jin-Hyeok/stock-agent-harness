@@ -71,7 +71,8 @@ class KisConfigurationTest {
                 "test-app-secret",
                 "12345678",
                 "01",
-                Duration.ofMinutes(1)
+                Duration.ofMinutes(1),
+                10
         );
     }
 }

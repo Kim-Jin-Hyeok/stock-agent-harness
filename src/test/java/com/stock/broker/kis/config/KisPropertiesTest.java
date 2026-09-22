@@ -22,7 +22,8 @@ class KisPropertiesTest {
                 "",
                 "",
                 "",
-                Duration.ofMinutes(1)
+                Duration.ofMinutes(1),
+                10
         );
 
         assertThat(properties.enabled()).isFalse();
@@ -52,11 +53,28 @@ class KisPropertiesTest {
                         "",
                         "",
                         "",
-                        Duration.ofSeconds(-1)
+                        Duration.ofSeconds(-1),
+                        10
                 ))
                 .withMessage(
                         "tokenRefreshBeforeExpiration must not be negative."
                 );
+    }
+
+    @Test
+    void rejectsNonPositiveAccountBalanceMaxPages() {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> new KisProperties(
+                        false,
+                        BASE_URL,
+                        "",
+                        "",
+                        "",
+                        "",
+                        Duration.ofMinutes(1),
+                        0
+                ))
+                .withMessage("accountBalanceMaxPages must be positive.");
     }
 
     private KisProperties properties(String appKey, String accountNumber) {
@@ -67,7 +85,8 @@ class KisPropertiesTest {
                 "app-secret",
                 accountNumber,
                 "01",
-                Duration.ofMinutes(1)
+                Duration.ofMinutes(1),
+                10
         );
     }
 }

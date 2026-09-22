@@ -19,6 +19,7 @@ broker:
     account-number: ${KIS_ACCOUNT_NUMBER:}
     account-product-code: ${KIS_ACCOUNT_PRODUCT_CODE:}
     token-refresh-before-expiration: 1m
+    account-balance-max-pages: 10
 
 market:
   calendar:

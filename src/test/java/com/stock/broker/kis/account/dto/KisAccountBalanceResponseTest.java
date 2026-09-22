@@ -44,7 +44,9 @@ class KisAccountBalanceResponseTest {
                               "dnca_tot_amt": "8910000",
                               "tot_evlu_amt": "10000000"
                             }
-                          ]
+                          ],
+                          "ctx_area_fk100": "next-fk",
+                          "ctx_area_nk100": "next-nk"
                         }
                         """,
                 KisAccountBalanceResponse.class
@@ -53,6 +55,8 @@ class KisAccountBalanceResponseTest {
         BrokerAccountSnapshot snapshot = response.toSnapshot(OBSERVED_AT);
 
         assertThat(response.isSuccessful()).isTrue();
+        assertThat(response.contextAreaFk100()).isEqualTo("next-fk");
+        assertThat(response.contextAreaNk100()).isEqualTo("next-nk");
         assertThat(snapshot.depositAmountKrw()).isEqualTo(8_910_000L);
         assertThat(snapshot.totalAssetAmountKrw()).isEqualTo(10_000_000L);
         assertThat(snapshot.observedAt()).isEqualTo(OBSERVED_AT);
@@ -81,7 +85,9 @@ class KisAccountBalanceResponseTest {
                 "EGW00123",
                 "Request failed.",
                 List.of(),
-                List.of()
+                List.of(),
+                "",
+                ""
         );
 
         assertThatIllegalStateException()
@@ -130,7 +136,9 @@ class KisAccountBalanceResponseTest {
                 "KIOK0560",
                 "Request completed successfully.",
                 positions,
-                summaries
+                summaries,
+                "",
+                ""
         );
     }
 }

@@ -14,13 +14,19 @@ public record KisProperties(
         String appSecret,
         String accountNumber,
         String accountProductCode,
-        Duration tokenRefreshBeforeExpiration
+        Duration tokenRefreshBeforeExpiration,
+        int accountBalanceMaxPages
 ) {
     public KisProperties {
         if (tokenRefreshBeforeExpiration != null
                 && tokenRefreshBeforeExpiration.isNegative()) {
             throw new IllegalArgumentException(
                     "tokenRefreshBeforeExpiration must not be negative."
+            );
+        }
+        if (accountBalanceMaxPages <= 0) {
+            throw new IllegalArgumentException(
+                    "accountBalanceMaxPages must be positive."
             );
         }
         if (enabled) {

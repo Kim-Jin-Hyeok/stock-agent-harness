@@ -71,7 +71,8 @@ public class KisConfiguration {
         return new KisAccountBalanceClient(
                 kisRestClient,
                 properties.appKey(),
-                properties.appSecret()
+                properties.appSecret(),
+                properties.accountBalanceMaxPages()
         );
     }
 }
