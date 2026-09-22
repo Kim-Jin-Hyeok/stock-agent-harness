@@ -6,6 +6,9 @@ import com.stock.broker.kis.account.provider.KisBrokerAccountProvider;
 import com.stock.broker.kis.auth.KisTokenClient;
 import com.stock.broker.kis.auth.KisTokenProvider;
 import com.stock.market.price.provider.kis.KisCurrentPriceClient;
+import com.stock.market.price.provider.CurrentPriceProvider;
+import com.stock.market.price.provider.FixedCurrentPriceProvider;
+import com.stock.market.price.provider.kis.KisCurrentPriceProvider;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.web.client.RestClient;
@@ -19,7 +22,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 class KisConfigurationTest {
     private final ApplicationContextRunner contextRunner =
             new ApplicationContextRunner()
-                    .withUserConfiguration(KisConfiguration.class);
+                    .withUserConfiguration(
+                            KisConfiguration.class,
+                            FixedCurrentPriceProvider.class
+                    )
+                    .withBean(Clock.class, Clock::systemUTC);
 
     @Test
     void doesNotCreateKisBeansWhenDisabled() {
@@ -32,6 +39,11 @@ class KisConfigurationTest {
                     assertThat(context).doesNotHaveBean(
                             KisCurrentPriceClient.class
                     );
+                    assertThat(context).hasSingleBean(
+                            CurrentPriceProvider.class
+                    );
+                    assertThat(context.getBean(CurrentPriceProvider.class))
+                            .isInstanceOf(FixedCurrentPriceProvider.class);
                     assertThat(context).doesNotHaveBean(
                             KisAccountBalanceClient.class
                     );
@@ -46,7 +58,6 @@ class KisConfigurationTest {
         contextRunner
                 .withPropertyValues("broker.kis.enabled=true")
                 .withBean(KisProperties.class, this::enabledProperties)
-                .withBean(Clock.class, Clock::systemUTC)
                 .run(context -> {
                     assertThat(context).hasSingleBean(RestClient.class);
                     assertThat(context).hasSingleBean(KisTokenClient.class);
@@ -54,6 +65,11 @@ class KisConfigurationTest {
                     assertThat(context).hasSingleBean(
                             KisCurrentPriceClient.class
                     );
+                    assertThat(context).hasSingleBean(
+                            CurrentPriceProvider.class
+                    );
+                    assertThat(context.getBean(CurrentPriceProvider.class))
+                            .isInstanceOf(KisCurrentPriceProvider.class);
                     assertThat(context).hasSingleBean(
                             KisAccountBalanceClient.class
                     );
