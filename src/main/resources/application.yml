@@ -10,6 +10,16 @@ logging:
     root: INFO
     com.stock: DEBUG
 
+broker:
+  kis:
+    enabled: false
+    base-url: ${KIS_BASE_URL:https://openapivts.koreainvestment.com:29443}
+    app-key: ${KIS_APP_KEY:}
+    app-secret: ${KIS_APP_SECRET:}
+    account-number: ${KIS_ACCOUNT_NUMBER:}
+    account-product-code: ${KIS_ACCOUNT_PRODUCT_CODE:}
+    token-refresh-before-expiration: 1m
+
 market:
   calendar:
     closed-dates: []
