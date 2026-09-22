@@ -2,6 +2,7 @@ package com.stock.portfolio.support;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.portfolio.PortfolioSnapshotStore;
+import com.stock.portfolio.initialization.StrategyPortfolioInitializer;
 import com.stock.portfolio.persistence.PortfolioSnapshotJsonConverter;
 import com.stock.portfolio.persistence.StrategyPortfolioEntity;
 import com.stock.portfolio.persistence.StrategyPortfolioRepository;
@@ -48,7 +49,8 @@ public final class PortfolioSnapshotStoreFixture {
                 repository,
                 new PortfolioSnapshotJsonConverter(
                         new ObjectMapper().findAndRegisterModules()
-                )
+                ),
+                new StrategyPortfolioInitializer()
         );
     }
 }

@@ -1,5 +1,6 @@
 package com.stock.portfolio;
 
+import com.stock.portfolio.initialization.StrategyPortfolioInitializer;
 import com.stock.portfolio.persistence.PortfolioSnapshotJsonConverter;
 import com.stock.portfolio.persistence.StrategyPortfolioEntity;
 import com.stock.portfolio.persistence.StrategyPortfolioRepository;
@@ -8,7 +9,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -17,6 +17,7 @@ import java.util.Optional;
 public class PortfolioSnapshotStore {
     private final StrategyPortfolioRepository strategyPortfolioRepository;
     private final PortfolioSnapshotJsonConverter portfolioSnapshotJsonConverter;
+    private final StrategyPortfolioInitializer strategyPortfolioInitializer;
 
     @Transactional
     public PortfolioSnapshot getCurrentSnapshot(InvestmentStrategyIdentity strategyIdentity) {
@@ -45,7 +46,7 @@ public class PortfolioSnapshotStore {
     @Transactional
     public PortfolioSnapshot reset(InvestmentStrategyIdentity strategyIdentity) {
         Objects.requireNonNull(strategyIdentity, "strategyIdentity must not be null.");
-        PortfolioSnapshot snapshot = initialSnapshot();
+        PortfolioSnapshot snapshot = strategyPortfolioInitializer.initialize(strategyIdentity);
         update(strategyIdentity, snapshot);
         return snapshot;
     }
@@ -68,19 +69,11 @@ public class PortfolioSnapshotStore {
     private PortfolioSnapshot saveInitialSnapshot(
             InvestmentStrategyIdentity strategyIdentity
     ) {
-        PortfolioSnapshot snapshot = initialSnapshot();
+        PortfolioSnapshot snapshot = strategyPortfolioInitializer.initialize(strategyIdentity);
         strategyPortfolioRepository.save(StrategyPortfolioEntity.of(
                 strategyIdentity,
                 portfolioSnapshotJsonConverter.toJson(snapshot)
         ));
         return snapshot;
-    }
-
-    private PortfolioSnapshot initialSnapshot() {
-        return new PortfolioSnapshot(
-                10_000_000L,
-                10_000_000L,
-                List.of()
-        );
     }
 }
