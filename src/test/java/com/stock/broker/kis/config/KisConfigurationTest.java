@@ -6,6 +6,8 @@ import com.stock.broker.kis.account.provider.KisBrokerAccountProvider;
 import com.stock.broker.kis.auth.KisTokenClient;
 import com.stock.broker.kis.auth.KisTokenProvider;
 import com.stock.broker.kis.order.KisCashOrderClient;
+import com.stock.broker.kis.order.provider.KisBrokerOrderProvider;
+import com.stock.broker.order.provider.BrokerOrderProvider;
 import com.stock.market.price.provider.kis.KisCurrentPriceClient;
 import com.stock.market.price.provider.CurrentPriceProvider;
 import com.stock.market.price.provider.FixedCurrentPriceProvider;
@@ -54,6 +56,9 @@ class KisConfigurationTest {
                     assertThat(context).doesNotHaveBean(
                             KisCashOrderClient.class
                     );
+                    assertThat(context).doesNotHaveBean(
+                            BrokerOrderProvider.class
+                    );
                 });
     }
 
@@ -85,6 +90,11 @@ class KisConfigurationTest {
                     assertThat(context).hasSingleBean(
                             KisCashOrderClient.class
                     );
+                    assertThat(context).hasSingleBean(
+                            BrokerOrderProvider.class
+                    );
+                    assertThat(context.getBean(BrokerOrderProvider.class))
+                            .isInstanceOf(KisBrokerOrderProvider.class);
 
                     KisAccountBalanceClient first = context.getBean(
                             KisAccountBalanceClient.class
