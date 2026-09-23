@@ -2,6 +2,7 @@ package com.stock.portfolio;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.portfolio.initialization.StrategyPortfolioInitializer;
+import com.stock.portfolio.initialization.fixed.FixedStrategyPortfolioInitializer;
 import com.stock.portfolio.persistence.PortfolioSnapshotJsonConverter;
 import com.stock.portfolio.persistence.StrategyPortfolioRepository;
 import com.stock.strategy.profile.InvestmentHorizon;
@@ -73,7 +74,7 @@ class PortfolioSnapshotStoreTest {
     }
 
     private PortfolioSnapshotStore store() {
-        return store(new StrategyPortfolioInitializer());
+        return store(new FixedStrategyPortfolioInitializer());
     }
 
     private PortfolioSnapshotStore store(StrategyPortfolioInitializer initializer) {

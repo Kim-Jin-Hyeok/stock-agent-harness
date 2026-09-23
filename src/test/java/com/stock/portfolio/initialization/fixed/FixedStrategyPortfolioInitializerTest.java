@@ -1,6 +1,7 @@
-package com.stock.portfolio.initialization;
+package com.stock.portfolio.initialization.fixed;
 
 import com.stock.portfolio.PortfolioSnapshot;
+import com.stock.portfolio.initialization.StrategyPortfolioInitializer;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import org.junit.jupiter.api.Test;
@@ -8,17 +9,18 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
-class StrategyPortfolioInitializerTest {
+class FixedStrategyPortfolioInitializerTest {
     private final StrategyPortfolioInitializer initializer =
-            new StrategyPortfolioInitializer();
+            new FixedStrategyPortfolioInitializer();
 
     @Test
     void createsTemporaryInitialSnapshotForStrategy() {
-        InvestmentStrategyIdentity strategyIdentity = new InvestmentStrategyIdentity(
-                "DAY_TRADING_V1",
-                1,
-                InvestmentHorizon.DAY_TRADING
-        );
+        InvestmentStrategyIdentity strategyIdentity =
+                new InvestmentStrategyIdentity(
+                        "DAY_TRADING_V1",
+                        1,
+                        InvestmentHorizon.DAY_TRADING
+                );
 
         PortfolioSnapshot snapshot = initializer.initialize(strategyIdentity);
 
