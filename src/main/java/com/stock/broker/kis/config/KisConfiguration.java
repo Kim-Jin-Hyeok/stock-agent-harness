@@ -5,6 +5,7 @@ import com.stock.broker.kis.account.provider.KisBrokerAccountProvider;
 import com.stock.broker.kis.auth.KisTokenClient;
 import com.stock.broker.kis.auth.KisTokenProvider;
 import com.stock.broker.kis.order.KisCashOrderClient;
+import com.stock.broker.kis.order.inquiry.KisOrderInquiryClient;
 import com.stock.broker.kis.order.provider.KisBrokerOrderProvider;
 import com.stock.broker.order.application.BrokerOrderSubmissionService;
 import com.stock.broker.order.config.BrokerOrderProperties;
@@ -120,6 +121,19 @@ public class KisConfiguration {
                 kisRestClient,
                 properties.appKey(),
                 properties.appSecret()
+        );
+    }
+
+    @Bean
+    public KisOrderInquiryClient kisOrderInquiryClient(
+            RestClient kisRestClient,
+            KisProperties properties
+    ) {
+        return new KisOrderInquiryClient(
+                kisRestClient,
+                properties.appKey(),
+                properties.appSecret(),
+                properties.orderInquiryMaxPages()
         );
     }
 

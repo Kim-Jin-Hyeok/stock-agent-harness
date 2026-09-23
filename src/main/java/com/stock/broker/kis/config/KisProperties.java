@@ -15,7 +15,8 @@ public record KisProperties(
         String accountNumber,
         String accountProductCode,
         Duration tokenRefreshBeforeExpiration,
-        int accountBalanceMaxPages
+        int accountBalanceMaxPages,
+        int orderInquiryMaxPages
 ) {
     public KisProperties {
         if (tokenRefreshBeforeExpiration != null
@@ -27,6 +28,11 @@ public record KisProperties(
         if (accountBalanceMaxPages <= 0) {
             throw new IllegalArgumentException(
                     "accountBalanceMaxPages must be positive."
+            );
+        }
+        if (orderInquiryMaxPages <= 0) {
+            throw new IllegalArgumentException(
+                    "orderInquiryMaxPages must be positive."
             );
         }
         if (enabled) {
