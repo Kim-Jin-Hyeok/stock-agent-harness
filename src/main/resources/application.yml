@@ -30,6 +30,22 @@ market:
     validation:
       max-age: 1m
 
+portfolio:
+  initialization:
+    allocations:
+      - strategy-id: DAY_TRADING_V1
+        strategy-version: 1
+        horizon: DAY_TRADING
+        weight: 1
+      - strategy-id: SWING_V1
+        strategy-version: 1
+        horizon: SWING
+        weight: 1
+      - strategy-id: LONG_TERM_V1
+        strategy-version: 1
+        horizon: LONG_TERM
+        weight: 1
+
 harness:
   max-steps: 10
   max-tool-calls: 5
