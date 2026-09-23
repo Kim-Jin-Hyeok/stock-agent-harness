@@ -15,6 +15,8 @@ import com.stock.broker.order.provider.BrokerOrderProvider;
 import com.stock.broker.order.application.BrokerOrderSubmissionService;
 import com.stock.broker.order.config.BrokerOrderProperties;
 import com.stock.broker.order.persistence.BrokerOrderRepository;
+import com.stock.broker.order.scheduler.BrokerOrderReconciliationScheduler;
+import com.stock.broker.order.scheduler.config.BrokerOrderReconciliationSchedulerProperties;
 import com.stock.market.price.provider.kis.KisCurrentPriceClient;
 import com.stock.market.price.provider.CurrentPriceProvider;
 import com.stock.market.price.provider.FixedCurrentPriceProvider;
@@ -46,6 +48,13 @@ class KisConfigurationTest {
                             BrokerOrderProperties.class,
                             () -> new BrokerOrderProperties(
                                     Duration.ofMinutes(5)
+                            )
+                    )
+                    .withBean(
+                            BrokerOrderReconciliationSchedulerProperties.class,
+                            () -> new BrokerOrderReconciliationSchedulerProperties(
+                                    false,
+                                    10_000L
                             )
                     );
 
@@ -88,6 +97,9 @@ class KisConfigurationTest {
                     );
                     assertThat(context).doesNotHaveBean(
                             BrokerOrderReconciliationService.class
+                    );
+                    assertThat(context).doesNotHaveBean(
+                            BrokerOrderReconciliationScheduler.class
                     );
                 });
     }
@@ -139,6 +151,9 @@ class KisConfigurationTest {
                     );
                     assertThat(context).hasSingleBean(
                             BrokerOrderReconciliationService.class
+                    );
+                    assertThat(context).hasSingleBean(
+                            BrokerOrderReconciliationScheduler.class
                     );
 
                     KisAccountBalanceClient first = context.getBean(

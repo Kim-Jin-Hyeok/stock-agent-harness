@@ -13,6 +13,8 @@ import com.stock.broker.order.application.BrokerOrderSubmissionService;
 import com.stock.broker.order.config.BrokerOrderProperties;
 import com.stock.broker.order.inquiry.provider.BrokerOrderInquiryProvider;
 import com.stock.broker.order.persistence.BrokerOrderRepository;
+import com.stock.broker.order.scheduler.BrokerOrderReconciliationScheduler;
+import com.stock.broker.order.scheduler.config.BrokerOrderReconciliationSchedulerProperties;
 import com.stock.market.price.provider.kis.KisCurrentPriceClient;
 import com.stock.market.price.provider.kis.KisCurrentPriceProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -191,6 +193,18 @@ public class KisConfiguration {
         return new BrokerOrderReconciliationService(
                 inquiryProvider,
                 brokerOrderRepository
+        );
+    }
+
+    @Bean
+    public BrokerOrderReconciliationScheduler
+    brokerOrderReconciliationScheduler(
+            BrokerOrderReconciliationService reconciliationService,
+            BrokerOrderReconciliationSchedulerProperties properties
+    ) {
+        return new BrokerOrderReconciliationScheduler(
+                reconciliationService,
+                properties
         );
     }
 }

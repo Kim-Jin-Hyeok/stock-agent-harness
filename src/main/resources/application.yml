@@ -13,6 +13,10 @@ logging:
 broker:
   order:
     validity: 5m
+    reconciliation:
+      scheduler:
+        enabled: false
+        fixed-delay-ms: 10000
   kis:
     enabled: false
     base-url: ${KIS_BASE_URL:https://openapivts.koreainvestment.com:29443}
