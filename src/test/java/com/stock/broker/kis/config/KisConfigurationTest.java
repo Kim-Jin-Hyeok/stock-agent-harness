@@ -8,6 +8,9 @@ import com.stock.broker.kis.auth.KisTokenProvider;
 import com.stock.broker.kis.order.KisCashOrderClient;
 import com.stock.broker.kis.order.provider.KisBrokerOrderProvider;
 import com.stock.broker.order.provider.BrokerOrderProvider;
+import com.stock.broker.order.application.BrokerOrderSubmissionService;
+import com.stock.broker.order.config.BrokerOrderProperties;
+import com.stock.broker.order.persistence.BrokerOrderRepository;
 import com.stock.market.price.provider.kis.KisCurrentPriceClient;
 import com.stock.market.price.provider.CurrentPriceProvider;
 import com.stock.market.price.provider.FixedCurrentPriceProvider;
@@ -21,6 +24,7 @@ import java.time.Clock;
 import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 class KisConfigurationTest {
     private final ApplicationContextRunner contextRunner =
@@ -29,7 +33,17 @@ class KisConfigurationTest {
                             KisConfiguration.class,
                             FixedCurrentPriceProvider.class
                     )
-                    .withBean(Clock.class, Clock::systemUTC);
+                    .withBean(Clock.class, Clock::systemUTC)
+                    .withBean(
+                            BrokerOrderRepository.class,
+                            () -> mock(BrokerOrderRepository.class)
+                    )
+                    .withBean(
+                            BrokerOrderProperties.class,
+                            () -> new BrokerOrderProperties(
+                                    Duration.ofMinutes(5)
+                            )
+                    );
 
     @Test
     void doesNotCreateKisBeansWhenDisabled() {
@@ -58,6 +72,9 @@ class KisConfigurationTest {
                     );
                     assertThat(context).doesNotHaveBean(
                             BrokerOrderProvider.class
+                    );
+                    assertThat(context).doesNotHaveBean(
+                            BrokerOrderSubmissionService.class
                     );
                 });
     }
@@ -95,6 +112,9 @@ class KisConfigurationTest {
                     );
                     assertThat(context.getBean(BrokerOrderProvider.class))
                             .isInstanceOf(KisBrokerOrderProvider.class);
+                    assertThat(context).hasSingleBean(
+                            BrokerOrderSubmissionService.class
+                    );
 
                     KisAccountBalanceClient first = context.getBean(
                             KisAccountBalanceClient.class

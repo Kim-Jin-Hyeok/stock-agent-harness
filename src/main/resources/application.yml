@@ -11,6 +11,8 @@ logging:
     com.stock: DEBUG
 
 broker:
+  order:
+    validity: 5m
   kis:
     enabled: false
     base-url: ${KIS_BASE_URL:https://openapivts.koreainvestment.com:29443}

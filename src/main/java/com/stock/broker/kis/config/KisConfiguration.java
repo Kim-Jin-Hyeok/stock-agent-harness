@@ -6,6 +6,9 @@ import com.stock.broker.kis.auth.KisTokenClient;
 import com.stock.broker.kis.auth.KisTokenProvider;
 import com.stock.broker.kis.order.KisCashOrderClient;
 import com.stock.broker.kis.order.provider.KisBrokerOrderProvider;
+import com.stock.broker.order.application.BrokerOrderSubmissionService;
+import com.stock.broker.order.config.BrokerOrderProperties;
+import com.stock.broker.order.persistence.BrokerOrderRepository;
 import com.stock.market.price.provider.kis.KisCurrentPriceClient;
 import com.stock.market.price.provider.kis.KisCurrentPriceProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -132,6 +135,19 @@ public class KisConfiguration {
                 kisTokenProvider,
                 properties,
                 clock
+        );
+    }
+
+    @Bean
+    public BrokerOrderSubmissionService brokerOrderSubmissionService(
+            KisBrokerOrderProvider kisBrokerOrderProvider,
+            BrokerOrderRepository brokerOrderRepository,
+            BrokerOrderProperties brokerOrderProperties
+    ) {
+        return new BrokerOrderSubmissionService(
+                kisBrokerOrderProvider,
+                brokerOrderRepository,
+                brokerOrderProperties
         );
     }
 }
