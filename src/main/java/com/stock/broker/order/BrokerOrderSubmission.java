@@ -5,7 +5,7 @@ import java.util.Objects;
 
 public record BrokerOrderSubmission(
         BrokerOrderSubmissionStatus status,
-        String brokerOrderId,
+        BrokerOrderReference reference,
         Instant submittedAt,
         String reason
 ) {
@@ -13,10 +13,9 @@ public record BrokerOrderSubmission(
         Objects.requireNonNull(status, "status must not be null.");
         Objects.requireNonNull(submittedAt, "submittedAt must not be null.");
 
-        if (status == BrokerOrderSubmissionStatus.ACCEPTED
-                && (brokerOrderId == null || brokerOrderId.isBlank())) {
+        if (status == BrokerOrderSubmissionStatus.ACCEPTED && reference == null) {
             throw new IllegalArgumentException(
-                    "brokerOrderId must not be blank when submission is accepted."
+                    "reference must not be null when submission is accepted."
             );
         }
         if (status == BrokerOrderSubmissionStatus.REJECTED

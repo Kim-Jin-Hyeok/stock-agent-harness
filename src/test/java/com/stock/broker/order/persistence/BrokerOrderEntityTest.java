@@ -1,6 +1,7 @@
 package com.stock.broker.order.persistence;
 
 import com.stock.broker.order.BrokerOrderRecord;
+import com.stock.broker.order.BrokerOrderReference;
 import com.stock.broker.order.BrokerOrderSide;
 import com.stock.broker.order.BrokerOrderStatus;
 import com.stock.strategy.profile.InvestmentHorizon;
@@ -26,7 +27,7 @@ class BrokerOrderEntityTest {
         Instant submittedAt = Instant.parse("2026-09-23T00:00:00Z");
         return new BrokerOrderRecord(
                 null,
-                "0000123456",
+                new BrokerOrderReference("0000123456", "06010"),
                 "run-1",
                 new InvestmentStrategyIdentity(
                         "DAY_TRADING_V1",

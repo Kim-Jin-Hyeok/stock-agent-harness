@@ -1,6 +1,7 @@
 package com.stock.broker.order.persistence;
 
 import com.stock.broker.order.BrokerOrderRecord;
+import com.stock.broker.order.BrokerOrderReference;
 import com.stock.broker.order.BrokerOrderSide;
 import com.stock.broker.order.BrokerOrderStatus;
 import com.stock.strategy.profile.InvestmentHorizon;
@@ -31,7 +32,9 @@ class BrokerOrderRepositoryTest {
                 .toRecord();
 
         assertThat(restored.id()).isEqualTo(saved.getId());
-        assertThat(restored.brokerOrderId()).isEqualTo("order-run-1");
+        assertThat(restored.reference()).isEqualTo(
+                new BrokerOrderReference("order-run-1", "06010")
+        );
         assertThat(restored.runId()).isEqualTo("run-1");
         assertThat(restored.strategyIdentity()).isEqualTo(strategyIdentity());
         assertThat(restored.status()).isEqualTo(BrokerOrderStatus.PENDING);
@@ -103,7 +106,7 @@ class BrokerOrderRepositoryTest {
     ) {
         return new BrokerOrderRecord(
                 null,
-                "order-" + runId,
+                new BrokerOrderReference("order-" + runId, "06010"),
                 runId,
                 strategyIdentity(),
                 BrokerOrderSide.BUY,

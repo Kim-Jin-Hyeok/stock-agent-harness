@@ -1,6 +1,7 @@
 package com.stock.broker.order.persistence;
 
 import com.stock.broker.order.BrokerOrderRecord;
+import com.stock.broker.order.BrokerOrderReference;
 import com.stock.broker.order.BrokerOrderSide;
 import com.stock.broker.order.BrokerOrderStatus;
 import com.stock.strategy.profile.InvestmentHorizon;
@@ -43,6 +44,9 @@ public class BrokerOrderEntity {
 
     @Column(name = "broker_order_id", length = 100)
     private String brokerOrderId;
+
+    @Column(name = "broker_order_organization_number", length = 100)
+    private String brokerOrderOrganizationNumber;
 
     @Column(name = "run_id", nullable = false, length = 100)
     private String runId;
@@ -95,7 +99,11 @@ public class BrokerOrderEntity {
     public static BrokerOrderEntity from(BrokerOrderRecord record) {
         BrokerOrderEntity entity = new BrokerOrderEntity();
         entity.id = record.id();
-        entity.brokerOrderId = record.brokerOrderId();
+        if (record.reference() != null) {
+            entity.brokerOrderId = record.reference().orderId();
+            entity.brokerOrderOrganizationNumber =
+                    record.reference().organizationNumber();
+        }
         entity.runId = record.runId();
         entity.strategyId = record.strategyIdentity().strategyId();
         entity.strategyVersion = record.strategyIdentity().strategyVersion();
@@ -117,7 +125,7 @@ public class BrokerOrderEntity {
     public BrokerOrderRecord toRecord() {
         return new BrokerOrderRecord(
                 id,
-                brokerOrderId,
+                toReference(),
                 runId,
                 new InvestmentStrategyIdentity(
                         strategyId,
@@ -135,6 +143,16 @@ public class BrokerOrderEntity {
                 submittedAt,
                 expiresAt,
                 lastReconciledAt
+        );
+    }
+
+    private BrokerOrderReference toReference() {
+        if (brokerOrderId == null) {
+            return null;
+        }
+        return new BrokerOrderReference(
+                brokerOrderId,
+                brokerOrderOrganizationNumber
         );
     }
 }

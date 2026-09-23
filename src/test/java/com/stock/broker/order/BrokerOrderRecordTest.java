@@ -25,7 +25,7 @@ class BrokerOrderRecordTest {
     }
 
     @Test
-    void createsRejectedOrderWithoutBrokerOrderIdAndExpiration() {
+    void createsRejectedOrderWithoutOrderReferenceAndExpiration() {
         BrokerOrderRecord order = order(
                 null,
                 0L,
@@ -35,7 +35,7 @@ class BrokerOrderRecordTest {
                 null
         );
 
-        assertThat(order.brokerOrderId()).isNull();
+        assertThat(order.reference()).isNull();
         assertThat(order.status()).isEqualTo(BrokerOrderStatus.REJECTED);
         assertThat(order.expiresAt()).isNull();
     }
@@ -43,7 +43,7 @@ class BrokerOrderRecordTest {
     @Test
     void rejectsFilledQuantityGreaterThanRequestedQuantity() {
         assertThatThrownBy(() -> order(
-                "0000123456",
+                orderReference(),
                 11L,
                 70_000L,
                 BrokerOrderStatus.FILLED,
@@ -58,7 +58,7 @@ class BrokerOrderRecordTest {
     @Test
     void rejectsExpirationNotAfterSubmission() {
         assertThatThrownBy(() -> order(
-                "0000123456",
+                orderReference(),
                 0L,
                 null,
                 BrokerOrderStatus.PENDING,
@@ -72,7 +72,7 @@ class BrokerOrderRecordTest {
     void rejectsMissingExpirationForSubmittedOrder() {
         assertThatNullPointerException()
                 .isThrownBy(() -> order(
-                        "0000123456",
+                        orderReference(),
                         0L,
                         null,
                         BrokerOrderStatus.PENDING,
@@ -85,7 +85,7 @@ class BrokerOrderRecordTest {
     @Test
     void rejectsStatusThatDoesNotMatchFilledQuantity() {
         assertThatThrownBy(() -> order(
-                "0000123456",
+                orderReference(),
                 5L,
                 69_900L,
                 BrokerOrderStatus.PENDING,
@@ -95,7 +95,7 @@ class BrokerOrderRecordTest {
                 .hasMessage("PENDING order must not have a filled quantity.");
 
         assertThatThrownBy(() -> order(
-                "0000123456",
+                orderReference(),
                 9L,
                 69_900L,
                 BrokerOrderStatus.FILLED,
@@ -108,7 +108,7 @@ class BrokerOrderRecordTest {
     @Test
     void rejectsFilledOrderWithoutAverageFilledPrice() {
         assertThatThrownBy(() -> order(
-                "0000123456",
+                orderReference(),
                 5L,
                 null,
                 BrokerOrderStatus.PARTIALLY_FILLED,
@@ -122,7 +122,7 @@ class BrokerOrderRecordTest {
 
     private BrokerOrderRecord pendingOrder() {
         return order(
-                "0000123456",
+                orderReference(),
                 0L,
                 null,
                 BrokerOrderStatus.PENDING,
@@ -132,7 +132,7 @@ class BrokerOrderRecordTest {
     }
 
     private BrokerOrderRecord order(
-            String brokerOrderId,
+            BrokerOrderReference reference,
             long cumulativeFilledQuantity,
             Long averageFilledPriceKrw,
             BrokerOrderStatus status,
@@ -141,7 +141,7 @@ class BrokerOrderRecordTest {
     ) {
         return new BrokerOrderRecord(
                 null,
-                brokerOrderId,
+                reference,
                 "run-1",
                 new InvestmentStrategyIdentity(
                         "DAY_TRADING_V1",
@@ -160,5 +160,9 @@ class BrokerOrderRecordTest {
                 expiresAt,
                 null
         );
+    }
+
+    private BrokerOrderReference orderReference() {
+        return new BrokerOrderReference("0000123456", "06010");
     }
 }

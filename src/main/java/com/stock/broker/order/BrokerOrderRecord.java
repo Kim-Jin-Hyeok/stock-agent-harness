@@ -7,7 +7,7 @@ import java.util.Objects;
 
 public record BrokerOrderRecord(
         Long id,
-        String brokerOrderId,
+        BrokerOrderReference reference,
         String runId,
         InvestmentStrategyIdentity strategyIdentity,
         BrokerOrderSide side,
@@ -25,9 +25,6 @@ public record BrokerOrderRecord(
     public BrokerOrderRecord {
         if (id != null && id < 1) {
             throw new IllegalArgumentException("id must be positive when present.");
-        }
-        if (brokerOrderId != null && brokerOrderId.isBlank()) {
-            throw new IllegalArgumentException("brokerOrderId must not be blank.");
         }
         if (runId == null || runId.isBlank()) {
             throw new IllegalArgumentException("runId must not be blank.");
@@ -62,7 +59,7 @@ public record BrokerOrderRecord(
         );
         validateStatus(
                 status,
-                brokerOrderId,
+                reference,
                 cumulativeFilledQuantity,
                 requestedQuantity,
                 reason
@@ -96,14 +93,14 @@ public record BrokerOrderRecord(
 
     private static void validateStatus(
             BrokerOrderStatus status,
-            String brokerOrderId,
+            BrokerOrderReference reference,
             long cumulativeFilledQuantity,
             long requestedQuantity,
             String reason
     ) {
-        if (status != BrokerOrderStatus.REJECTED && brokerOrderId == null) {
+        if (status != BrokerOrderStatus.REJECTED && reference == null) {
             throw new IllegalArgumentException(
-                    "brokerOrderId must be present for a submitted order."
+                    "reference must be present for a submitted order."
             );
         }
 
