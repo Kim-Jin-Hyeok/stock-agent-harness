@@ -67,6 +67,44 @@ class BrokerOrderRepositoryTest {
                 .containsExactly("run-earlier", "run-later");
     }
 
+    @Test
+    void updatesExistingOrderWithReconciledExecutionState() {
+        BrokerOrderEntity saved = repository.saveAndFlush(
+                BrokerOrderEntity.from(pendingOrder("run-1", submittedAt()))
+        );
+        Instant reconciledAt = submittedAt().plusSeconds(30);
+        BrokerOrderRecord pending = saved.toRecord();
+        BrokerOrderRecord reconciled = new BrokerOrderRecord(
+                pending.id(),
+                pending.reference(),
+                pending.runId(),
+                pending.strategyIdentity(),
+                pending.side(),
+                pending.symbol(),
+                pending.requestedQuantity(),
+                pending.limitPriceKrw(),
+                3L,
+                69_900L,
+                BrokerOrderStatus.PARTIALLY_FILLED,
+                null,
+                pending.submittedAt(),
+                pending.expiresAt(),
+                reconciledAt
+        );
+
+        repository.saveAndFlush(BrokerOrderEntity.from(reconciled));
+
+        BrokerOrderRecord restored = repository.findById(saved.getId())
+                .orElseThrow()
+                .toRecord();
+        assertThat(restored.status())
+                .isEqualTo(BrokerOrderStatus.PARTIALLY_FILLED);
+        assertThat(restored.cumulativeFilledQuantity()).isEqualTo(3L);
+        assertThat(restored.averageFilledPriceKrw()).isEqualTo(69_900L);
+        assertThat(restored.lastReconciledAt()).isEqualTo(reconciledAt);
+        assertThat(repository.count()).isEqualTo(1L);
+    }
+
     private BrokerOrderRecord pendingOrder(String runId, Instant submittedAt) {
         return order(
                 runId,

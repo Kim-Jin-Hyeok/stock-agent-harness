@@ -1,5 +1,8 @@
 package com.stock.broker.order;
 
+import com.stock.broker.order.inquiry.BrokerOrderExecutionSnapshot;
+import com.stock.broker.order.inquiry.BrokerOrderInquiryResult;
+import com.stock.broker.order.inquiry.BrokerOrderInquiryStatus;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 
 import java.time.Instant;
@@ -72,6 +75,96 @@ public record BrokerOrderRecord(
                     "lastReconciledAt must not be before submittedAt."
             );
         }
+    }
+
+    public BrokerOrderRecord reconcile(BrokerOrderInquiryResult result) {
+        Objects.requireNonNull(result, "result must not be null.");
+        if (status != BrokerOrderStatus.PENDING
+                && status != BrokerOrderStatus.PARTIALLY_FILLED) {
+            throw new IllegalStateException(
+                    "Only pending or partially filled orders can be reconciled."
+            );
+        }
+
+        validateReconciledAt(result.observedAt());
+        if (result.status() == BrokerOrderInquiryStatus.NOT_FOUND) {
+            return withExecutionState(
+                    cumulativeFilledQuantity,
+                    averageFilledPriceKrw,
+                    status,
+                    reason,
+                    result.observedAt()
+            );
+        }
+
+        BrokerOrderExecutionSnapshot snapshot = result.snapshot();
+        validateSnapshot(snapshot);
+        return withExecutionState(
+                snapshot.cumulativeFilledQuantity(),
+                snapshot.averageFilledPriceKrw(),
+                snapshot.status(),
+                snapshot.reason(),
+                result.observedAt()
+        );
+    }
+
+    private void validateReconciledAt(Instant reconciledAt) {
+        if (reconciledAt.isBefore(submittedAt)) {
+            throw new IllegalArgumentException(
+                    "reconciledAt must not be before submittedAt."
+            );
+        }
+        if (lastReconciledAt != null
+                && reconciledAt.isBefore(lastReconciledAt)) {
+            throw new IllegalArgumentException(
+                    "reconciledAt must not be before lastReconciledAt."
+            );
+        }
+    }
+
+    private void validateSnapshot(BrokerOrderExecutionSnapshot snapshot) {
+        if (!reference.equals(snapshot.reference())) {
+            throw new IllegalArgumentException(
+                    "snapshot reference must match order reference."
+            );
+        }
+        if (requestedQuantity != snapshot.requestedQuantity()) {
+            throw new IllegalArgumentException(
+                    "snapshot requestedQuantity must match order requestedQuantity."
+            );
+        }
+        if (snapshot.cumulativeFilledQuantity()
+                < cumulativeFilledQuantity) {
+            throw new IllegalArgumentException(
+                    "snapshot cumulativeFilledQuantity must not decrease."
+            );
+        }
+    }
+
+    private BrokerOrderRecord withExecutionState(
+            long reconciledQuantity,
+            Long reconciledAveragePriceKrw,
+            BrokerOrderStatus reconciledStatus,
+            String reconciledReason,
+            Instant reconciledAt
+    ) {
+        return new BrokerOrderRecord(
+                id,
+                reference,
+                runId,
+                strategyIdentity,
+                side,
+                symbol,
+                requestedQuantity,
+                limitPriceKrw,
+                reconciledQuantity,
+                reconciledAveragePriceKrw,
+                reconciledStatus,
+                reconciledReason,
+                submittedAt,
+                expiresAt,
+                reconciledAt
+        );
     }
 
     private static void validateAverageFilledPrice(

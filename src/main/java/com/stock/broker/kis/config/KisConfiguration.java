@@ -8,8 +8,10 @@ import com.stock.broker.kis.order.KisCashOrderClient;
 import com.stock.broker.kis.order.inquiry.KisOrderInquiryClient;
 import com.stock.broker.kis.order.inquiry.provider.KisBrokerOrderInquiryProvider;
 import com.stock.broker.kis.order.provider.KisBrokerOrderProvider;
+import com.stock.broker.order.application.BrokerOrderReconciliationService;
 import com.stock.broker.order.application.BrokerOrderSubmissionService;
 import com.stock.broker.order.config.BrokerOrderProperties;
+import com.stock.broker.order.inquiry.provider.BrokerOrderInquiryProvider;
 import com.stock.broker.order.persistence.BrokerOrderRepository;
 import com.stock.market.price.provider.kis.KisCurrentPriceClient;
 import com.stock.market.price.provider.kis.KisCurrentPriceProvider;
@@ -178,6 +180,17 @@ public class KisConfiguration {
                 kisBrokerOrderProvider,
                 brokerOrderRepository,
                 brokerOrderProperties
+        );
+    }
+
+    @Bean
+    public BrokerOrderReconciliationService brokerOrderReconciliationService(
+            BrokerOrderInquiryProvider inquiryProvider,
+            BrokerOrderRepository brokerOrderRepository
+    ) {
+        return new BrokerOrderReconciliationService(
+                inquiryProvider,
+                brokerOrderRepository
         );
     }
 }

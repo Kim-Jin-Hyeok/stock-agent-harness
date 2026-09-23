@@ -1,5 +1,7 @@
 package com.stock.broker.order;
 
+import com.stock.broker.order.inquiry.BrokerOrderExecutionSnapshot;
+import com.stock.broker.order.inquiry.BrokerOrderInquiryResult;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import org.junit.jupiter.api.Test;
@@ -120,6 +122,212 @@ class BrokerOrderRecordTest {
                 );
     }
 
+    @Test
+    void reconcilesPendingOrderWithPartialExecution() {
+        Instant observedAt = SUBMITTED_AT.plusSeconds(30);
+
+        BrokerOrderRecord reconciled = pendingOrder().reconcile(
+                BrokerOrderInquiryResult.found(
+                        snapshot(
+                                orderReference(),
+                                10L,
+                                3L,
+                                69_900L,
+                                BrokerOrderStatus.PARTIALLY_FILLED
+                        ),
+                        observedAt
+                )
+        );
+
+        assertThat(reconciled.status())
+                .isEqualTo(BrokerOrderStatus.PARTIALLY_FILLED);
+        assertThat(reconciled.cumulativeFilledQuantity()).isEqualTo(3L);
+        assertThat(reconciled.averageFilledPriceKrw()).isEqualTo(69_900L);
+        assertThat(reconciled.lastReconciledAt()).isEqualTo(observedAt);
+        assertThat(reconciled.runId()).isEqualTo("run-1");
+        assertThat(reconciled.expiresAt()).isEqualTo(EXPIRES_AT);
+    }
+
+    @Test
+    void recordsNotFoundObservationWithoutChangingExecutionState() {
+        Instant observedAt = SUBMITTED_AT.plusSeconds(30);
+
+        BrokerOrderRecord reconciled = pendingOrder().reconcile(
+                BrokerOrderInquiryResult.notFound(observedAt)
+        );
+
+        assertThat(reconciled.status()).isEqualTo(BrokerOrderStatus.PENDING);
+        assertThat(reconciled.cumulativeFilledQuantity()).isZero();
+        assertThat(reconciled.averageFilledPriceKrw()).isNull();
+        assertThat(reconciled.lastReconciledAt()).isEqualTo(observedAt);
+    }
+
+    @Test
+    void reconcilesPartiallyFilledOrderAsFilled() {
+        BrokerOrderRecord partiallyFilled = order(
+                orderReference(),
+                3L,
+                69_900L,
+                BrokerOrderStatus.PARTIALLY_FILLED,
+                null,
+                EXPIRES_AT
+        );
+
+        BrokerOrderRecord reconciled = partiallyFilled.reconcile(
+                BrokerOrderInquiryResult.found(
+                        snapshot(
+                                orderReference(),
+                                10L,
+                                10L,
+                                69_800L,
+                                BrokerOrderStatus.FILLED
+                        ),
+                        SUBMITTED_AT.plusSeconds(30)
+                )
+        );
+
+        assertThat(reconciled.status()).isEqualTo(BrokerOrderStatus.FILLED);
+        assertThat(reconciled.cumulativeFilledQuantity()).isEqualTo(10L);
+        assertThat(reconciled.averageFilledPriceKrw()).isEqualTo(69_800L);
+    }
+
+    @Test
+    void reconcilesPendingOrderAsCanceled() {
+        BrokerOrderRecord reconciled = pendingOrder().reconcile(
+                BrokerOrderInquiryResult.found(
+                        snapshot(
+                                orderReference(),
+                                10L,
+                                0L,
+                                null,
+                                BrokerOrderStatus.CANCELED
+                        ),
+                        SUBMITTED_AT.plusSeconds(30)
+                )
+        );
+
+        assertThat(reconciled.status()).isEqualTo(BrokerOrderStatus.CANCELED);
+        assertThat(reconciled.cumulativeFilledQuantity()).isZero();
+        assertThat(reconciled.averageFilledPriceKrw()).isNull();
+    }
+
+    @Test
+    void rejectsReconciliationThatDecreasesFilledQuantity() {
+        BrokerOrderRecord partiallyFilled = order(
+                orderReference(),
+                3L,
+                69_900L,
+                BrokerOrderStatus.PARTIALLY_FILLED,
+                null,
+                EXPIRES_AT
+        );
+
+        assertThatThrownBy(() -> partiallyFilled.reconcile(
+                BrokerOrderInquiryResult.found(
+                        snapshot(
+                                orderReference(),
+                                10L,
+                                2L,
+                                69_800L,
+                                BrokerOrderStatus.PARTIALLY_FILLED
+                        ),
+                        SUBMITTED_AT.plusSeconds(30)
+                )
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "snapshot cumulativeFilledQuantity must not decrease."
+                );
+    }
+
+    @Test
+    void rejectsReconciliationForDifferentOrder() {
+        BrokerOrderReference differentReference =
+                new BrokerOrderReference("0000999999", "06010");
+
+        assertThatThrownBy(() -> pendingOrder().reconcile(
+                BrokerOrderInquiryResult.found(
+                        snapshot(
+                                differentReference,
+                                10L,
+                                0L,
+                                null,
+                                BrokerOrderStatus.PENDING
+                        ),
+                        SUBMITTED_AT.plusSeconds(30)
+                )
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "snapshot reference must match order reference."
+                );
+    }
+
+    @Test
+    void rejectsReconciliationWithDifferentRequestedQuantity() {
+        assertThatThrownBy(() -> pendingOrder().reconcile(
+                BrokerOrderInquiryResult.found(
+                        snapshot(
+                                orderReference(),
+                                9L,
+                                0L,
+                                null,
+                                BrokerOrderStatus.PENDING
+                        ),
+                        SUBMITTED_AT.plusSeconds(30)
+                )
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "snapshot requestedQuantity must match order "
+                                + "requestedQuantity."
+                );
+    }
+
+    @Test
+    void rejectsReconciliationObservedBeforeSubmission() {
+        assertThatThrownBy(() -> pendingOrder().reconcile(
+                BrokerOrderInquiryResult.notFound(
+                        SUBMITTED_AT.minusSeconds(1)
+                )
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "reconciledAt must not be before submittedAt."
+                );
+    }
+
+    @Test
+    void rejectsReconciliationOlderThanPreviousReconciliation() {
+        Instant lastReconciledAt = SUBMITTED_AT.plusSeconds(30);
+        BrokerOrderRecord previouslyReconciled = new BrokerOrderRecord(
+                null,
+                orderReference(),
+                "run-1",
+                new InvestmentStrategyIdentity(
+                        "DAY_TRADING_V1",
+                        1,
+                        InvestmentHorizon.DAY_TRADING
+                ),
+                BrokerOrderSide.BUY,
+                "005930",
+                10L,
+                70_000L,
+                0L,
+                null,
+                BrokerOrderStatus.PENDING,
+                null,
+                SUBMITTED_AT,
+                EXPIRES_AT,
+                lastReconciledAt
+        );
+
+        assertThatThrownBy(() -> previouslyReconciled.reconcile(
+                BrokerOrderInquiryResult.notFound(
+                        lastReconciledAt.minusSeconds(1)
+                )
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "reconciledAt must not be before lastReconciledAt."
+                );
+    }
+
     private BrokerOrderRecord pendingOrder() {
         return order(
                 orderReference(),
@@ -158,6 +366,23 @@ class BrokerOrderRecordTest {
                 reason,
                 SUBMITTED_AT,
                 expiresAt,
+                null
+        );
+    }
+
+    private BrokerOrderExecutionSnapshot snapshot(
+            BrokerOrderReference reference,
+            long requestedQuantity,
+            long cumulativeFilledQuantity,
+            Long averageFilledPriceKrw,
+            BrokerOrderStatus status
+    ) {
+        return new BrokerOrderExecutionSnapshot(
+                reference,
+                requestedQuantity,
+                cumulativeFilledQuantity,
+                averageFilledPriceKrw,
+                status,
                 null
         );
     }
