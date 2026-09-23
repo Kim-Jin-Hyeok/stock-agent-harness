@@ -45,6 +45,7 @@ import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import com.stock.trade.TradeExecutor;
 import com.stock.trade.TradeHistoryService;
 import com.stock.trade.TradeStatus;
+import com.stock.trade.execution.virtual.VirtualTradeExecutionHandler;
 import com.stock.trade.persistence.TradeRecordRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -94,7 +95,7 @@ class InvestmentHarnessTest {
     private final PortfolioService portfolioService = new PortfolioService(store);
     private final TradeHistoryService tradeHistoryService = new TradeHistoryService(mock(TradeRecordRepository.class));
     private final TradeExecutor tradeExecutor = new TradeExecutor(
-            portfolioService,
+            new VirtualTradeExecutionHandler(portfolioService),
             tradeHistoryService
     );
     private final MarketService marketService = new MarketService();
@@ -523,7 +524,7 @@ class InvestmentHarnessTest {
         );
 
         TradeExecutor sellTradeExecutor = new TradeExecutor(
-                sellPortfolioService,
+                new VirtualTradeExecutionHandler(sellPortfolioService),
                 tradeHistoryService
         );
 

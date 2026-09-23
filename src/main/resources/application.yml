@@ -48,6 +48,10 @@ portfolio:
         horizon: LONG_TERM
         weight: 1
 
+trade:
+  execution:
+    mode: ${TRADE_EXECUTION_MODE:VIRTUAL}
+
 harness:
   max-steps: 10
   max-tool-calls: 5

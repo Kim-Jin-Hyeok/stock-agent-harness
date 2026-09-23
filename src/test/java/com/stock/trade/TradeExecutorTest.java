@@ -2,35 +2,43 @@ package com.stock.trade;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
-import com.stock.portfolio.PortfolioService;
-import com.stock.portfolio.PortfolioSnapshotStore;
 import com.stock.risk.RiskCheckResult;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskReasonCode;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
+import com.stock.trade.execution.TradeExecutionHandler;
 import com.stock.trade.persistence.TradeRecordRepository;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static com.stock.portfolio.support.PortfolioSnapshotStoreFixture.create;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 class TradeExecutorTest {
     private static final InvestmentStrategyIdentity STRATEGY_IDENTITY =
-            new InvestmentStrategyIdentity("DAY_TRADING_V1", 1, InvestmentHorizon.DAY_TRADING);
-    private final PortfolioSnapshotStore store = create();
-    private final PortfolioService portfolioService = new PortfolioService(store);
-    private final TradeRecordRepository tradeRecordRepository = mock(TradeRecordRepository.class);
-    private final TradeHistoryService tradeHistoryService = new TradeHistoryService(tradeRecordRepository);
+            new InvestmentStrategyIdentity(
+                    "DAY_TRADING_V1",
+                    1,
+                    InvestmentHorizon.DAY_TRADING
+            );
+
+    private final TradeExecutionHandler tradeExecutionHandler =
+            mock(TradeExecutionHandler.class);
+    private final TradeRecordRepository tradeRecordRepository =
+            mock(TradeRecordRepository.class);
+    private final TradeHistoryService tradeHistoryService =
+            new TradeHistoryService(tradeRecordRepository);
     private final TradeExecutor tradeExecutor = new TradeExecutor(
-            portfolioService, tradeHistoryService
+            tradeExecutionHandler,
+            tradeHistoryService
     );
 
     @Test
-    void riskDeniedDecisionIsRejected() {
+    void riskDeniedDecisionIsRejectedWithoutExecution() {
         InvestmentDecision decision = holdDecision();
 
         TradeResult result = tradeExecutor.execute(
@@ -42,10 +50,12 @@ class TradeExecutorTest {
 
         assertThat(result.status()).isEqualTo(TradeStatus.REJECTED);
         assertThat(result.reasonCode()).isEqualTo(TradeReasonCode.RISK_DENIED);
+        verifyNoInteractions(tradeExecutionHandler);
+        verify(tradeRecordRepository).save(any());
     }
 
     @Test
-    void holdDecisionIsSkipped() {
+    void holdDecisionIsSkippedWithoutExecution() {
         InvestmentDecision decision = holdDecision();
 
         TradeResult result = tradeExecutor.execute(
@@ -57,43 +67,19 @@ class TradeExecutorTest {
 
         assertThat(result.status()).isEqualTo(TradeStatus.SKIPPED);
         assertThat(result.reasonCode()).isEqualTo(TradeReasonCode.HOLD_NO_ORDER);
-    }
-
-    @Test
-    void approvedBuyDecisionIsExecuted() {
-        InvestmentDecision decision = buyDecision();
-
-        TradeResult result = tradeExecutor.execute(
-                "abc",
-                STRATEGY_IDENTITY,
-                decision,
-                approvedRiskCheckResult(decision)
-        );
-
-        assertThat(result.status()).isEqualTo(TradeStatus.EXECUTED);
-        assertThat(result.reasonCode()).isEqualTo(TradeReasonCode.EXECUTION_COMPLETED);
-
-        assertThat(portfolioService.getCurrentSnapshot(STRATEGY_IDENTITY).cashAmountKrw()).isEqualTo(10_000_000L - decision.estimatedOrderAmountKrw());
-
-        assertThat(portfolioService.getCurrentSnapshot(STRATEGY_IDENTITY).positions()).hasSize(1);
-        assertThat(portfolioService.getCurrentSnapshot(STRATEGY_IDENTITY).positions().getFirst().symbol()).isEqualTo("TEST");
-
+        verifyNoInteractions(tradeExecutionHandler);
         verify(tradeRecordRepository).save(any());
     }
 
     @Test
-    void approvedSellDecisionIsExecuted() {
-        portfolioService.applyBuy(
+    void approvedOrderDecisionIsDelegatedAndRecorded() {
+        InvestmentDecision decision = buyDecision();
+        TradeResult expected = executedResult(decision);
+        when(tradeExecutionHandler.execute(
+                "abc",
                 STRATEGY_IDENTITY,
-                "TEST",
-                15L,
-                50_000L
-        );
-
-        long buyingCashAmountKrw = 10_000_000L
-                - portfolioService.getCurrentSnapshot(STRATEGY_IDENTITY).cashAmountKrw();
-
-        InvestmentDecision decision = sellDecision();
+                decision
+        )).thenReturn(expected);
 
         TradeResult result = tradeExecutor.execute(
                 "abc",
@@ -102,15 +88,12 @@ class TradeExecutorTest {
                 approvedRiskCheckResult(decision)
         );
 
-        assertThat(result.status()).isEqualTo(TradeStatus.EXECUTED);
-        assertThat(result.reasonCode()).isEqualTo(TradeReasonCode.EXECUTION_COMPLETED);
-
-        assertThat(portfolioService.getCurrentSnapshot(STRATEGY_IDENTITY).cashAmountKrw()).isEqualTo(10_000_000L - buyingCashAmountKrw + decision.estimatedOrderAmountKrw());
-
-        assertThat(portfolioService.getCurrentSnapshot(STRATEGY_IDENTITY).positions()).hasSize(1);
-        assertThat(portfolioService.getCurrentSnapshot(STRATEGY_IDENTITY).positions().getFirst().symbol()).isEqualTo("TEST");
-        assertThat(portfolioService.getCurrentSnapshot(STRATEGY_IDENTITY).positions().getFirst().quantity()).isEqualTo(5L);
-
+        assertThat(result).isSameAs(expected);
+        verify(tradeExecutionHandler).execute(
+                "abc",
+                STRATEGY_IDENTITY,
+                decision
+        );
         verify(tradeRecordRepository).save(any());
     }
 
@@ -134,17 +117,22 @@ class TradeExecutorTest {
         );
     }
 
-    private InvestmentDecision sellDecision() {
-        return new InvestmentDecision(
-                InvestmentAction.SELL,
-                "TEST",
-                10L,
-                100_000L,
-                "Test SELL decision."
+    private TradeResult executedResult(InvestmentDecision decision) {
+        return new TradeResult(
+                TradeStatus.EXECUTED,
+                decision.action(),
+                decision.symbol(),
+                decision.quantity(),
+                decision.expectedPriceKrw(),
+                decision.estimatedOrderAmountKrw(),
+                TradeReasonCode.EXECUTION_COMPLETED,
+                "BUY execution is complete."
         );
     }
 
-    private RiskCheckResult approvedRiskCheckResult(InvestmentDecision decision) {
+    private RiskCheckResult approvedRiskCheckResult(
+            InvestmentDecision decision
+    ) {
         return new RiskCheckResult(
                 RiskCheckStatus.APPROVED,
                 decision.action(),
@@ -157,7 +145,9 @@ class TradeExecutorTest {
         );
     }
 
-    private RiskCheckResult deniedRiskCheckResult(InvestmentDecision decision) {
+    private RiskCheckResult deniedRiskCheckResult(
+            InvestmentDecision decision
+    ) {
         return new RiskCheckResult(
                 RiskCheckStatus.DENIED,
                 decision.action(),

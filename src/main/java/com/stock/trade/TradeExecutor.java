@@ -2,10 +2,10 @@ package com.stock.trade;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
-import com.stock.portfolio.PortfolioService;
 import com.stock.risk.RiskCheckResult;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
+import com.stock.trade.execution.TradeExecutionHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -14,7 +14,7 @@ import java.util.Objects;
 @Component
 @RequiredArgsConstructor
 public class TradeExecutor {
-    private final PortfolioService portfolioService;
+    private final TradeExecutionHandler tradeExecutionHandler;
     private final TradeHistoryService tradeHistoryService;
 
     public TradeResult execute(
@@ -55,61 +55,30 @@ public class TradeExecutor {
             return recordAndReturn(runId, tradeResult);
         }
 
-        if (decision.action() == InvestmentAction.BUY) {
-            portfolioService.applyBuy(
-                    strategyIdentity,
-                    decision.symbol(),
-                    decision.quantity(),
-                    decision.expectedPriceKrw()
-            );
-
+        if (decision.action() != InvestmentAction.BUY
+                && decision.action() != InvestmentAction.SELL) {
             TradeResult tradeResult = new TradeResult(
-                    TradeStatus.EXECUTED,
+                    TradeStatus.REJECTED,
                     decision.action(),
                     decision.symbol(),
                     decision.quantity(),
                     decision.expectedPriceKrw(),
                     decision.estimatedOrderAmountKrw(),
-                    TradeReasonCode.EXECUTION_COMPLETED,
-                    "BUY execution is complete."
+                    TradeReasonCode.UNSUPPORTED_ACTION,
+                    "Unsupported investment action."
             );
 
             return recordAndReturn(runId, tradeResult);
         }
 
-        if (decision.action() == InvestmentAction.SELL) {
-            portfolioService.applySell(
-                    strategyIdentity,
-                    decision.symbol(),
-                    decision.quantity(),
-                    decision.expectedPriceKrw()
-            );
-
-            TradeResult tradeResult = new TradeResult(
-                    TradeStatus.EXECUTED,
-                    decision.action(),
-                    decision.symbol(),
-                    decision.quantity(),
-                    decision.expectedPriceKrw(),
-                    decision.estimatedOrderAmountKrw(),
-                    TradeReasonCode.EXECUTION_COMPLETED,
-                    "SELL execution is complete."
-            );
-
-            return recordAndReturn(runId, tradeResult);
-        }
-
-        TradeResult tradeResult = new TradeResult(
-                TradeStatus.REJECTED,
-                decision.action(),
-                decision.symbol(),
-                decision.quantity(),
-                decision.expectedPriceKrw(),
-                decision.estimatedOrderAmountKrw(),
-                TradeReasonCode.UNSUPPORTED_ACTION,
-                "Unsupported investment action."
+        TradeResult tradeResult = Objects.requireNonNull(
+                tradeExecutionHandler.execute(
+                        runId,
+                        strategyIdentity,
+                        decision
+                ),
+                "tradeExecutionHandler result must not be null."
         );
-
         return recordAndReturn(runId, tradeResult);
     }
 
