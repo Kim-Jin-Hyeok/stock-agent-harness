@@ -6,6 +6,7 @@ import com.stock.broker.kis.auth.KisTokenClient;
 import com.stock.broker.kis.auth.KisTokenProvider;
 import com.stock.broker.kis.order.KisCashOrderClient;
 import com.stock.broker.kis.order.inquiry.KisOrderInquiryClient;
+import com.stock.broker.kis.order.inquiry.provider.KisBrokerOrderInquiryProvider;
 import com.stock.broker.kis.order.provider.KisBrokerOrderProvider;
 import com.stock.broker.order.application.BrokerOrderSubmissionService;
 import com.stock.broker.order.config.BrokerOrderProperties;
@@ -146,6 +147,21 @@ public class KisConfiguration {
     ) {
         return new KisBrokerOrderProvider(
                 kisCashOrderClient,
+                kisTokenProvider,
+                properties,
+                clock
+        );
+    }
+
+    @Bean
+    public KisBrokerOrderInquiryProvider kisBrokerOrderInquiryProvider(
+            KisOrderInquiryClient kisOrderInquiryClient,
+            KisTokenProvider kisTokenProvider,
+            KisProperties properties,
+            Clock clock
+    ) {
+        return new KisBrokerOrderInquiryProvider(
+                kisOrderInquiryClient,
                 kisTokenProvider,
                 properties,
                 clock

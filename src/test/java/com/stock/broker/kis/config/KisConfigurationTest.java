@@ -7,7 +7,9 @@ import com.stock.broker.kis.auth.KisTokenClient;
 import com.stock.broker.kis.auth.KisTokenProvider;
 import com.stock.broker.kis.order.KisCashOrderClient;
 import com.stock.broker.kis.order.inquiry.KisOrderInquiryClient;
+import com.stock.broker.kis.order.inquiry.provider.KisBrokerOrderInquiryProvider;
 import com.stock.broker.kis.order.provider.KisBrokerOrderProvider;
+import com.stock.broker.order.inquiry.provider.BrokerOrderInquiryProvider;
 import com.stock.broker.order.provider.BrokerOrderProvider;
 import com.stock.broker.order.application.BrokerOrderSubmissionService;
 import com.stock.broker.order.config.BrokerOrderProperties;
@@ -75,6 +77,9 @@ class KisConfigurationTest {
                             KisOrderInquiryClient.class
                     );
                     assertThat(context).doesNotHaveBean(
+                            BrokerOrderInquiryProvider.class
+                    );
+                    assertThat(context).doesNotHaveBean(
                             BrokerOrderProvider.class
                     );
                     assertThat(context).doesNotHaveBean(
@@ -114,6 +119,12 @@ class KisConfigurationTest {
                     assertThat(context).hasSingleBean(
                             KisOrderInquiryClient.class
                     );
+                    assertThat(context).hasSingleBean(
+                            BrokerOrderInquiryProvider.class
+                    );
+                    assertThat(context.getBean(
+                            BrokerOrderInquiryProvider.class
+                    )).isInstanceOf(KisBrokerOrderInquiryProvider.class);
                     assertThat(context).hasSingleBean(
                             BrokerOrderProvider.class
                     );
