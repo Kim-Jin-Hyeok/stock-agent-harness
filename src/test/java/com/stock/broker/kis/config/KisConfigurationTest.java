@@ -6,6 +6,7 @@ import com.stock.broker.kis.account.provider.KisBrokerAccountProvider;
 import com.stock.broker.kis.auth.KisTokenClient;
 import com.stock.broker.kis.auth.KisTokenProvider;
 import com.stock.broker.kis.order.KisCashOrderClient;
+import com.stock.broker.kis.order.cancellation.inquiry.KisCancelableOrderInquiryClient;
 import com.stock.broker.kis.order.inquiry.KisOrderInquiryClient;
 import com.stock.broker.kis.order.inquiry.provider.KisBrokerOrderInquiryProvider;
 import com.stock.broker.kis.order.provider.KisBrokerOrderProvider;
@@ -87,6 +88,9 @@ class KisConfigurationTest {
                             KisOrderInquiryClient.class
                     );
                     assertThat(context).doesNotHaveBean(
+                            KisCancelableOrderInquiryClient.class
+                    );
+                    assertThat(context).doesNotHaveBean(
                             BrokerOrderInquiryProvider.class
                     );
                     assertThat(context).doesNotHaveBean(
@@ -136,6 +140,9 @@ class KisConfigurationTest {
                             KisOrderInquiryClient.class
                     );
                     assertThat(context).hasSingleBean(
+                            KisCancelableOrderInquiryClient.class
+                    );
+                    assertThat(context).hasSingleBean(
                             BrokerOrderInquiryProvider.class
                     );
                     assertThat(context.getBean(
@@ -175,6 +182,7 @@ class KisConfigurationTest {
                 "12345678",
                 "01",
                 Duration.ofMinutes(1),
+                10,
                 10,
                 10
         );

@@ -27,6 +27,7 @@ broker:
     token-refresh-before-expiration: 1m
     account-balance-max-pages: 10
     order-inquiry-max-pages: 10
+    cancelable-order-inquiry-max-pages: 10
 
 market:
   calendar:

@@ -293,6 +293,7 @@ class KisBrokerOrderProviderTest {
                 ACCOUNT_PRODUCT_CODE,
                 Duration.ofMinutes(1),
                 10,
+                10,
                 10
         );
     }

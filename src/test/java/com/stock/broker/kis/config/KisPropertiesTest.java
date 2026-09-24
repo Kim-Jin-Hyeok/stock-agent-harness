@@ -24,6 +24,7 @@ class KisPropertiesTest {
                 "",
                 Duration.ofMinutes(1),
                 10,
+                10,
                 10
         );
 
@@ -56,6 +57,7 @@ class KisPropertiesTest {
                         "",
                         Duration.ofSeconds(-1),
                         10,
+                        10,
                         10
                 ))
                 .withMessage(
@@ -75,6 +77,7 @@ class KisPropertiesTest {
                         "",
                         Duration.ofMinutes(1),
                         0,
+                        10,
                         10
                 ))
                 .withMessage("accountBalanceMaxPages must be positive.");
@@ -92,9 +95,30 @@ class KisPropertiesTest {
                         "",
                         Duration.ofMinutes(1),
                         10,
-                        0
+                        0,
+                        10
                 ))
                 .withMessage("orderInquiryMaxPages must be positive.");
+    }
+
+    @Test
+    void rejectsNonPositiveCancelableOrderInquiryMaxPages() {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> new KisProperties(
+                        false,
+                        BASE_URL,
+                        "",
+                        "",
+                        "",
+                        "",
+                        Duration.ofMinutes(1),
+                        10,
+                        10,
+                        0
+                ))
+                .withMessage(
+                        "cancelableOrderInquiryMaxPages must be positive."
+                );
     }
 
     private KisProperties properties(String appKey, String accountNumber) {
@@ -106,6 +130,7 @@ class KisPropertiesTest {
                 accountNumber,
                 "01",
                 Duration.ofMinutes(1),
+                10,
                 10,
                 10
         );
