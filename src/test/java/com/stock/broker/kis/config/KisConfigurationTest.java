@@ -25,6 +25,8 @@ import com.stock.broker.order.cancellation.provider.BrokerOrderCancellationProvi
 import com.stock.broker.order.persistence.BrokerOrderRepository;
 import com.stock.broker.order.scheduler.BrokerOrderReconciliationScheduler;
 import com.stock.broker.order.scheduler.config.BrokerOrderReconciliationSchedulerProperties;
+import com.stock.market.price.history.collection.DailyPriceHistoryCollectionService;
+import com.stock.market.price.history.persistence.DailyPriceBarRepository;
 import com.stock.market.price.history.provider.DailyPriceHistoryProvider;
 import com.stock.market.price.history.provider.kis.KisDailyPriceHistoryClient;
 import com.stock.market.price.history.provider.kis.KisDailyPriceHistoryProvider;
@@ -59,6 +61,10 @@ class KisConfigurationTest {
                     .withBean(
                             PortfolioService.class,
                             () -> mock(PortfolioService.class)
+                    )
+                    .withBean(
+                            DailyPriceBarRepository.class,
+                            () -> mock(DailyPriceBarRepository.class)
                     )
                     .withBean(
                             BrokerOrderProperties.class,
@@ -97,6 +103,9 @@ class KisConfigurationTest {
                     );
                     assertThat(context).doesNotHaveBean(
                             DailyPriceHistoryProvider.class
+                    );
+                    assertThat(context).doesNotHaveBean(
+                            DailyPriceHistoryCollectionService.class
                     );
                     assertThat(context).hasSingleBean(
                             CurrentPriceProvider.class
@@ -209,6 +218,9 @@ class KisConfigurationTest {
                     assertThat(context.getBean(
                             DailyPriceHistoryProvider.class
                     )).isInstanceOf(KisDailyPriceHistoryProvider.class);
+                    assertThat(context).hasSingleBean(
+                            DailyPriceHistoryCollectionService.class
+                    );
                     assertThat(context).hasSingleBean(
                             KisAccountBalanceClient.class
                     );
