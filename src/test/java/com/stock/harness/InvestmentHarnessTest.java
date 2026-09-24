@@ -178,8 +178,12 @@ class InvestmentHarnessTest {
         assertThat(result.decision().action()).isEqualTo(InvestmentAction.HOLD);
         assertThat(result.riskCheckResult().status()).isEqualTo(RiskCheckStatus.APPROVED);
         assertThat(result.tradeResult().status()).isEqualTo(TradeStatus.SKIPPED);
-        assertThat(result.toolResults()).isEmpty();
-        assertThat(result.steps().size()).isEqualTo(8);
+        assertThat(result.toolResults())
+                .extracting(HarnessToolExecutionResult::type)
+                .containsExactly(HarnessToolType.GET_CURRENT_PRICE);
+        assertThat(result.toolResults().getFirst().request())
+                .isEqualTo(HarnessToolRequest.currentPrice("005930"));
+        assertThat(result.steps().size()).isEqualTo(17);
 
         List<HarnessStepType> stepTypes = result.steps().stream()
                 .map(HarnessStepResult::type)
@@ -188,6 +192,15 @@ class InvestmentHarnessTest {
         assertThat(stepTypes).containsExactly(
                 HarnessStepType.LOAD_PORTFOLIO,
                 HarnessStepType.LOAD_MARKET,
+                HarnessStepType.CHECK_STEP_LIMIT,
+                HarnessStepType.RUN_INVESTMENT_AGENT,
+                HarnessStepType.VALIDATE_AGENT_ACTION,
+                HarnessStepType.VALIDATE_TOOL_REQUEST,
+                HarnessStepType.AUTHORIZE_TOOL_REQUEST,
+                HarnessStepType.CHECK_DUPLICATE_TOOL_REQUEST,
+                HarnessStepType.CHECK_TOOL_CALL_LIMIT,
+                HarnessStepType.EXECUTE_TOOL_REQUEST,
+                HarnessStepType.VALIDATE_TOOL_RESULT,
                 HarnessStepType.CHECK_STEP_LIMIT,
                 HarnessStepType.RUN_INVESTMENT_AGENT,
                 HarnessStepType.VALIDATE_AGENT_ACTION,
@@ -211,8 +224,7 @@ class InvestmentHarnessTest {
 
         assertThat(agentStep.type()).isEqualTo(HarnessStepType.RUN_INVESTMENT_AGENT);
         assertThat(agentStep.message())
-                .contains("allowedTools=[GET_PORTFOLIO, GET_MARKET, GET_CURRENT_PRICE]")
-                .contains("candidateSymbols=[005930]");
+                .isEqualTo("Requested tool. type=GET_CURRENT_PRICE");
 
         HarnessStepResult validateActionStep = result.steps().get(4);
 
@@ -220,7 +232,17 @@ class InvestmentHarnessTest {
         assertThat(validateActionStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
         assertThat(validateActionStep.message()).isEqualTo("Harness agent action is valid.");
 
-        HarnessStepResult validateDecisionStep = result.steps().get(5);
+        HarnessStepResult finalAgentStep = result.steps().get(12);
+
+        assertThat(finalAgentStep.type())
+                .isEqualTo(HarnessStepType.RUN_INVESTMENT_AGENT);
+        assertThat(finalAgentStep.message())
+                .isEqualTo(
+                        "Current price received. symbol=005930, "
+                                + "priceKrw=100000, source=PROVIDER"
+                );
+
+        HarnessStepResult validateDecisionStep = result.steps().get(14);
 
         assertThat(validateDecisionStep.type()).isEqualTo(HarnessStepType.VALIDATE_DECISION);
         assertThat(validateDecisionStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
@@ -229,7 +251,7 @@ class InvestmentHarnessTest {
         assertThat(validateDecisionStep.finishedAt()).isNotNull();
         assertThat(validateDecisionStep.startedAt()).isBeforeOrEqualTo(validateDecisionStep.finishedAt());
 
-        HarnessStepResult executeTradeStep = result.steps().get(6);
+        HarnessStepResult executeTradeStep = result.steps().get(15);
 
         assertThat(executeTradeStep.type()).isEqualTo(HarnessStepType.EXECUTE_TRADE);
         assertThat(executeTradeStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
@@ -238,7 +260,7 @@ class InvestmentHarnessTest {
         assertThat(executeTradeStep.finishedAt()).isNotNull();
         assertThat(executeTradeStep.startedAt()).isBeforeOrEqualTo(executeTradeStep.finishedAt());
 
-        HarnessStepResult finalPortfolioStep = result.steps().get(7);
+        HarnessStepResult finalPortfolioStep = result.steps().get(16);
 
         assertThat(finalPortfolioStep.type()).isEqualTo(HarnessStepType.LOAD_FINAL_PORTFOLIO);
         assertThat(finalPortfolioStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
@@ -1507,6 +1529,11 @@ class InvestmentHarnessTest {
 
     private static class BuyingInvestmentAgent extends InvestmentAgent {
         @Override
+        public AgentNextAction next(HarnessRunContext context) {
+            return AgentNextAction.finalDecision(decide(context));
+        }
+
+        @Override
         public InvestmentDecision decide(HarnessRunContext context) {
             return new InvestmentDecision(
                     InvestmentAction.BUY,
@@ -1519,6 +1546,11 @@ class InvestmentHarnessTest {
     }
 
     private static class OverLimitBuyingInvestmentAgent extends InvestmentAgent {
+        @Override
+        public AgentNextAction next(HarnessRunContext context) {
+            return AgentNextAction.finalDecision(decide(context));
+        }
+
         @Override
         public InvestmentDecision decide(HarnessRunContext context) {
             return new InvestmentDecision(
@@ -1533,6 +1565,11 @@ class InvestmentHarnessTest {
 
     private static class SellingInvestmentAgent extends InvestmentAgent {
         @Override
+        public AgentNextAction next(HarnessRunContext context) {
+            return AgentNextAction.finalDecision(decide(context));
+        }
+
+        @Override
         public InvestmentDecision decide(HarnessRunContext context) {
             return new InvestmentDecision(
                     InvestmentAction.SELL,
@@ -1545,6 +1582,11 @@ class InvestmentHarnessTest {
     }
 
     private static class FailingInvestmentAgent extends InvestmentAgent {
+        @Override
+        public AgentNextAction next(HarnessRunContext context) {
+            return AgentNextAction.finalDecision(decide(context));
+        }
+
         @Override
         public InvestmentDecision decide(HarnessRunContext context) {
             throw new IllegalStateException("Test agent failure");
