@@ -8,6 +8,7 @@ import com.stock.broker.kis.auth.KisTokenProvider;
 import com.stock.broker.kis.order.KisCashOrderClient;
 import com.stock.broker.kis.order.cancellation.KisOrderCancellationClient;
 import com.stock.broker.kis.order.cancellation.inquiry.KisCancelableOrderInquiryClient;
+import com.stock.broker.kis.order.cancellation.provider.KisBrokerOrderCancellationProvider;
 import com.stock.broker.kis.order.inquiry.KisOrderInquiryClient;
 import com.stock.broker.kis.order.inquiry.provider.KisBrokerOrderInquiryProvider;
 import com.stock.broker.kis.order.provider.KisBrokerOrderProvider;
@@ -16,6 +17,7 @@ import com.stock.broker.order.inquiry.provider.BrokerOrderInquiryProvider;
 import com.stock.broker.order.provider.BrokerOrderProvider;
 import com.stock.broker.order.application.BrokerOrderSubmissionService;
 import com.stock.broker.order.config.BrokerOrderProperties;
+import com.stock.broker.order.cancellation.provider.BrokerOrderCancellationProvider;
 import com.stock.broker.order.persistence.BrokerOrderRepository;
 import com.stock.broker.order.scheduler.BrokerOrderReconciliationScheduler;
 import com.stock.broker.order.scheduler.config.BrokerOrderReconciliationSchedulerProperties;
@@ -95,6 +97,9 @@ class KisConfigurationTest {
                             KisOrderCancellationClient.class
                     );
                     assertThat(context).doesNotHaveBean(
+                            BrokerOrderCancellationProvider.class
+                    );
+                    assertThat(context).doesNotHaveBean(
                             BrokerOrderInquiryProvider.class
                     );
                     assertThat(context).doesNotHaveBean(
@@ -148,6 +153,14 @@ class KisConfigurationTest {
                     );
                     assertThat(context).hasSingleBean(
                             KisOrderCancellationClient.class
+                    );
+                    assertThat(context).hasSingleBean(
+                            BrokerOrderCancellationProvider.class
+                    );
+                    assertThat(context.getBean(
+                            BrokerOrderCancellationProvider.class
+                    )).isInstanceOf(
+                            KisBrokerOrderCancellationProvider.class
                     );
                     assertThat(context).hasSingleBean(
                             BrokerOrderInquiryProvider.class

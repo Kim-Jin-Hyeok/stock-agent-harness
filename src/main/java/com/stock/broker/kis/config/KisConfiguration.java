@@ -7,6 +7,7 @@ import com.stock.broker.kis.auth.KisTokenProvider;
 import com.stock.broker.kis.order.KisCashOrderClient;
 import com.stock.broker.kis.order.cancellation.KisOrderCancellationClient;
 import com.stock.broker.kis.order.cancellation.inquiry.KisCancelableOrderInquiryClient;
+import com.stock.broker.kis.order.cancellation.provider.KisBrokerOrderCancellationProvider;
 import com.stock.broker.kis.order.inquiry.KisOrderInquiryClient;
 import com.stock.broker.kis.order.inquiry.provider.KisBrokerOrderInquiryProvider;
 import com.stock.broker.kis.order.provider.KisBrokerOrderProvider;
@@ -193,6 +194,24 @@ public class KisConfiguration {
     ) {
         return new KisBrokerOrderInquiryProvider(
                 kisOrderInquiryClient,
+                kisTokenProvider,
+                properties,
+                clock
+        );
+    }
+
+    @Bean
+    public KisBrokerOrderCancellationProvider
+    kisBrokerOrderCancellationProvider(
+            KisCancelableOrderInquiryClient cancelableOrderInquiryClient,
+            KisOrderCancellationClient orderCancellationClient,
+            KisTokenProvider kisTokenProvider,
+            KisProperties properties,
+            Clock clock
+    ) {
+        return new KisBrokerOrderCancellationProvider(
+                cancelableOrderInquiryClient,
+                orderCancellationClient,
                 kisTokenProvider,
                 properties,
                 clock
