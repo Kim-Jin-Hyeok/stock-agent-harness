@@ -136,7 +136,22 @@ LONG_TERM
 -> 재무정보, 실적, 밸류에이션, 장기 추세 중심
 ```
 
-초기 구현은 제한된 관심종목 목록으로 시작할 수 있다. 이후 Stock Universe와 로컬 DB 기반 Screener로 확장한다.
+현재 구현은 전략별 제한된 고정 후보 목록으로 시작한다. 설정 경로는 `strategy.universes`이며 각 항목은 `strategyId`, `strategyVersion`, `horizon`, `symbols`를 가진다.
+
+```yaml
+strategy:
+  universes:
+    - strategy-id: DAY_TRADING_V1
+      strategy-version: 1
+      horizon: DAY_TRADING
+      symbols: ["005930"]
+```
+
+`StrategyStockUniverseRegistry`는 Run의 `InvestmentStrategyIdentity`와 정확히 일치하는 후보 목록을 조회한다. 등록되지 않은 전략은 후보 없이 실행하지 않고 Run을 실패시킨다. 후보 목록은 빈 값, 공백 symbol, 중복 symbol을 허용하지 않으며 `HarnessRunContext.candidateSymbols`에는 수정 불가능한 목록으로 전달된다.
+
+단타, 스윙, 장기 설정은 서로 독립적인 후보 목록을 가질 수 있다. 현재 세 전략에 동일한 `005930`을 넣은 것은 종목 차이보다 전략별 실행 흐름을 먼저 비교하기 위한 통제된 초기값이며 투자 추천을 의미하지 않는다.
+
+현재 기본 `InvestmentAgent`는 후보 목록 전체를 평가하지 않고 첫 번째 종목의 현재가만 조회한다. 현재가 Tool 결과를 받은 뒤에는 아직 매수·매도 규칙을 적용하지 않고 `HOLD`로 종료한다. 이후 Stock Universe와 로컬 DB 기반 Screener가 후보를 만들면 이 고정 목록을 대체하거나 갱신한다.
 
 ## Schedule Policy
 
@@ -224,6 +239,8 @@ Run에는 가능한 한 다음 입력과 결과를 함께 저장한다.
 - 주문 및 체결 결과
 - Run 시작과 종료 시점의 전략 포트폴리오
 
+현재는 선택된 종목의 Tool 요청과 현재가 결과가 Run의 `toolExecutionSnapshotsJson`에 저장된다. 설정에 있던 후보 목록 전체와 Screener 결과를 별도 스냅샷으로 저장하는 구조는 아직 없다. 후보 구성이 변경되면 기존 실험과 섞이지 않도록 `strategyVersion`도 함께 올리는 것을 기본 규칙으로 삼는다.
+
 ## Performance Evaluation
 
 전략별 시간 관점이 다르므로 같은 단기 수익률만으로 비교하지 않는다.
@@ -260,11 +277,12 @@ LONG_TERM
 2. Run과 이력에 전략 식별자 저장
 3. 전략별 실행 주기 모델 추가
 4. 전략별 독립 Portfolio 경계 추가
-5. 제한된 관심종목 기반 후보 목록 추가
-6. 단타, 스윙, 장기 전략 Profile 추가
-7. 전략별 Screener 확장
-8. 전략별 성과 지표 추가
-9. 선택한 전략을 KIS 모의 주문과 연결
+5. 제한된 관심종목 기반 후보 목록 추가 - 현재 완료
+6. 첫 후보 종목 현재가 조회 Agent Loop 추가 - 현재 완료
+7. 단타, 스윙, 장기 전략 Profile 추가
+8. 전략별 Screener 확장
+9. 전략별 성과 지표 추가
+10. 선택한 전략을 KIS 모의 주문과 연결
 ```
 
 현재 단계에서는 실제투자 연결을 범위에 포함하지 않는다. 충분한 모의투자 데이터를 축적하고 전략별 성과와 운영 안정성을 검증한 후 별도의 Go/No-Go 결정으로 다룬다.

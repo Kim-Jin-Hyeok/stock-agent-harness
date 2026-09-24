@@ -786,7 +786,7 @@ HarnessAllowedTools.readOnly()
 
 `InvestmentHarness`는 "기본 읽기 전용 Tool을 허용한다"는 의도만 표현하고, 실제 기본 목록은 `HarnessAllowedTools`가 관리한다.
 
-현재 `HarnessRunContext`는 Run 실행 제한, 허용 Tool 목록, 검증된 Tool 실행 결과를 함께 가진다.
+현재 `HarnessRunContext`는 Run 실행 제한, 허용 Tool 목록, 전략별 후보 종목, 검증된 Tool 실행 결과를 함께 가진다.
 
 ```text
 HarnessRunContext
@@ -795,18 +795,23 @@ HarnessRunContext
 -> allowedTools
 -> portfolioSnapshot
 -> marketSnapshot
+-> candidateSymbols
 -> toolResults
 ```
 
-기본 `InvestmentAgent` 구현은 아직 Tool 요청을 만들지 않는다.
+`candidateSymbols`는 `StrategyStockUniverseRegistry`가 Run의 `InvestmentStrategyIdentity`로 조회한 전략별 고정 후보 목록이다. `HarnessRunContext`는 전달받은 목록을 `List.copyOf`로 복사하여 Agent가 Run 도중 후보 목록을 변경하지 못하게 한다.
 
-현재는 `context.allowedTools().types()`를 읽어 판단 reason에 남기는 수준이다.
+기본 `InvestmentAgent`는 후보 목록의 첫 번째 종목을 이번 Run의 검토 대상으로 선택한다. 해당 종목의 현재가 결과가 Context에 없으면 `GET_CURRENT_PRICE`를 요청하고, 검증된 결과가 추가된 Context로 다시 실행되면 `HOLD`를 최종 결정한다.
 
 ```text
-allowedTools=[GET_PORTFOLIO, GET_MARKET, GET_CURRENT_PRICE]
+candidateSymbols=[005930]
+-> GET_CURRENT_PRICE(symbol=005930)
+-> 검증된 현재가 결과를 HarnessRunContext.toolResults에 추가
+-> InvestmentAgent 재실행
+-> HOLD
 ```
 
-다만 Harness의 Tool Calling 실행 구조는 이미 마련되어 있으므로, 테스트용 Agent가 `REQUEST_TOOL`을 반환하면 권한 검사, Budget 검사, Tool 실행, 결과 검증, 재판단 흐름이 동작한다.
+현재 Agent가 후보 목록 전체를 순회하거나 종목별 우선순위를 계산하지는 않는다. 고정 후보와 첫 번째 종목 선택은 Screener 도입 전 Agent Loop와 데이터 수집 경계를 검증하기 위한 초기 동작이다.
 
 ## HarnessAllowedTools Immutability
 
@@ -1222,22 +1227,28 @@ VALIDATE_DECISION
 src/main/java/com/stock/agent/InvestmentAgent.java
 ```
 
-현재 구현은 아직 Tool 요청을 만들지 않는다.
+현재 기본 구현은 첫 번째 후보 종목의 현재가를 얻기 위해 Tool 요청과 최종 판단을 두 단계로 반환한다.
 
 ```text
 InvestmentAgent.next(context)
--> AgentNextAction.finalDecision(decide(context))
+-> candidateSymbols의 첫 번째 symbol 선택
+-> 일치하는 EXECUTED 현재가 결과가 없으면
+   AgentNextAction.requestTool(GET_CURRENT_PRICE(symbol))
+-> 일치하는 현재가 결과가 있으면
+   AgentNextAction.finalDecision(HOLD)
 ```
 
-즉 기존 `decide(context)`의 HOLD 판단을 `FINAL_DECISION`으로 감싸서 반환한다.
+현재가 결과를 찾을 때는 Tool 타입, 실행 상태, 원본 요청 symbol, 출력 payload의 현재가 symbol이 모두 선택한 후보와 일치하는지 확인한다. 최종 판단 사유에는 조회한 symbol, `priceKrw`, `CACHE` 또는 `PROVIDER` 조회 출처가 포함된다.
 
-이 구조를 둔 이유는 기존 Harness 실행 흐름을 바로 깨지 않고, Agent가 나중에 Tool 요청과 최종 판단 중 하나를 반환할 수 있는 형태로 점진적으로 이동하기 위해서다.
+현재 결정은 여전히 `HOLD`다. 현재가 한 건만으로 매수·매도 기준을 임의로 만들지 않고, 실제 Tool Calling과 재판단 흐름을 먼저 운영 가능한 형태로 검증하기 위해서다.
 
 현재 상태는 다음과 같다.
 
 ```text
 AgentNextAction 모델 있음
 InvestmentAgent.next(context) 있음
+전략별 candidateSymbols를 HarnessRunContext에 제공함
+기본 Agent가 첫 후보 종목의 GET_CURRENT_PRICE를 요청함
 InvestmentHarness는 investmentAgent.next(context)를 호출함
 HarnessAgentActionValidator가 AgentNextAction 계약을 검증함
 VALIDATE_AGENT_ACTION Step을 Agent 실행 직후 기록함
@@ -1252,6 +1263,7 @@ HarnessToolExecutor는 GET_PORTFOLIO, GET_MARKET, GET_CURRENT_PRICE 조회 Tool�
 HarnessToolExecutionResult 모델 있음
 HarnessToolResultValidator가 실행 결과 계약을 검증하고 VALIDATE_TOOL_RESULT Step을 기록함
 검증을 통과한 성공 결과만 HarnessRunContext에 추가함
+검증된 현재가 결과를 받은 기본 Agent는 HOLD를 최종 반환함
 성공, 실행 실패, 권한 거절, 중복 차단 결과는 HarnessRunResult와 Run 상세 이력에 저장함
 POST 응답은 HarnessRunResponse.toolResults로 런타임 결과를 제공함
 GET 상세 응답은 HarnessRunDetail.toolExecutionSnapshots로 저장 결과를 제공함
@@ -1578,6 +1590,28 @@ Tool 실행 상태가 `EXECUTED`일 때만 `VALIDATE_TOOL_RESULT` 단계로 진�
 
 `HarnessRunContext.toolResults`는 현재 Run에서 완료된 Tool 실행 결과를 보관한다. `withToolResult`는 기존 Context를 변경하지 않고 실행 결과가 추가된 새 Context를 만든다.
 
+기본 `InvestmentAgent`를 사용하는 정상 Run은 다음 흐름을 한 번 수행한다.
+
+```text
+LOAD_PORTFOLIO
+-> LOAD_MARKET
+-> CHECK_STEP_LIMIT
+-> RUN_INVESTMENT_AGENT: 첫 후보의 현재가 Tool 요청
+-> VALIDATE_AGENT_ACTION
+-> VALIDATE_TOOL_REQUEST
+-> AUTHORIZE_TOOL_REQUEST
+-> CHECK_DUPLICATE_TOOL_REQUEST
+-> CHECK_TOOL_CALL_LIMIT
+-> EXECUTE_TOOL_REQUEST
+-> VALIDATE_TOOL_RESULT
+-> CHECK_STEP_LIMIT
+-> RUN_INVESTMENT_AGENT: 현재가를 확인하고 HOLD 결정
+-> VALIDATE_AGENT_ACTION
+-> VALIDATE_DECISION
+-> EXECUTE_TRADE: HOLD이므로 주문 없음
+-> LOAD_FINAL_PORTFOLIO
+```
+
 `InvestmentHarness`는 `RUN_INVESTMENT_AGENT` Step에서 `investmentAgent.next(context)`를 호출한다.
 
 반환된 Action은 `HarnessAgentActionValidator`로 검증하고 `VALIDATE_AGENT_ACTION` Step에 결과를 기록한다. 유효한 `FINAL_DECISION`이면 기존처럼 `InvestmentDecision`을 꺼내 Risk Guard와 Trade Executor 흐름으로 진행한다.
@@ -1671,7 +1705,20 @@ RUN_INVESTMENT_AGENT
 
 VALIDATE_AGENT_ACTION
 -> Harness agent action is valid.
+
+VALIDATE_DECISION
+-> HOLD decision does not require order risk validation.
+
+EXECUTE_TRADE
+-> HOLD decision does not create an order.
+
+LOAD_FINAL_PORTFOLIO
+-> Final portfolio loading complete.
 ```
+
+현재가 Tool 실행 결과는 `HarnessRunResult.toolResults`에 포함되고 `HarnessRunHistoryService`가 `HarnessToolExecutionSnapshot`으로 변환하여 `HarnessRunEntity.toolExecutionSnapshotsJson`에 저장한다. 여기에는 요청 symbol, 가격, 관측 시각, `CACHE` 또는 `PROVIDER` 조회 출처가 남는다.
+
+이 저장은 Run 당시 Agent가 본 입력을 재현하기 위한 실행 스냅샷이다. 현재가를 기간별로 검색하거나 차트와 통계 계산에 사용하는 별도 시세 Entity 또는 시세 테이블은 아직 없다.
 
 Agent Loop는 `FINAL_DECISION`이 반환되거나 실행 Budget이 소진될 때까지 반복된다. `FINAL_DECISION`이 반환되면 Risk Guard와 Trade Executor 흐름으로 진행한다. Agent Step Budget이 소진되면 다음 Agent 호출 전에 중단하고, Tool Call Budget이 소진되면 다음 Tool 실행 전에 중단한다. 현재가 Provider Budget이 소진되면 캐시 적중 결과는 계속 사용할 수 있지만 새로운 Provider 호출은 실행하지 않는다.
 
