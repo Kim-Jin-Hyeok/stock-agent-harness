@@ -15,6 +15,7 @@ class BrokerOrderExecutionSnapshotTest {
     void createsPartiallyFilledSnapshot() {
         BrokerOrderExecutionSnapshot snapshot = snapshot(
                 3L,
+                209_700L,
                 69_900L,
                 BrokerOrderStatus.PARTIALLY_FILLED,
                 null
@@ -22,6 +23,7 @@ class BrokerOrderExecutionSnapshotTest {
 
         assertThat(snapshot.requestedQuantity()).isEqualTo(10L);
         assertThat(snapshot.cumulativeFilledQuantity()).isEqualTo(3L);
+        assertThat(snapshot.cumulativeFilledAmountKrw()).isEqualTo(209_700L);
         assertThat(snapshot.averageFilledPriceKrw()).isEqualTo(69_900L);
         assertThat(snapshot.status())
                 .isEqualTo(BrokerOrderStatus.PARTIALLY_FILLED);
@@ -31,6 +33,7 @@ class BrokerOrderExecutionSnapshotTest {
     void rejectsFilledQuantityGreaterThanRequestedQuantity() {
         assertThatThrownBy(() -> snapshot(
                 11L,
+                770_000L,
                 70_000L,
                 BrokerOrderStatus.FILLED,
                 null
@@ -45,6 +48,7 @@ class BrokerOrderExecutionSnapshotTest {
     void rejectsAveragePriceWithoutFilledQuantity() {
         assertThatThrownBy(() -> snapshot(
                 0L,
+                0L,
                 70_000L,
                 BrokerOrderStatus.PENDING,
                 null
@@ -58,6 +62,7 @@ class BrokerOrderExecutionSnapshotTest {
     void rejectsMissingAveragePriceForFilledQuantity() {
         assertThatThrownBy(() -> snapshot(
                 3L,
+                209_700L,
                 null,
                 BrokerOrderStatus.PARTIALLY_FILLED,
                 null
@@ -71,6 +76,7 @@ class BrokerOrderExecutionSnapshotTest {
     void rejectsStatusThatDoesNotMatchFilledQuantity() {
         assertThatThrownBy(() -> snapshot(
                 3L,
+                209_700L,
                 69_900L,
                 BrokerOrderStatus.PENDING,
                 null
@@ -82,6 +88,7 @@ class BrokerOrderExecutionSnapshotTest {
     void rejectedSnapshotRequiresReason() {
         assertThatThrownBy(() -> snapshot(
                 0L,
+                0L,
                 null,
                 BrokerOrderStatus.REJECTED,
                 null
@@ -89,8 +96,37 @@ class BrokerOrderExecutionSnapshotTest {
                 .hasMessage("reason must not be blank for a rejected order.");
     }
 
+    @Test
+    void rejectsFilledAmountWithoutFilledQuantity() {
+        assertThatThrownBy(() -> snapshot(
+                0L,
+                1L,
+                null,
+                BrokerOrderStatus.PENDING,
+                null
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "cumulativeFilledAmountKrw must be zero when nothing is filled."
+                );
+    }
+
+    @Test
+    void rejectsMissingFilledAmountForFilledQuantity() {
+        assertThatThrownBy(() -> snapshot(
+                3L,
+                0L,
+                69_900L,
+                BrokerOrderStatus.PARTIALLY_FILLED,
+                null
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "cumulativeFilledAmountKrw must be positive when an order is filled."
+                );
+    }
+
     private BrokerOrderExecutionSnapshot snapshot(
             long cumulativeFilledQuantity,
+            long cumulativeFilledAmountKrw,
             Long averageFilledPriceKrw,
             BrokerOrderStatus status,
             String reason
@@ -99,6 +135,7 @@ class BrokerOrderExecutionSnapshotTest {
                 REFERENCE,
                 10L,
                 cumulativeFilledQuantity,
+                cumulativeFilledAmountKrw,
                 averageFilledPriceKrw,
                 status,
                 reason

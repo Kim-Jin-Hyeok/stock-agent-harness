@@ -26,8 +26,11 @@ class BrokerOrderRecordTest {
 
         assertThat(order.status()).isEqualTo(BrokerOrderStatus.PENDING);
         assertThat(order.cumulativeFilledQuantity()).isZero();
+        assertThat(order.cumulativeFilledAmountKrw()).isZero();
         assertThat(order.portfolioAppliedQuantity()).isZero();
+        assertThat(order.portfolioAppliedAmountKrw()).isZero();
         assertThat(order.unappliedFilledQuantity()).isZero();
+        assertThat(order.unappliedFilledAmountKrw()).isZero();
         assertThat(order.averageFilledPriceKrw()).isNull();
         assertThat(order.expiresAt()).isEqualTo(EXPIRES_AT);
     }
@@ -40,7 +43,8 @@ class BrokerOrderRecordTest {
                                 orderReference(),
                                 10L,
                                 3L,
-                                69_900L,
+                                210_000L,
+                                70_000L,
                                 BrokerOrderStatus.PARTIALLY_FILLED
                         ),
                         SUBMITTED_AT.plusSeconds(30)
@@ -55,7 +59,8 @@ class BrokerOrderRecordTest {
                                 orderReference(),
                                 10L,
                                 5L,
-                                69_850L,
+                                349_000L,
+                                69_800L,
                                 BrokerOrderStatus.PARTIALLY_FILLED
                         ),
                         SUBMITTED_AT.plusSeconds(60)
@@ -63,8 +68,14 @@ class BrokerOrderRecordTest {
         );
 
         assertThat(filledAgain.cumulativeFilledQuantity()).isEqualTo(5L);
+        assertThat(filledAgain.cumulativeFilledAmountKrw())
+                .isEqualTo(349_000L);
         assertThat(filledAgain.portfolioAppliedQuantity()).isEqualTo(3L);
+        assertThat(filledAgain.portfolioAppliedAmountKrw())
+                .isEqualTo(210_000L);
         assertThat(filledAgain.unappliedFilledQuantity()).isEqualTo(2L);
+        assertThat(filledAgain.unappliedFilledAmountKrw())
+                .isEqualTo(139_000L);
     }
 
     @Test
@@ -93,6 +104,8 @@ class BrokerOrderRecordTest {
 
         assertThat(canceled.status()).isEqualTo(BrokerOrderStatus.CANCELED);
         assertThat(canceled.unappliedFilledQuantity()).isEqualTo(3L);
+        assertThat(canceled.unappliedFilledAmountKrw())
+                .isEqualTo(209_700L);
     }
 
     @Test
@@ -111,7 +124,10 @@ class BrokerOrderRecordTest {
         );
 
         assertThat(recorded.portfolioAppliedQuantity()).isEqualTo(3L);
+        assertThat(recorded.portfolioAppliedAmountKrw())
+                .isEqualTo(209_700L);
         assertThat(recorded.unappliedFilledQuantity()).isZero();
+        assertThat(recorded.unappliedFilledAmountKrw()).isZero();
     }
 
     @Test
@@ -151,6 +167,25 @@ class BrokerOrderRecordTest {
                 () -> pendingOrder().markCurrentFillAppliedToPortfolio()
         ).isInstanceOf(IllegalStateException.class)
                 .hasMessage("No unapplied filled quantity is available.");
+    }
+
+    @Test
+    void rejectsPortfolioAppliedAmountGreaterThanFilledAmount() {
+        assertThatThrownBy(() -> order(
+                orderReference(),
+                3L,
+                209_700L,
+                2L,
+                209_701L,
+                69_900L,
+                BrokerOrderStatus.PARTIALLY_FILLED,
+                null,
+                EXPIRES_AT
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "portfolioAppliedAmountKrw must be between 0 and "
+                                + "cumulativeFilledAmountKrw."
+                );
     }
 
     @Test
@@ -467,6 +502,35 @@ class BrokerOrderRecordTest {
     }
 
     @Test
+    void rejectsReconciliationThatDecreasesFilledAmount() {
+        BrokerOrderRecord partiallyFilled = order(
+                orderReference(),
+                3L,
+                69_900L,
+                BrokerOrderStatus.PARTIALLY_FILLED,
+                null,
+                EXPIRES_AT
+        );
+
+        assertThatThrownBy(() -> partiallyFilled.reconcile(
+                BrokerOrderInquiryResult.found(
+                        snapshot(
+                                orderReference(),
+                                10L,
+                                3L,
+                                209_699L,
+                                69_899L,
+                                BrokerOrderStatus.PARTIALLY_FILLED
+                        ),
+                        SUBMITTED_AT.plusSeconds(30)
+                )
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "snapshot cumulativeFilledAmountKrw must not decrease."
+                );
+    }
+
+    @Test
     void rejectsReconciliationForDifferentOrder() {
         BrokerOrderReference differentReference =
                 new BrokerOrderReference("0000999999", "06010");
@@ -594,6 +658,36 @@ class BrokerOrderRecordTest {
             String reason,
             Instant expiresAt
     ) {
+        return order(
+                reference,
+                cumulativeFilledQuantity,
+                filledAmountKrw(
+                        cumulativeFilledQuantity,
+                        averageFilledPriceKrw
+                ),
+                portfolioAppliedQuantity,
+                filledAmountKrw(
+                        portfolioAppliedQuantity,
+                        averageFilledPriceKrw
+                ),
+                averageFilledPriceKrw,
+                status,
+                reason,
+                expiresAt
+        );
+    }
+
+    private BrokerOrderRecord order(
+            BrokerOrderReference reference,
+            long cumulativeFilledQuantity,
+            long cumulativeFilledAmountKrw,
+            long portfolioAppliedQuantity,
+            long portfolioAppliedAmountKrw,
+            Long averageFilledPriceKrw,
+            BrokerOrderStatus status,
+            String reason,
+            Instant expiresAt
+    ) {
         return new BrokerOrderRecord(
                 null,
                 reference,
@@ -608,7 +702,9 @@ class BrokerOrderRecordTest {
                 10L,
                 70_000L,
                 cumulativeFilledQuantity,
+                cumulativeFilledAmountKrw,
                 portfolioAppliedQuantity,
+                portfolioAppliedAmountKrw,
                 averageFilledPriceKrw,
                 status,
                 reason,
@@ -619,6 +715,16 @@ class BrokerOrderRecordTest {
         );
     }
 
+    private long filledAmountKrw(
+            long filledQuantity,
+            Long averageFilledPriceKrw
+    ) {
+        if (filledQuantity <= 0 || averageFilledPriceKrw == null) {
+            return 0L;
+        }
+        return filledQuantity * averageFilledPriceKrw;
+    }
+
     private BrokerOrderExecutionSnapshot snapshot(
             BrokerOrderReference reference,
             long requestedQuantity,
@@ -626,10 +732,32 @@ class BrokerOrderRecordTest {
             Long averageFilledPriceKrw,
             BrokerOrderStatus status
     ) {
+        return snapshot(
+                reference,
+                requestedQuantity,
+                cumulativeFilledQuantity,
+                filledAmountKrw(
+                        cumulativeFilledQuantity,
+                        averageFilledPriceKrw
+                ),
+                averageFilledPriceKrw,
+                status
+        );
+    }
+
+    private BrokerOrderExecutionSnapshot snapshot(
+            BrokerOrderReference reference,
+            long requestedQuantity,
+            long cumulativeFilledQuantity,
+            long cumulativeFilledAmountKrw,
+            Long averageFilledPriceKrw,
+            BrokerOrderStatus status
+    ) {
         return new BrokerOrderExecutionSnapshot(
                 reference,
                 requestedQuantity,
                 cumulativeFilledQuantity,
+                cumulativeFilledAmountKrw,
                 averageFilledPriceKrw,
                 status,
                 null

@@ -19,7 +19,9 @@ public record BrokerOrderRecord(
         long requestedQuantity,
         long limitPriceKrw,
         long cumulativeFilledQuantity,
+        long cumulativeFilledAmountKrw,
         long portfolioAppliedQuantity,
+        long portfolioAppliedAmountKrw,
         Long averageFilledPriceKrw,
         BrokerOrderStatus status,
         String reason,
@@ -58,6 +60,14 @@ public record BrokerOrderRecord(
                     "cumulativeFilledQuantity must be between 0 and requestedQuantity."
             );
         }
+        validateAverageFilledPrice(
+                cumulativeFilledQuantity,
+                averageFilledPriceKrw
+        );
+        validateFilledAmount(
+                cumulativeFilledQuantity,
+                cumulativeFilledAmountKrw
+        );
         if (portfolioAppliedQuantity < 0
                 || portfolioAppliedQuantity > cumulativeFilledQuantity) {
             throw new IllegalArgumentException(
@@ -65,11 +75,13 @@ public record BrokerOrderRecord(
                             + "cumulativeFilledQuantity."
             );
         }
-
-        validateAverageFilledPrice(
+        validatePortfolioAppliedAmount(
                 cumulativeFilledQuantity,
-                averageFilledPriceKrw
+                cumulativeFilledAmountKrw,
+                portfolioAppliedQuantity,
+                portfolioAppliedAmountKrw
         );
+
         validateStatus(
                 status,
                 reference,
@@ -119,6 +131,11 @@ public record BrokerOrderRecord(
                 requestedQuantity,
                 limitPriceKrw,
                 cumulativeFilledQuantity,
+                inferredFilledAmountKrw(
+                        cumulativeFilledQuantity,
+                        averageFilledPriceKrw
+                ),
+                0L,
                 0L,
                 averageFilledPriceKrw,
                 status,
@@ -158,7 +175,61 @@ public record BrokerOrderRecord(
                 requestedQuantity,
                 limitPriceKrw,
                 cumulativeFilledQuantity,
+                inferredFilledAmountKrw(
+                        cumulativeFilledQuantity,
+                        averageFilledPriceKrw
+                ),
                 0L,
+                0L,
+                averageFilledPriceKrw,
+                status,
+                reason,
+                submittedAt,
+                expiresAt,
+                lastReconciledAt,
+                cancellationSubmission
+        );
+    }
+
+    public BrokerOrderRecord(
+            Long id,
+            BrokerOrderReference reference,
+            String runId,
+            InvestmentStrategyIdentity strategyIdentity,
+            BrokerOrderSide side,
+            String symbol,
+            long requestedQuantity,
+            long limitPriceKrw,
+            long cumulativeFilledQuantity,
+            long portfolioAppliedQuantity,
+            Long averageFilledPriceKrw,
+            BrokerOrderStatus status,
+            String reason,
+            Instant submittedAt,
+            Instant expiresAt,
+            Instant lastReconciledAt,
+            BrokerOrderCancellationSubmission cancellationSubmission
+    ) {
+        this(
+                id,
+                reference,
+                runId,
+                strategyIdentity,
+                side,
+                symbol,
+                requestedQuantity,
+                limitPriceKrw,
+                cumulativeFilledQuantity,
+                inferredFilledAmountKrw(
+                        cumulativeFilledQuantity,
+                        averageFilledPriceKrw
+                ),
+                portfolioAppliedQuantity,
+                inferredAppliedAmountKrw(
+                        cumulativeFilledQuantity,
+                        portfolioAppliedQuantity,
+                        averageFilledPriceKrw
+                ),
                 averageFilledPriceKrw,
                 status,
                 reason,
@@ -171,6 +242,10 @@ public record BrokerOrderRecord(
 
     public long unappliedFilledQuantity() {
         return cumulativeFilledQuantity - portfolioAppliedQuantity;
+    }
+
+    public long unappliedFilledAmountKrw() {
+        return cumulativeFilledAmountKrw - portfolioAppliedAmountKrw;
     }
 
     public BrokerOrderRecord markCurrentFillAppliedToPortfolio() {
@@ -190,7 +265,9 @@ public record BrokerOrderRecord(
                 requestedQuantity,
                 limitPriceKrw,
                 cumulativeFilledQuantity,
+                cumulativeFilledAmountKrw,
                 cumulativeFilledQuantity,
+                cumulativeFilledAmountKrw,
                 averageFilledPriceKrw,
                 status,
                 reason,
@@ -214,6 +291,7 @@ public record BrokerOrderRecord(
         if (result.status() == BrokerOrderInquiryStatus.NOT_FOUND) {
             return withExecutionState(
                     cumulativeFilledQuantity,
+                    cumulativeFilledAmountKrw,
                     averageFilledPriceKrw,
                     status,
                     reason,
@@ -225,6 +303,7 @@ public record BrokerOrderRecord(
         validateSnapshot(snapshot);
         return withExecutionState(
                 snapshot.cumulativeFilledQuantity(),
+                snapshot.cumulativeFilledAmountKrw(),
                 snapshot.averageFilledPriceKrw(),
                 snapshot.status(),
                 snapshot.reason(),
@@ -265,7 +344,9 @@ public record BrokerOrderRecord(
                 requestedQuantity,
                 limitPriceKrw,
                 cumulativeFilledQuantity,
+                cumulativeFilledAmountKrw,
                 portfolioAppliedQuantity,
+                portfolioAppliedAmountKrw,
                 averageFilledPriceKrw,
                 status,
                 reason,
@@ -307,10 +388,17 @@ public record BrokerOrderRecord(
                     "snapshot cumulativeFilledQuantity must not decrease."
             );
         }
+        if (snapshot.cumulativeFilledAmountKrw()
+                < cumulativeFilledAmountKrw) {
+            throw new IllegalArgumentException(
+                    "snapshot cumulativeFilledAmountKrw must not decrease."
+            );
+        }
     }
 
     private BrokerOrderRecord withExecutionState(
             long reconciledQuantity,
+            long reconciledAmountKrw,
             Long reconciledAveragePriceKrw,
             BrokerOrderStatus reconciledStatus,
             String reconciledReason,
@@ -326,7 +414,9 @@ public record BrokerOrderRecord(
                 requestedQuantity,
                 limitPriceKrw,
                 reconciledQuantity,
+                reconciledAmountKrw,
                 portfolioAppliedQuantity,
+                portfolioAppliedAmountKrw,
                 reconciledAveragePriceKrw,
                 reconciledStatus,
                 reconciledReason,
@@ -334,6 +424,86 @@ public record BrokerOrderRecord(
                 expiresAt,
                 reconciledAt,
                 cancellationSubmission
+        );
+    }
+
+    private static void validateFilledAmount(
+            long cumulativeFilledQuantity,
+            long cumulativeFilledAmountKrw
+    ) {
+        if (cumulativeFilledQuantity == 0
+                && cumulativeFilledAmountKrw != 0) {
+            throw new IllegalArgumentException(
+                    "cumulativeFilledAmountKrw must be zero when nothing is filled."
+            );
+        }
+        if (cumulativeFilledQuantity > 0
+                && cumulativeFilledAmountKrw <= 0) {
+            throw new IllegalArgumentException(
+                    "cumulativeFilledAmountKrw must be positive when an order is filled."
+            );
+        }
+    }
+
+    private static void validatePortfolioAppliedAmount(
+            long cumulativeFilledQuantity,
+            long cumulativeFilledAmountKrw,
+            long portfolioAppliedQuantity,
+            long portfolioAppliedAmountKrw
+    ) {
+        if (portfolioAppliedAmountKrw < 0
+                || portfolioAppliedAmountKrw > cumulativeFilledAmountKrw) {
+            throw new IllegalArgumentException(
+                    "portfolioAppliedAmountKrw must be between 0 and "
+                            + "cumulativeFilledAmountKrw."
+            );
+        }
+        if ((portfolioAppliedQuantity == 0)
+                != (portfolioAppliedAmountKrw == 0)) {
+            throw new IllegalArgumentException(
+                    "portfolio applied quantity and amount must both be zero "
+                            + "or both be positive."
+            );
+        }
+        if ((portfolioAppliedQuantity == cumulativeFilledQuantity)
+                != (portfolioAppliedAmountKrw
+                == cumulativeFilledAmountKrw)) {
+            throw new IllegalArgumentException(
+                    "fully applied quantity and amount must match."
+            );
+        }
+    }
+
+    private static long inferredFilledAmountKrw(
+            long cumulativeFilledQuantity,
+            Long averageFilledPriceKrw
+    ) {
+        if (cumulativeFilledQuantity == 0 || averageFilledPriceKrw == null) {
+            return 0L;
+        }
+        return Math.multiplyExact(
+                cumulativeFilledQuantity,
+                averageFilledPriceKrw
+        );
+    }
+
+    private static long inferredAppliedAmountKrw(
+            long cumulativeFilledQuantity,
+            long portfolioAppliedQuantity,
+            Long averageFilledPriceKrw
+    ) {
+        if (portfolioAppliedQuantity == 0 || averageFilledPriceKrw == null) {
+            return 0L;
+        }
+        if (portfolioAppliedQuantity == cumulativeFilledQuantity) {
+            return inferredFilledAmountKrw(
+                    cumulativeFilledQuantity,
+                    averageFilledPriceKrw
+            );
+        }
+        return Math.multiplyExact(
+                portfolioAppliedQuantity,
+                averageFilledPriceKrw
         );
     }
 

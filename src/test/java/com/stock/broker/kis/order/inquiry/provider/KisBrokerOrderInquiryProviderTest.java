@@ -66,6 +66,8 @@ class KisBrokerOrderInquiryProviderTest {
         assertThat(result.snapshot().reference()).isEqualTo(REFERENCE);
         assertThat(result.snapshot().requestedQuantity()).isEqualTo(10L);
         assertThat(result.snapshot().cumulativeFilledQuantity()).isEqualTo(3L);
+        assertThat(result.snapshot().cumulativeFilledAmountKrw())
+                .isEqualTo(209_700L);
         assertThat(result.snapshot().averageFilledPriceKrw())
                 .isEqualTo(69_900L);
         assertThat(result.snapshot().status())
@@ -190,6 +192,20 @@ class KisBrokerOrderInquiryProviderTest {
     }
 
     @Test
+    void rejectsInvalidCumulativeFilledAmount() {
+        KisBrokerOrderInquiryProvider provider = stubbedProvider(
+                output("3", "69900.0000", "not-a-number", "N")
+        );
+
+        assertThatIllegalStateException()
+                .isThrownBy(() -> provider.inquire(request()))
+                .withMessage(
+                        "KIS order inquiry cumulativeFilledAmount "
+                                + "must be an integer number."
+                );
+    }
+
+    @Test
     void rejectsReferenceWithoutOrganizationNumber() {
         KisOrderInquiryClient inquiryClient = mock(
                 KisOrderInquiryClient.class
@@ -285,6 +301,25 @@ class KisBrokerOrderInquiryProviderTest {
             String averageFilledPrice,
             String canceled
     ) {
+        String cumulativeFilledAmount = switch (cumulativeFilledQuantity) {
+            case "0" -> "0";
+            case "10" -> "699000";
+            default -> "209700";
+        };
+        return output(
+                cumulativeFilledQuantity,
+                averageFilledPrice,
+                cumulativeFilledAmount,
+                canceled
+        );
+    }
+
+    private KisOrderInquiryOutput output(
+            String cumulativeFilledQuantity,
+            String averageFilledPrice,
+            String cumulativeFilledAmount,
+            String canceled
+    ) {
         return new KisOrderInquiryOutput(
                 "20260923",
                 REFERENCE.organizationNumber(),
@@ -296,7 +331,7 @@ class KisBrokerOrderInquiryProviderTest {
                 "70000",
                 cumulativeFilledQuantity,
                 averageFilledPrice,
-                "209700",
+                cumulativeFilledAmount,
                 canceled,
                 "7"
         );

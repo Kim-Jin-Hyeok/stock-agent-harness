@@ -108,7 +108,7 @@ class BrokerOrderRepositoryTest {
     }
 
     @Test
-    void savesAndRestoresPortfolioAppliedQuantity() {
+    void savesAndRestoresPortfolioAppliedState() {
         BrokerOrderRecord applied = partiallyFilledOrder(
                 "run-1",
                 submittedAt()
@@ -122,7 +122,10 @@ class BrokerOrderRepositoryTest {
                 .orElseThrow()
                 .toRecord();
         assertThat(restored.portfolioAppliedQuantity()).isEqualTo(3L);
+        assertThat(restored.portfolioAppliedAmountKrw())
+                .isEqualTo(209_700L);
         assertThat(restored.unappliedFilledQuantity()).isZero();
+        assertThat(restored.unappliedFilledAmountKrw()).isZero();
     }
 
     @Test

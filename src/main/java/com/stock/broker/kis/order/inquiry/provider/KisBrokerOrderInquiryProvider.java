@@ -129,6 +129,10 @@ public class KisBrokerOrderInquiryProvider
                 output.cumulativeFilledQuantity(),
                 "cumulativeFilledQuantity"
         );
+        long cumulativeFilledAmountKrw = parseNonNegativeLong(
+                output.cumulativeFilledAmount(),
+                "cumulativeFilledAmount"
+        );
         Long averageFilledPriceKrw = cumulativeFilledQuantity == 0
                 ? null
                 : parsePositiveLong(
@@ -145,6 +149,7 @@ public class KisBrokerOrderInquiryProvider
                 reference,
                 requestedQuantity,
                 cumulativeFilledQuantity,
+                cumulativeFilledAmountKrw,
                 averageFilledPriceKrw,
                 status,
                 null

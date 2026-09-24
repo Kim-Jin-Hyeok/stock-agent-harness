@@ -26,7 +26,7 @@ class BrokerOrderEntityTest {
     }
 
     @Test
-    void convertsPortfolioAppliedQuantityToEntityAndBack() {
+    void convertsPortfolioAppliedStateToEntityAndBack() {
         BrokerOrderRecord applied = partiallyFilledOrder()
                 .markCurrentFillAppliedToPortfolio();
 
@@ -35,7 +35,10 @@ class BrokerOrderEntityTest {
 
         assertThat(restored).isEqualTo(applied);
         assertThat(restored.portfolioAppliedQuantity()).isEqualTo(3L);
+        assertThat(restored.portfolioAppliedAmountKrw())
+                .isEqualTo(209_700L);
         assertThat(restored.unappliedFilledQuantity()).isZero();
+        assertThat(restored.unappliedFilledAmountKrw()).isZero();
     }
 
     @Test

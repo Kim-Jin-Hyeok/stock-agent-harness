@@ -9,6 +9,7 @@ public record BrokerOrderExecutionSnapshot(
         BrokerOrderReference reference,
         long requestedQuantity,
         long cumulativeFilledQuantity,
+        long cumulativeFilledAmountKrw,
         Long averageFilledPriceKrw,
         BrokerOrderStatus status,
         String reason
@@ -29,16 +30,72 @@ public record BrokerOrderExecutionSnapshot(
                             + "and requestedQuantity."
             );
         }
-
         validateAverageFilledPrice(
                 cumulativeFilledQuantity,
                 averageFilledPriceKrw
+        );
+        validateFilledAmount(
+                cumulativeFilledQuantity,
+                cumulativeFilledAmountKrw
         );
         validateStatus(
                 status,
                 cumulativeFilledQuantity,
                 requestedQuantity,
                 reason
+        );
+    }
+
+    public BrokerOrderExecutionSnapshot(
+            BrokerOrderReference reference,
+            long requestedQuantity,
+            long cumulativeFilledQuantity,
+            Long averageFilledPriceKrw,
+            BrokerOrderStatus status,
+            String reason
+    ) {
+        this(
+                reference,
+                requestedQuantity,
+                cumulativeFilledQuantity,
+                inferredFilledAmountKrw(
+                        cumulativeFilledQuantity,
+                        averageFilledPriceKrw
+                ),
+                averageFilledPriceKrw,
+                status,
+                reason
+        );
+    }
+
+    private static void validateFilledAmount(
+            long cumulativeFilledQuantity,
+            long cumulativeFilledAmountKrw
+    ) {
+        if (cumulativeFilledQuantity == 0
+                && cumulativeFilledAmountKrw != 0) {
+            throw new IllegalArgumentException(
+                    "cumulativeFilledAmountKrw must be zero when nothing is filled."
+            );
+        }
+        if (cumulativeFilledQuantity > 0
+                && cumulativeFilledAmountKrw <= 0) {
+            throw new IllegalArgumentException(
+                    "cumulativeFilledAmountKrw must be positive when an order is filled."
+            );
+        }
+    }
+
+    private static long inferredFilledAmountKrw(
+            long cumulativeFilledQuantity,
+            Long averageFilledPriceKrw
+    ) {
+        if (cumulativeFilledQuantity == 0 || averageFilledPriceKrw == null) {
+            return 0L;
+        }
+        return Math.multiplyExact(
+                cumulativeFilledQuantity,
+                averageFilledPriceKrw
         );
     }
 

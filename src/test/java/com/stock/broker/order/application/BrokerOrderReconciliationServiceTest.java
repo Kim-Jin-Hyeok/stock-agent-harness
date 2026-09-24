@@ -80,6 +80,8 @@ class BrokerOrderReconciliationServiceTest {
         assertThat(results.get(0).status())
                 .isEqualTo(BrokerOrderStatus.PARTIALLY_FILLED);
         assertThat(results.get(0).cumulativeFilledQuantity()).isEqualTo(3L);
+        assertThat(results.get(0).cumulativeFilledAmountKrw())
+                .isEqualTo(209_700L);
         assertThat(results.get(1).status())
                 .isEqualTo(BrokerOrderStatus.PENDING);
         assertThat(results)
