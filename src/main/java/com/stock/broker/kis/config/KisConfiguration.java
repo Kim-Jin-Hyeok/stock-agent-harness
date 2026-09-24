@@ -5,6 +5,7 @@ import com.stock.broker.kis.account.provider.KisBrokerAccountProvider;
 import com.stock.broker.kis.auth.KisTokenClient;
 import com.stock.broker.kis.auth.KisTokenProvider;
 import com.stock.broker.kis.order.KisCashOrderClient;
+import com.stock.broker.kis.order.cancellation.KisOrderCancellationClient;
 import com.stock.broker.kis.order.cancellation.inquiry.KisCancelableOrderInquiryClient;
 import com.stock.broker.kis.order.inquiry.KisOrderInquiryClient;
 import com.stock.broker.kis.order.inquiry.provider.KisBrokerOrderInquiryProvider;
@@ -153,6 +154,18 @@ public class KisConfiguration {
                 properties.appKey(),
                 properties.appSecret(),
                 properties.cancelableOrderInquiryMaxPages()
+        );
+    }
+
+    @Bean
+    public KisOrderCancellationClient kisOrderCancellationClient(
+            RestClient kisRestClient,
+            KisProperties properties
+    ) {
+        return new KisOrderCancellationClient(
+                kisRestClient,
+                properties.appKey(),
+                properties.appSecret()
         );
     }
 
