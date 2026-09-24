@@ -17,7 +17,8 @@ public record KisProperties(
         Duration tokenRefreshBeforeExpiration,
         int accountBalanceMaxPages,
         int orderInquiryMaxPages,
-        int cancelableOrderInquiryMaxPages
+        int cancelableOrderInquiryMaxPages,
+        int dailyPriceHistoryMaxPages
 ) {
     public KisProperties {
         if (tokenRefreshBeforeExpiration != null
@@ -39,6 +40,11 @@ public record KisProperties(
         if (cancelableOrderInquiryMaxPages <= 0) {
             throw new IllegalArgumentException(
                     "cancelableOrderInquiryMaxPages must be positive."
+            );
+        }
+        if (dailyPriceHistoryMaxPages <= 0) {
+            throw new IllegalArgumentException(
+                    "dailyPriceHistoryMaxPages must be positive."
             );
         }
         if (enabled) {

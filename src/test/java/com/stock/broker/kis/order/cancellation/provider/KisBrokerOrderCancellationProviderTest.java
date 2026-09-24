@@ -418,6 +418,7 @@ class KisBrokerOrderCancellationProviderTest {
                 Duration.ofMinutes(1),
                 10,
                 10,
+                10,
                 10
         );
     }

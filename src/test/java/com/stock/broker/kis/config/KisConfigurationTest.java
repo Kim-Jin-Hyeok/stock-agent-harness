@@ -25,6 +25,9 @@ import com.stock.broker.order.cancellation.provider.BrokerOrderCancellationProvi
 import com.stock.broker.order.persistence.BrokerOrderRepository;
 import com.stock.broker.order.scheduler.BrokerOrderReconciliationScheduler;
 import com.stock.broker.order.scheduler.config.BrokerOrderReconciliationSchedulerProperties;
+import com.stock.market.price.history.provider.DailyPriceHistoryProvider;
+import com.stock.market.price.history.provider.kis.KisDailyPriceHistoryClient;
+import com.stock.market.price.history.provider.kis.KisDailyPriceHistoryProvider;
 import com.stock.market.price.provider.kis.KisCurrentPriceClient;
 import com.stock.market.price.provider.CurrentPriceProvider;
 import com.stock.market.price.provider.FixedCurrentPriceProvider;
@@ -88,6 +91,12 @@ class KisConfigurationTest {
                     assertThat(context).doesNotHaveBean(KisTokenProvider.class);
                     assertThat(context).doesNotHaveBean(
                             KisCurrentPriceClient.class
+                    );
+                    assertThat(context).doesNotHaveBean(
+                            KisDailyPriceHistoryClient.class
+                    );
+                    assertThat(context).doesNotHaveBean(
+                            DailyPriceHistoryProvider.class
                     );
                     assertThat(context).hasSingleBean(
                             CurrentPriceProvider.class
@@ -192,6 +201,15 @@ class KisConfigurationTest {
                     assertThat(context.getBean(CurrentPriceProvider.class))
                             .isInstanceOf(KisCurrentPriceProvider.class);
                     assertThat(context).hasSingleBean(
+                            KisDailyPriceHistoryClient.class
+                    );
+                    assertThat(context).hasSingleBean(
+                            DailyPriceHistoryProvider.class
+                    );
+                    assertThat(context.getBean(
+                            DailyPriceHistoryProvider.class
+                    )).isInstanceOf(KisDailyPriceHistoryProvider.class);
+                    assertThat(context).hasSingleBean(
                             KisAccountBalanceClient.class
                     );
                     assertThat(context).hasSingleBean(
@@ -268,6 +286,7 @@ class KisConfigurationTest {
                 "12345678",
                 "01",
                 Duration.ofMinutes(1),
+                10,
                 10,
                 10,
                 10
