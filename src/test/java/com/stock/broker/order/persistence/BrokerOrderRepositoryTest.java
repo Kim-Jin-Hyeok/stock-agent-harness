@@ -108,6 +108,24 @@ class BrokerOrderRepositoryTest {
     }
 
     @Test
+    void savesAndRestoresPortfolioAppliedQuantity() {
+        BrokerOrderRecord applied = partiallyFilledOrder(
+                "run-1",
+                submittedAt()
+        ).markCurrentFillAppliedToPortfolio();
+
+        BrokerOrderEntity saved = repository.saveAndFlush(
+                BrokerOrderEntity.from(applied)
+        );
+
+        BrokerOrderRecord restored = repository.findById(saved.getId())
+                .orElseThrow()
+                .toRecord();
+        assertThat(restored.portfolioAppliedQuantity()).isEqualTo(3L);
+        assertThat(restored.unappliedFilledQuantity()).isZero();
+    }
+
+    @Test
     void savesAndRestoresCancellationSubmission() {
         BrokerOrderRecord order = pendingOrder("run-1", submittedAt());
         BrokerOrderCancellationSubmission cancellation =

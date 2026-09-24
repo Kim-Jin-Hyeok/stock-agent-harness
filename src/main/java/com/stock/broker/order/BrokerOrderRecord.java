@@ -19,6 +19,7 @@ public record BrokerOrderRecord(
         long requestedQuantity,
         long limitPriceKrw,
         long cumulativeFilledQuantity,
+        long portfolioAppliedQuantity,
         Long averageFilledPriceKrw,
         BrokerOrderStatus status,
         String reason,
@@ -55,6 +56,13 @@ public record BrokerOrderRecord(
                 || cumulativeFilledQuantity > requestedQuantity) {
             throw new IllegalArgumentException(
                     "cumulativeFilledQuantity must be between 0 and requestedQuantity."
+            );
+        }
+        if (portfolioAppliedQuantity < 0
+                || portfolioAppliedQuantity > cumulativeFilledQuantity) {
+            throw new IllegalArgumentException(
+                    "portfolioAppliedQuantity must be between 0 and "
+                            + "cumulativeFilledQuantity."
             );
         }
 
@@ -111,6 +119,7 @@ public record BrokerOrderRecord(
                 requestedQuantity,
                 limitPriceKrw,
                 cumulativeFilledQuantity,
+                0L,
                 averageFilledPriceKrw,
                 status,
                 reason,
@@ -118,6 +127,77 @@ public record BrokerOrderRecord(
                 expiresAt,
                 lastReconciledAt,
                 null
+        );
+    }
+
+    public BrokerOrderRecord(
+            Long id,
+            BrokerOrderReference reference,
+            String runId,
+            InvestmentStrategyIdentity strategyIdentity,
+            BrokerOrderSide side,
+            String symbol,
+            long requestedQuantity,
+            long limitPriceKrw,
+            long cumulativeFilledQuantity,
+            Long averageFilledPriceKrw,
+            BrokerOrderStatus status,
+            String reason,
+            Instant submittedAt,
+            Instant expiresAt,
+            Instant lastReconciledAt,
+            BrokerOrderCancellationSubmission cancellationSubmission
+    ) {
+        this(
+                id,
+                reference,
+                runId,
+                strategyIdentity,
+                side,
+                symbol,
+                requestedQuantity,
+                limitPriceKrw,
+                cumulativeFilledQuantity,
+                0L,
+                averageFilledPriceKrw,
+                status,
+                reason,
+                submittedAt,
+                expiresAt,
+                lastReconciledAt,
+                cancellationSubmission
+        );
+    }
+
+    public long unappliedFilledQuantity() {
+        return cumulativeFilledQuantity - portfolioAppliedQuantity;
+    }
+
+    public BrokerOrderRecord markCurrentFillAppliedToPortfolio() {
+        if (unappliedFilledQuantity() == 0) {
+            throw new IllegalStateException(
+                    "No unapplied filled quantity is available."
+            );
+        }
+
+        return new BrokerOrderRecord(
+                id,
+                reference,
+                runId,
+                strategyIdentity,
+                side,
+                symbol,
+                requestedQuantity,
+                limitPriceKrw,
+                cumulativeFilledQuantity,
+                cumulativeFilledQuantity,
+                averageFilledPriceKrw,
+                status,
+                reason,
+                submittedAt,
+                expiresAt,
+                lastReconciledAt,
+                cancellationSubmission
         );
     }
 
@@ -185,6 +265,7 @@ public record BrokerOrderRecord(
                 requestedQuantity,
                 limitPriceKrw,
                 cumulativeFilledQuantity,
+                portfolioAppliedQuantity,
                 averageFilledPriceKrw,
                 status,
                 reason,
@@ -245,6 +326,7 @@ public record BrokerOrderRecord(
                 requestedQuantity,
                 limitPriceKrw,
                 reconciledQuantity,
+                portfolioAppliedQuantity,
                 reconciledAveragePriceKrw,
                 reconciledStatus,
                 reconciledReason,

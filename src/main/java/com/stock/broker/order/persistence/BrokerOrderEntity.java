@@ -83,6 +83,9 @@ public class BrokerOrderEntity {
     @Column(name = "cumulative_filled_quantity", nullable = false)
     private long cumulativeFilledQuantity;
 
+    @Column(name = "portfolio_applied_quantity", nullable = false)
+    private long portfolioAppliedQuantity;
+
     @Column(name = "average_filled_price_krw")
     private Long averageFilledPriceKrw;
 
@@ -135,6 +138,7 @@ public class BrokerOrderEntity {
         entity.requestedQuantity = record.requestedQuantity();
         entity.limitPriceKrw = record.limitPriceKrw();
         entity.cumulativeFilledQuantity = record.cumulativeFilledQuantity();
+        entity.portfolioAppliedQuantity = record.portfolioAppliedQuantity();
         entity.averageFilledPriceKrw = record.averageFilledPriceKrw();
         entity.status = record.status();
         entity.reason = record.reason();
@@ -173,6 +177,7 @@ public class BrokerOrderEntity {
                 requestedQuantity,
                 limitPriceKrw,
                 cumulativeFilledQuantity,
+                portfolioAppliedQuantity,
                 averageFilledPriceKrw,
                 status,
                 reason,

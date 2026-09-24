@@ -26,6 +26,19 @@ class BrokerOrderEntityTest {
     }
 
     @Test
+    void convertsPortfolioAppliedQuantityToEntityAndBack() {
+        BrokerOrderRecord applied = partiallyFilledOrder()
+                .markCurrentFillAppliedToPortfolio();
+
+        BrokerOrderRecord restored = BrokerOrderEntity.from(applied)
+                .toRecord();
+
+        assertThat(restored).isEqualTo(applied);
+        assertThat(restored.portfolioAppliedQuantity()).isEqualTo(3L);
+        assertThat(restored.unappliedFilledQuantity()).isZero();
+    }
+
+    @Test
     void convertsAcceptedCancellationSubmissionToEntityAndBack() {
         BrokerOrderRecord record = partiallyFilledOrder();
         BrokerOrderCancellationSubmission cancellation =

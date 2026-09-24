@@ -26,8 +26,131 @@ class BrokerOrderRecordTest {
 
         assertThat(order.status()).isEqualTo(BrokerOrderStatus.PENDING);
         assertThat(order.cumulativeFilledQuantity()).isZero();
+        assertThat(order.portfolioAppliedQuantity()).isZero();
+        assertThat(order.unappliedFilledQuantity()).isZero();
         assertThat(order.averageFilledPriceKrw()).isNull();
         assertThat(order.expiresAt()).isEqualTo(EXPIRES_AT);
+    }
+
+    @Test
+    void calculatesOnlyNewFillAsUnappliedAfterPreviousFillWasApplied() {
+        BrokerOrderRecord partiallyFilled = pendingOrder().reconcile(
+                BrokerOrderInquiryResult.found(
+                        snapshot(
+                                orderReference(),
+                                10L,
+                                3L,
+                                69_900L,
+                                BrokerOrderStatus.PARTIALLY_FILLED
+                        ),
+                        SUBMITTED_AT.plusSeconds(30)
+                )
+        );
+        BrokerOrderRecord applied = partiallyFilled
+                .markCurrentFillAppliedToPortfolio();
+
+        BrokerOrderRecord filledAgain = applied.reconcile(
+                BrokerOrderInquiryResult.found(
+                        snapshot(
+                                orderReference(),
+                                10L,
+                                5L,
+                                69_850L,
+                                BrokerOrderStatus.PARTIALLY_FILLED
+                        ),
+                        SUBMITTED_AT.plusSeconds(60)
+                )
+        );
+
+        assertThat(filledAgain.cumulativeFilledQuantity()).isEqualTo(5L);
+        assertThat(filledAgain.portfolioAppliedQuantity()).isEqualTo(3L);
+        assertThat(filledAgain.unappliedFilledQuantity()).isEqualTo(2L);
+    }
+
+    @Test
+    void preservesUnappliedPartialFillWhenOrderBecomesCanceled() {
+        BrokerOrderRecord partiallyFilled = order(
+                orderReference(),
+                3L,
+                69_900L,
+                BrokerOrderStatus.PARTIALLY_FILLED,
+                null,
+                EXPIRES_AT
+        );
+
+        BrokerOrderRecord canceled = partiallyFilled.reconcile(
+                BrokerOrderInquiryResult.found(
+                        snapshot(
+                                orderReference(),
+                                10L,
+                                3L,
+                                69_900L,
+                                BrokerOrderStatus.CANCELED
+                        ),
+                        SUBMITTED_AT.plusSeconds(30)
+                )
+        );
+
+        assertThat(canceled.status()).isEqualTo(BrokerOrderStatus.CANCELED);
+        assertThat(canceled.unappliedFilledQuantity()).isEqualTo(3L);
+    }
+
+    @Test
+    void preservesPortfolioAppliedQuantityWhenCancellationIsRecorded() {
+        BrokerOrderRecord applied = order(
+                orderReference(),
+                3L,
+                69_900L,
+                BrokerOrderStatus.PARTIALLY_FILLED,
+                null,
+                EXPIRES_AT
+        ).markCurrentFillAppliedToPortfolio();
+
+        BrokerOrderRecord recorded = applied.recordCancellation(
+                acceptedCancellation(CANCELLATION_SUBMITTED_AT)
+        );
+
+        assertThat(recorded.portfolioAppliedQuantity()).isEqualTo(3L);
+        assertThat(recorded.unappliedFilledQuantity()).isZero();
+    }
+
+    @Test
+    void rejectsPortfolioAppliedQuantityOutsideFilledQuantity() {
+        assertThatThrownBy(() -> order(
+                orderReference(),
+                3L,
+                -1L,
+                69_900L,
+                BrokerOrderStatus.PARTIALLY_FILLED,
+                null,
+                EXPIRES_AT
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "portfolioAppliedQuantity must be between 0 and "
+                                + "cumulativeFilledQuantity."
+                );
+
+        assertThatThrownBy(() -> order(
+                orderReference(),
+                3L,
+                4L,
+                69_900L,
+                BrokerOrderStatus.PARTIALLY_FILLED,
+                null,
+                EXPIRES_AT
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "portfolioAppliedQuantity must be between 0 and "
+                                + "cumulativeFilledQuantity."
+                );
+    }
+
+    @Test
+    void rejectsMarkingPortfolioAppliedWhenNoUnappliedFillExists() {
+        assertThatThrownBy(
+                () -> pendingOrder().markCurrentFillAppliedToPortfolio()
+        ).isInstanceOf(IllegalStateException.class)
+                .hasMessage("No unapplied filled quantity is available.");
     }
 
     @Test
@@ -451,6 +574,26 @@ class BrokerOrderRecordTest {
             String reason,
             Instant expiresAt
     ) {
+        return order(
+                reference,
+                cumulativeFilledQuantity,
+                0L,
+                averageFilledPriceKrw,
+                status,
+                reason,
+                expiresAt
+        );
+    }
+
+    private BrokerOrderRecord order(
+            BrokerOrderReference reference,
+            long cumulativeFilledQuantity,
+            long portfolioAppliedQuantity,
+            Long averageFilledPriceKrw,
+            BrokerOrderStatus status,
+            String reason,
+            Instant expiresAt
+    ) {
         return new BrokerOrderRecord(
                 null,
                 reference,
@@ -465,11 +608,13 @@ class BrokerOrderRecordTest {
                 10L,
                 70_000L,
                 cumulativeFilledQuantity,
+                portfolioAppliedQuantity,
                 averageFilledPriceKrw,
                 status,
                 reason,
                 SUBMITTED_AT,
                 expiresAt,
+                null,
                 null
         );
     }
