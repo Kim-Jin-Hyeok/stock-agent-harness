@@ -42,7 +42,11 @@ public class StrategyPortfolioEntity {
     private InvestmentHorizon horizon;
 
     @Lob
-    @Column(name = "snapshot_json", nullable = false)
+    @Column(
+            name = "snapshot_json",
+            nullable = false,
+            length = Integer.MAX_VALUE
+    )
     private String snapshotJson;
 
     public static StrategyPortfolioEntity of(

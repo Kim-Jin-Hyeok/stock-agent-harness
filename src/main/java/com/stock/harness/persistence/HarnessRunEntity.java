@@ -50,18 +50,28 @@ public class HarnessRunEntity {
 
     private LocalDateTime finishedAt;
 
+    @Lob
+    @Column(length = Integer.MAX_VALUE)
     private String decisionSnapshotJson;
 
+    @Lob
+    @Column(length = Integer.MAX_VALUE)
     private String riskCheckSnapshotJson;
 
+    @Lob
+    @Column(length = Integer.MAX_VALUE)
     private String portfolioSnapshotJson;
 
+    @Lob
+    @Column(length = Integer.MAX_VALUE)
     private String marketSnapshotJson;
 
     @Lob
+    @Column(length = Integer.MAX_VALUE)
     private String toolExecutionSnapshotsJson;
 
     @Lob
+    @Column(length = Integer.MAX_VALUE)
     private String candidateSymbolsJson;
 
     public static HarnessRunEntity of(
