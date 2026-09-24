@@ -70,6 +70,30 @@ class BrokerOrderRepositoryTest {
     }
 
     @Test
+    void findsActiveOrderForSameStrategySymbolAndSide() {
+        repository.saveAndFlush(BrokerOrderEntity.from(
+                partiallyFilledOrder("run-active", submittedAt())
+        ));
+
+        assertThat(activeOrderExists(BrokerOrderSide.BUY, "005930"))
+                .isTrue();
+        assertThat(activeOrderExists(BrokerOrderSide.SELL, "005930"))
+                .isFalse();
+        assertThat(activeOrderExists(BrokerOrderSide.BUY, "000660"))
+                .isFalse();
+    }
+
+    @Test
+    void completedOrderIsNotAnActiveOrder() {
+        repository.saveAndFlush(BrokerOrderEntity.from(
+                filledOrder("run-completed", submittedAt())
+        ));
+
+        assertThat(activeOrderExists(BrokerOrderSide.BUY, "005930"))
+                .isFalse();
+    }
+
+    @Test
     void findsOrdersWithUnappliedFillsOldestFirst() {
         Instant submittedAt = submittedAt();
         repository.save(BrokerOrderEntity.from(
@@ -306,6 +330,25 @@ class BrokerOrderRepositoryTest {
                 1,
                 InvestmentHorizon.DAY_TRADING
         );
+    }
+
+    private boolean activeOrderExists(
+            BrokerOrderSide side,
+            String symbol
+    ) {
+        InvestmentStrategyIdentity identity = strategyIdentity();
+        return repository
+                .existsByStrategyIdAndStrategyVersionAndHorizonAndSideAndSymbolAndStatusIn(
+                        identity.strategyId(),
+                        identity.strategyVersion(),
+                        identity.horizon(),
+                        side,
+                        symbol,
+                        List.of(
+                                BrokerOrderStatus.PENDING,
+                                BrokerOrderStatus.PARTIALLY_FILLED
+                        )
+                );
     }
 
     private Instant submittedAt() {

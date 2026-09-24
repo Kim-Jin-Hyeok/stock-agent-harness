@@ -6,6 +6,7 @@ import com.stock.broker.order.BrokerOrderRecord;
 import com.stock.broker.order.BrokerOrderRequest;
 import com.stock.broker.order.BrokerOrderSide;
 import com.stock.broker.order.BrokerOrderStatus;
+import com.stock.broker.order.application.ActiveBrokerOrderExistsException;
 import com.stock.broker.order.application.BrokerOrderSubmissionService;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import com.stock.trade.TradeReasonCode;
@@ -41,11 +42,21 @@ public class BrokerTradeExecutionHandler implements TradeExecutionHandler {
                 decision.quantity(),
                 decision.expectedPriceKrw()
         );
-        BrokerOrderRecord order = submissionService.submit(
-                runId,
-                strategyIdentity,
-                request
-        );
+        BrokerOrderRecord order;
+        try {
+            order = submissionService.submit(
+                    runId,
+                    strategyIdentity,
+                    request
+            );
+        } catch (ActiveBrokerOrderExistsException exception) {
+            return result(
+                    decision,
+                    TradeStatus.REJECTED,
+                    TradeReasonCode.ACTIVE_BROKER_ORDER_EXISTS,
+                    exception.getMessage()
+            );
+        }
 
         if (order.status() == BrokerOrderStatus.PENDING) {
             return result(

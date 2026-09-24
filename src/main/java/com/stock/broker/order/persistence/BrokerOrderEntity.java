@@ -38,6 +38,10 @@ import java.time.Instant;
                 @Index(
                         name = "idx_broker_order_cancellation_target",
                         columnList = "status, cancellation_status, expires_at"
+                ),
+                @Index(
+                        name = "idx_broker_order_active_lookup",
+                        columnList = "strategy_id, strategy_version, horizon, symbol, side, status"
                 )
         }
 )

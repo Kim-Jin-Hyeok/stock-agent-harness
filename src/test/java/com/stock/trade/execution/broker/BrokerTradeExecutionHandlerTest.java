@@ -7,6 +7,7 @@ import com.stock.broker.order.BrokerOrderReference;
 import com.stock.broker.order.BrokerOrderRequest;
 import com.stock.broker.order.BrokerOrderSide;
 import com.stock.broker.order.BrokerOrderStatus;
+import com.stock.broker.order.application.ActiveBrokerOrderExistsException;
 import com.stock.broker.order.application.BrokerOrderSubmissionService;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
@@ -83,6 +84,39 @@ class BrokerTradeExecutionHandlerTest {
         assertThat(result.reasonCode())
                 .isEqualTo(TradeReasonCode.BROKER_ORDER_REJECTED);
         assertThat(result.reason()).isEqualTo("Broker rejected the order.");
+        verify(submissionService).submit(
+                "run-1",
+                STRATEGY_IDENTITY,
+                request
+        );
+    }
+
+    @Test
+    void duplicateActiveOrderIsReturnedAsRejected() {
+        InvestmentDecision decision = decision(InvestmentAction.BUY);
+        BrokerOrderRequest request = request(BrokerOrderSide.BUY);
+        ActiveBrokerOrderExistsException failure =
+                new ActiveBrokerOrderExistsException(
+                        STRATEGY_IDENTITY,
+                        BrokerOrderSide.BUY,
+                        "005930"
+                );
+        when(submissionService.submit(
+                "run-1",
+                STRATEGY_IDENTITY,
+                request
+        )).thenThrow(failure);
+
+        TradeResult result = handler.execute(
+                "run-1",
+                STRATEGY_IDENTITY,
+                decision
+        );
+
+        assertThat(result.status()).isEqualTo(TradeStatus.REJECTED);
+        assertThat(result.reasonCode())
+                .isEqualTo(TradeReasonCode.ACTIVE_BROKER_ORDER_EXISTS);
+        assertThat(result.reason()).isEqualTo(failure.getMessage());
         verify(submissionService).submit(
                 "run-1",
                 STRATEGY_IDENTITY,

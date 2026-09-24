@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -24,6 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class BrokerOrderSubmissionServiceTest {
@@ -111,6 +113,36 @@ class BrokerOrderSubmissionServiceTest {
         verify(orderRepository, never()).save(any());
     }
 
+    @Test
+    void activeOrderPreventsDuplicateProviderSubmission() {
+        BrokerOrderRequest request = request();
+        when(orderRepository
+                .existsByStrategyIdAndStrategyVersionAndHorizonAndSideAndSymbolAndStatusIn(
+                        "DAY_TRADING_V1",
+                        1,
+                        InvestmentHorizon.DAY_TRADING,
+                        BrokerOrderSide.BUY,
+                        "005930",
+                        activeOrderStatuses()
+                )).thenReturn(true);
+
+        assertThatThrownBy(() -> service.submit(
+                "run-2",
+                strategyIdentity(),
+                request
+        )).isInstanceOf(ActiveBrokerOrderExistsException.class)
+                .hasMessage(
+                        "Active broker order already exists. "
+                                + "strategyId=DAY_TRADING_V1, "
+                                + "strategyVersion=1, "
+                                + "horizon=DAY_TRADING, "
+                                + "side=BUY, symbol=005930"
+                );
+
+        verifyNoInteractions(orderProvider);
+        verify(orderRepository, never()).save(any());
+    }
+
     private void returnSavedEntity() {
         when(orderRepository.save(any(BrokerOrderEntity.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -152,6 +184,13 @@ class BrokerOrderSubmissionServiceTest {
                 "DAY_TRADING_V1",
                 1,
                 InvestmentHorizon.DAY_TRADING
+        );
+    }
+
+    private List<BrokerOrderStatus> activeOrderStatuses() {
+        return List.of(
+                BrokerOrderStatus.PENDING,
+                BrokerOrderStatus.PARTIALLY_FILLED
         );
     }
 }

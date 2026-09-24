@@ -12,9 +12,16 @@ import com.stock.broker.order.provider.BrokerOrderProvider;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 
 public class BrokerOrderSubmissionService {
+    private static final List<BrokerOrderStatus> ACTIVE_ORDER_STATUSES =
+            List.of(
+                    BrokerOrderStatus.PENDING,
+                    BrokerOrderStatus.PARTIALLY_FILLED
+            );
+
     private final BrokerOrderProvider orderProvider;
     private final BrokerOrderRepository orderRepository;
     private final BrokerOrderProperties properties;
@@ -52,6 +59,8 @@ public class BrokerOrderSubmissionService {
         );
         Objects.requireNonNull(request, "request must not be null.");
 
+        rejectDuplicateActiveOrder(strategyIdentity, request);
+
         BrokerOrderSubmission submission = Objects.requireNonNull(
                 orderProvider.submit(request),
                 "orderProvider submission must not be null."
@@ -64,6 +73,29 @@ public class BrokerOrderSubmissionService {
         );
 
         return orderRepository.save(BrokerOrderEntity.from(record)).toRecord();
+    }
+
+    private void rejectDuplicateActiveOrder(
+            InvestmentStrategyIdentity strategyIdentity,
+            BrokerOrderRequest request
+    ) {
+        boolean activeOrderExists = orderRepository
+                .existsByStrategyIdAndStrategyVersionAndHorizonAndSideAndSymbolAndStatusIn(
+                        strategyIdentity.strategyId(),
+                        strategyIdentity.strategyVersion(),
+                        strategyIdentity.horizon(),
+                        request.side(),
+                        request.symbol(),
+                        ACTIVE_ORDER_STATUSES
+                );
+
+        if (activeOrderExists) {
+            throw new ActiveBrokerOrderExistsException(
+                    strategyIdentity,
+                    request.side(),
+                    request.symbol()
+            );
+        }
     }
 
     private BrokerOrderRecord toRecord(
