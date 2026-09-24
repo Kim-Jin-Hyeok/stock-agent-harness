@@ -22,15 +22,33 @@ public class PortfolioService {
             long quantity,
             long priceKrw
     ) {
+        return applyBuyFill(
+                strategyIdentity,
+                symbol,
+                quantity,
+                Math.multiplyExact(quantity, priceKrw)
+        );
+    }
+
+    public PortfolioSnapshot applyBuyFill(
+            InvestmentStrategyIdentity strategyIdentity,
+            String symbol,
+            long filledQuantity,
+            long filledAmountKrw
+    ) {
+        validateFill(filledQuantity, filledAmountKrw);
         PortfolioSnapshot currentSnapshot = store.getCurrentSnapshot(strategyIdentity);
 
-        long buyAmountKrw = quantity * priceKrw;
         List<PortfolioPosition> updatedPositions = new ArrayList<>();
         boolean merged = false;
 
         for (PortfolioPosition position : currentSnapshot.positions()) {
             if (symbol.equals(position.symbol())) {
-                updatedPositions.add(mergePosition(position, quantity, priceKrw));
+                updatedPositions.add(mergePosition(
+                        position,
+                        filledQuantity,
+                        filledAmountKrw
+                ));
                 merged = true;
             } else {
                 updatedPositions.add(position);
@@ -40,14 +58,14 @@ public class PortfolioService {
         if (!merged) {
             updatedPositions.add(new PortfolioPosition(
                     symbol,
-                    quantity,
-                    priceKrw,
-                    buyAmountKrw
+                    filledQuantity,
+                    filledAmountKrw / filledQuantity,
+                    filledAmountKrw
             ));
         }
 
         currentSnapshot = new PortfolioSnapshot(
-                currentSnapshot.cashAmountKrw() - buyAmountKrw,
+                currentSnapshot.cashAmountKrw() - filledAmountKrw,
                 currentSnapshot.totalAssetAmountKrw(),
                 List.copyOf(updatedPositions)
         );
@@ -63,26 +81,44 @@ public class PortfolioService {
             long quantity,
             long priceKrw
     ) {
+        return applySellFill(
+                strategyIdentity,
+                symbol,
+                quantity,
+                Math.multiplyExact(quantity, priceKrw)
+        );
+    }
+
+    public PortfolioSnapshot applySellFill(
+            InvestmentStrategyIdentity strategyIdentity,
+            String symbol,
+            long filledQuantity,
+            long filledAmountKrw
+    ) {
+        validateFill(filledQuantity, filledAmountKrw);
         PortfolioSnapshot currentSnapshot = store.getCurrentSnapshot(strategyIdentity);
 
-        long sellAmountKrw = priceKrw * quantity;
         List<PortfolioPosition> updatedPositions = new ArrayList<>();
 
         for (PortfolioPosition position : currentSnapshot.positions()) {
 
             if (symbol.equals(position.symbol())) {
-                if (position.quantity() - quantity == 0) {
+                if (position.quantity() - filledQuantity == 0) {
                     continue;
                 }
 
-                long remainingQuantity = position.quantity() - quantity;
+                long remainingQuantity =
+                        position.quantity() - filledQuantity;
 
                 updatedPositions.add(
                         new PortfolioPosition(
                                 position.symbol(),
                                 remainingQuantity,
                                 position.averagePriceKrw(),
-                                position.averagePriceKrw() * remainingQuantity
+                                remainingMarketValueKrw(
+                                        position,
+                                        remainingQuantity
+                                )
                         )
                 );
             } else {
@@ -90,7 +126,8 @@ public class PortfolioService {
             }
         }
 
-        long updatedCashAmountKrw = currentSnapshot.cashAmountKrw() + sellAmountKrw;
+        long updatedCashAmountKrw =
+                currentSnapshot.cashAmountKrw() + filledAmountKrw;
         long updatedTotalAssetAmountKrw = updatedCashAmountKrw + totalMarketValueKrw(updatedPositions);
 
         currentSnapshot = new PortfolioSnapshot(
@@ -114,14 +151,14 @@ public class PortfolioService {
 
     private PortfolioPosition mergePosition(
             PortfolioPosition position,
-            long quantity,
-            long priceKrw
+            long filledQuantity,
+            long filledAmountKrw
     ) {
-        long currentAmountKrw = position.averagePriceKrw() * position.quantity();
-        long buyAmountKrw = quantity * priceKrw;
-        long mergedQuantity = position.quantity() + quantity;
-        long mergedAveragePriceKrw = (currentAmountKrw + buyAmountKrw) / mergedQuantity;
-        long mergedMarketValueKrw = position.marketValueKrw() + buyAmountKrw;
+        long mergedQuantity = position.quantity() + filledQuantity;
+        long mergedMarketValueKrw =
+                position.marketValueKrw() + filledAmountKrw;
+        long mergedAveragePriceKrw =
+                mergedMarketValueKrw / mergedQuantity;
 
         return new PortfolioPosition(
                 position.symbol(),
@@ -129,6 +166,28 @@ public class PortfolioService {
                 mergedAveragePriceKrw,
                 mergedMarketValueKrw
         );
+    }
+
+    private long remainingMarketValueKrw(
+            PortfolioPosition position,
+            long remainingQuantity
+    ) {
+        return position.marketValueKrw()
+                * remainingQuantity
+                / position.quantity();
+    }
+
+    private void validateFill(long filledQuantity, long filledAmountKrw) {
+        if (filledQuantity <= 0) {
+            throw new IllegalArgumentException(
+                    "filledQuantity must be positive."
+            );
+        }
+        if (filledAmountKrw <= 0) {
+            throw new IllegalArgumentException(
+                    "filledAmountKrw must be positive."
+            );
+        }
     }
 
     private long totalMarketValueKrw(List<PortfolioPosition> positions) {

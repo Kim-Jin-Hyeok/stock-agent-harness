@@ -5,6 +5,7 @@ import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static com.stock.portfolio.support.PortfolioSnapshotStoreFixture.create;
 
 class PortfolioServiceTest {
@@ -67,6 +68,48 @@ class PortfolioServiceTest {
     }
 
     @Test
+    void applyBuyFillPreservesExactExecutionAmount() {
+        PortfolioSnapshot result = portfolioService.applyBuyFill(
+                STRATEGY_IDENTITY,
+                "TEST",
+                2L,
+                139_001L
+        );
+
+        assertThat(result.cashAmountKrw()).isEqualTo(9_860_999L);
+        assertThat(result.totalAssetAmountKrw()).isEqualTo(10_000_000L);
+
+        PortfolioPosition position = result.positions().getFirst();
+        assertThat(position.quantity()).isEqualTo(2L);
+        assertThat(position.averagePriceKrw()).isEqualTo(69_500L);
+        assertThat(position.marketValueKrw()).isEqualTo(139_001L);
+    }
+
+    @Test
+    void applyBuyFillMergesUsingExactExecutionAmounts() {
+        portfolioService.applyBuyFill(
+                STRATEGY_IDENTITY,
+                "TEST",
+                2L,
+                139_001L
+        );
+
+        PortfolioSnapshot result = portfolioService.applyBuyFill(
+                STRATEGY_IDENTITY,
+                "TEST",
+                3L,
+                209_999L
+        );
+
+        assertThat(result.cashAmountKrw()).isEqualTo(9_651_000L);
+
+        PortfolioPosition position = result.positions().getFirst();
+        assertThat(position.quantity()).isEqualTo(5L);
+        assertThat(position.averagePriceKrw()).isEqualTo(69_800L);
+        assertThat(position.marketValueKrw()).isEqualTo(349_000L);
+    }
+
+    @Test
     void applySellExistingPosition() {
         portfolioService.applyBuy(
                 STRATEGY_IDENTITY,
@@ -113,6 +156,50 @@ class PortfolioServiceTest {
         assertThat(result.cashAmountKrw()).isEqualTo(10_200_000L);
         assertThat(result.totalAssetAmountKrw()).isEqualTo(10_200_000L);
         assertThat(result.positions()).isEmpty();
+    }
+
+    @Test
+    void applySellFillPreservesExactExecutionAmount() {
+        portfolioService.applyBuyFill(
+                STRATEGY_IDENTITY,
+                "TEST",
+                3L,
+                209_701L
+        );
+
+        PortfolioSnapshot result = portfolioService.applySellFill(
+                STRATEGY_IDENTITY,
+                "TEST",
+                1L,
+                71_001L
+        );
+
+        assertThat(result.cashAmountKrw()).isEqualTo(9_861_300L);
+        assertThat(result.totalAssetAmountKrw()).isEqualTo(10_001_100L);
+
+        PortfolioPosition position = result.positions().getFirst();
+        assertThat(position.quantity()).isEqualTo(2L);
+        assertThat(position.averagePriceKrw()).isEqualTo(69_900L);
+        assertThat(position.marketValueKrw()).isEqualTo(139_800L);
+    }
+
+    @Test
+    void rejectsNonPositiveFillValues() {
+        assertThatThrownBy(() -> portfolioService.applyBuyFill(
+                STRATEGY_IDENTITY,
+                "TEST",
+                0L,
+                1L
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("filledQuantity must be positive.");
+
+        assertThatThrownBy(() -> portfolioService.applySellFill(
+                STRATEGY_IDENTITY,
+                "TEST",
+                1L,
+                0L
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("filledAmountKrw must be positive.");
     }
 
     @Test
