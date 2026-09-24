@@ -290,10 +290,12 @@ public class KisConfiguration {
     public BrokerOrderReconciliationScheduler
     brokerOrderReconciliationScheduler(
             BrokerOrderReconciliationService reconciliationService,
+            BrokerOrderPortfolioApplicationService portfolioApplicationService,
             BrokerOrderReconciliationSchedulerProperties properties
     ) {
         return new BrokerOrderReconciliationScheduler(
                 reconciliationService,
+                portfolioApplicationService,
                 properties
         );
     }
