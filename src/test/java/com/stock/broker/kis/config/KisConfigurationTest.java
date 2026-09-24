@@ -26,6 +26,9 @@ import com.stock.broker.order.persistence.BrokerOrderRepository;
 import com.stock.broker.order.scheduler.BrokerOrderReconciliationScheduler;
 import com.stock.broker.order.scheduler.config.BrokerOrderReconciliationSchedulerProperties;
 import com.stock.market.price.history.collection.DailyPriceHistoryCollectionService;
+import com.stock.market.price.history.collection.config.DailyPriceHistoryBootstrapProperties;
+import com.stock.market.price.history.collection.policy.DailyPriceCollectionDatePolicy;
+import com.stock.market.price.history.collection.runner.DailyPriceHistoryBootstrapRunner;
 import com.stock.market.price.history.persistence.DailyPriceBarRepository;
 import com.stock.market.price.history.provider.DailyPriceHistoryProvider;
 import com.stock.market.price.history.provider.kis.KisDailyPriceHistoryClient;
@@ -43,6 +46,7 @@ import org.springframework.web.client.RestClient;
 import java.net.URI;
 import java.time.Clock;
 import java.time.Duration;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -107,6 +111,9 @@ class KisConfigurationTest {
                     );
                     assertThat(context).doesNotHaveBean(
                             DailyPriceHistoryCollectionService.class
+                    );
+                    assertThat(context).doesNotHaveBean(
+                            DailyPriceHistoryBootstrapRunner.class
                     );
                     assertThat(context).hasSingleBean(
                             CurrentPriceProvider.class
@@ -187,6 +194,31 @@ class KisConfigurationTest {
                             BrokerOrderExpirationCancellationScheduler.class
                     );
                 });
+    }
+
+    @Test
+    void createsDailyPriceHistoryBootstrapRunnerWhenEnabled() {
+        contextRunner
+                .withPropertyValues(
+                        "broker.kis.enabled=true",
+                        "market.price.history.collection.bootstrap.enabled=true"
+                )
+                .withBean(KisProperties.class, this::enabledProperties)
+                .withBean(
+                        DailyPriceCollectionDatePolicy.class,
+                        () -> mock(DailyPriceCollectionDatePolicy.class)
+                )
+                .withBean(
+                        DailyPriceHistoryBootstrapProperties.class,
+                        () -> new DailyPriceHistoryBootstrapProperties(
+                                true,
+                                List.of("005930"),
+                                3
+                        )
+                )
+                .run(context -> assertThat(context).hasSingleBean(
+                        DailyPriceHistoryBootstrapRunner.class
+                ));
     }
 
     @Test

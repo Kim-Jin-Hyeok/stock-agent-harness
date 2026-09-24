@@ -64,6 +64,10 @@ market:
     history:
       collection:
         daily-bar-available-at: "20:10"
+        bootstrap:
+          enabled: false
+          symbols: ["005930"]
+          initial-lookback-years: 3
 
 portfolio:
   initialization:

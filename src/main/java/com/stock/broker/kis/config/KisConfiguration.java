@@ -24,6 +24,9 @@ import com.stock.broker.order.persistence.BrokerOrderRepository;
 import com.stock.broker.order.scheduler.BrokerOrderReconciliationScheduler;
 import com.stock.broker.order.scheduler.config.BrokerOrderReconciliationSchedulerProperties;
 import com.stock.market.price.history.collection.DailyPriceHistoryCollectionService;
+import com.stock.market.price.history.collection.config.DailyPriceHistoryBootstrapProperties;
+import com.stock.market.price.history.collection.policy.DailyPriceCollectionDatePolicy;
+import com.stock.market.price.history.collection.runner.DailyPriceHistoryBootstrapRunner;
 import com.stock.market.price.history.persistence.DailyPriceBarRepository;
 import com.stock.market.price.history.provider.DailyPriceHistoryProvider;
 import com.stock.market.price.history.provider.kis.KisDailyPriceHistoryClient;
@@ -138,6 +141,24 @@ public class KisConfiguration {
         return new DailyPriceHistoryCollectionService(
                 historyProvider,
                 dailyPriceBarRepository
+        );
+    }
+
+    @Bean
+    @ConditionalOnProperty(
+            prefix = "market.price.history.collection.bootstrap",
+            name = "enabled",
+            havingValue = "true"
+    )
+    public DailyPriceHistoryBootstrapRunner dailyPriceHistoryBootstrapRunner(
+            DailyPriceHistoryCollectionService collectionService,
+            DailyPriceCollectionDatePolicy collectionDatePolicy,
+            DailyPriceHistoryBootstrapProperties properties
+    ) {
+        return new DailyPriceHistoryBootstrapRunner(
+                collectionService,
+                collectionDatePolicy,
+                properties
         );
     }
 
