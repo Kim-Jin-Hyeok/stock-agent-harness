@@ -461,6 +461,15 @@ Phase 17
 Phase 18
 Risk Guard 강화
 
+Phase 19
+모의투자 운영 인프라 배포 및 데이터 축적
+
+Phase 20
+Monitoring 조회 API 및 JWT 인증
+
+Phase 21
+별도 React Dashboard 구축
+
 이 순서는 절대적인 것은 아니다.
 
 현재 구현 상황을 보고 Codex와 사용자가 논의하여 변경할 수 있다.
