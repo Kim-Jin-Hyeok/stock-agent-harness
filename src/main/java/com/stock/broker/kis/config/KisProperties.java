@@ -1,5 +1,6 @@
 package com.stock.broker.kis.config;
 
+import com.stock.market.price.history.provider.kis.KisDailyPriceHistoryMarket;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.net.URI;
@@ -18,7 +19,8 @@ public record KisProperties(
         int accountBalanceMaxPages,
         int orderInquiryMaxPages,
         int cancelableOrderInquiryMaxPages,
-        int dailyPriceHistoryMaxPages
+        int dailyPriceHistoryMaxPages,
+        KisDailyPriceHistoryMarket dailyPriceHistoryMarket
 ) {
     public KisProperties {
         if (tokenRefreshBeforeExpiration != null
@@ -47,6 +49,10 @@ public record KisProperties(
                     "dailyPriceHistoryMaxPages must be positive."
             );
         }
+        Objects.requireNonNull(
+                dailyPriceHistoryMarket,
+                "dailyPriceHistoryMarket must not be null."
+        );
         if (enabled) {
             Objects.requireNonNull(baseUrl, "baseUrl must not be null.");
             appKey = requireText(appKey, "appKey");

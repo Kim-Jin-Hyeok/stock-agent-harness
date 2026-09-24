@@ -29,6 +29,7 @@ import com.stock.market.price.history.collection.DailyPriceHistoryCollectionServ
 import com.stock.market.price.history.persistence.DailyPriceBarRepository;
 import com.stock.market.price.history.provider.DailyPriceHistoryProvider;
 import com.stock.market.price.history.provider.kis.KisDailyPriceHistoryClient;
+import com.stock.market.price.history.provider.kis.KisDailyPriceHistoryMarket;
 import com.stock.market.price.history.provider.kis.KisDailyPriceHistoryProvider;
 import com.stock.market.price.provider.kis.KisCurrentPriceClient;
 import com.stock.market.price.provider.CurrentPriceProvider;
@@ -301,7 +302,8 @@ class KisConfigurationTest {
                 10,
                 10,
                 10,
-                10
+                10,
+                KisDailyPriceHistoryMarket.INTEGRATED
         );
     }
 }

@@ -2,6 +2,7 @@ package com.stock.broker.kis.order.cancellation.provider;
 
 import com.stock.broker.kis.auth.KisTokenProvider;
 import com.stock.broker.kis.config.KisProperties;
+import com.stock.market.price.history.provider.kis.KisDailyPriceHistoryMarket;
 import com.stock.broker.kis.order.cancellation.KisOrderCancellationClient;
 import com.stock.broker.kis.order.cancellation.dto.KisOrderCancellationOutput;
 import com.stock.broker.kis.order.cancellation.dto.KisOrderCancellationResponse;
@@ -419,7 +420,8 @@ class KisBrokerOrderCancellationProviderTest {
                 10,
                 10,
                 10,
-                10
+                10,
+                KisDailyPriceHistoryMarket.INTEGRATED
         );
     }
 

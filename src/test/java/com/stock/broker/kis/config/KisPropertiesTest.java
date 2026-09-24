@@ -1,5 +1,6 @@
 package com.stock.broker.kis.config;
 
+import com.stock.market.price.history.provider.kis.KisDailyPriceHistoryMarket;
 import org.junit.jupiter.api.Test;
 
 import java.net.URI;
@@ -26,7 +27,8 @@ class KisPropertiesTest {
                 10,
                 10,
                 10,
-                10
+                10,
+                KisDailyPriceHistoryMarket.INTEGRATED
         );
 
         assertThat(properties.enabled()).isFalse();
@@ -60,7 +62,8 @@ class KisPropertiesTest {
                         10,
                         10,
                         10,
-                        10
+                        10,
+                        KisDailyPriceHistoryMarket.INTEGRATED
                 ))
                 .withMessage(
                         "tokenRefreshBeforeExpiration must not be negative."
@@ -81,7 +84,8 @@ class KisPropertiesTest {
                         0,
                         10,
                         10,
-                        10
+                        10,
+                        KisDailyPriceHistoryMarket.INTEGRATED
                 ))
                 .withMessage("accountBalanceMaxPages must be positive.");
     }
@@ -100,7 +104,8 @@ class KisPropertiesTest {
                         10,
                         0,
                         10,
-                        10
+                        10,
+                        KisDailyPriceHistoryMarket.INTEGRATED
                 ))
                 .withMessage("orderInquiryMaxPages must be positive.");
     }
@@ -119,7 +124,8 @@ class KisPropertiesTest {
                         10,
                         10,
                         0,
-                        10
+                        10,
+                        KisDailyPriceHistoryMarket.INTEGRATED
                 ))
                 .withMessage(
                         "cancelableOrderInquiryMaxPages must be positive."
@@ -140,7 +146,8 @@ class KisPropertiesTest {
                         10,
                         10,
                         10,
-                        0
+                        0,
+                        KisDailyPriceHistoryMarket.INTEGRATED
                 ))
                 .withMessage(
                         "dailyPriceHistoryMaxPages must be positive."
@@ -159,7 +166,8 @@ class KisPropertiesTest {
                 10,
                 10,
                 10,
-                10
+                10,
+                KisDailyPriceHistoryMarket.INTEGRATED
         );
     }
 }

@@ -2,6 +2,7 @@ package com.stock.broker.kis.order.provider;
 
 import com.stock.broker.kis.auth.KisTokenProvider;
 import com.stock.broker.kis.config.KisProperties;
+import com.stock.market.price.history.provider.kis.KisDailyPriceHistoryMarket;
 import com.stock.broker.kis.order.KisCashOrderClient;
 import com.stock.broker.kis.order.dto.KisCashOrderOutput;
 import com.stock.broker.kis.order.dto.KisCashOrderResponse;
@@ -295,7 +296,8 @@ class KisBrokerOrderProviderTest {
                 10,
                 10,
                 10,
-                10
+                10,
+                KisDailyPriceHistoryMarket.INTEGRATED
         );
     }
 }

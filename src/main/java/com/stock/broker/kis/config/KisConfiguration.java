@@ -111,7 +111,8 @@ public class KisConfiguration {
         return new KisDailyPriceHistoryClient(
                 kisRestClient,
                 properties.appKey(),
-                properties.appSecret()
+                properties.appSecret(),
+                properties.dailyPriceHistoryMarket()
         );
     }
 

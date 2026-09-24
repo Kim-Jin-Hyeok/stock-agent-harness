@@ -36,7 +36,8 @@ class KisDailyPriceHistoryClientTest {
         client = new KisDailyPriceHistoryClient(
                 builder.build(),
                 APP_KEY,
-                APP_SECRET
+                APP_SECRET,
+                KisDailyPriceHistoryMarket.INTEGRATED
         );
     }
 
@@ -46,7 +47,7 @@ class KisDailyPriceHistoryClientTest {
                         BASE_URL
                                 + "/uapi/domestic-stock/v1/quotations/"
                                 + "inquire-daily-itemchartprice"
-                                + "?FID_COND_MRKT_DIV_CODE=J"
+                                + "?FID_COND_MRKT_DIV_CODE=UN"
                                 + "&FID_INPUT_ISCD=005930"
                                 + "&FID_INPUT_DATE_1=20260901"
                                 + "&FID_INPUT_DATE_2=20260923"

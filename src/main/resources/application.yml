@@ -33,6 +33,7 @@ broker:
     order-inquiry-max-pages: 10
     cancelable-order-inquiry-max-pages: 10
     daily-price-history-max-pages: 10
+    daily-price-history-market: INTEGRATED
 
 market:
   calendar:
@@ -59,6 +60,10 @@ market:
       ttl: 30s
     validation:
       max-age: 1m
+  price:
+    history:
+      collection:
+        daily-bar-available-at: "20:10"
 
 portfolio:
   initialization:

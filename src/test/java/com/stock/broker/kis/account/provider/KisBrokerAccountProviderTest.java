@@ -8,6 +8,7 @@ import com.stock.broker.kis.account.dto.KisAccountBalanceResponse;
 import com.stock.broker.kis.account.dto.KisAccountBalanceSummaryOutput;
 import com.stock.broker.kis.auth.KisTokenProvider;
 import com.stock.broker.kis.config.KisProperties;
+import com.stock.market.price.history.provider.kis.KisDailyPriceHistoryMarket;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 
@@ -150,7 +151,8 @@ class KisBrokerAccountProviderTest {
                 10,
                 10,
                 10,
-                10
+                10,
+                KisDailyPriceHistoryMarket.INTEGRATED
         );
     }
 }

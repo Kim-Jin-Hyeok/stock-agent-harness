@@ -15,18 +15,19 @@ public class KisDailyPriceHistoryClient {
             "/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice";
     private static final String DAILY_PRICE_HISTORY_TRANSACTION_ID =
             "FHKST03010100";
-    private static final String KRX_MARKET_CODE = "J";
     private static final String DAILY_PERIOD_CODE = "D";
     private static final String ADJUSTED_PRICE_CODE = "0";
 
     private final RestClient restClient;
     private final String appKey;
     private final String appSecret;
+    private final KisDailyPriceHistoryMarket market;
 
     public KisDailyPriceHistoryClient(
             RestClient restClient,
             String appKey,
-            String appSecret
+            String appSecret,
+            KisDailyPriceHistoryMarket market
     ) {
         this.restClient = Objects.requireNonNull(
                 restClient,
@@ -34,6 +35,10 @@ public class KisDailyPriceHistoryClient {
         );
         this.appKey = requireText(appKey, "appKey");
         this.appSecret = requireText(appSecret, "appSecret");
+        this.market = Objects.requireNonNull(
+                market,
+                "market must not be null."
+        );
     }
 
     public KisDailyPriceHistoryResponse getDailyPriceHistoryPage(
@@ -46,7 +51,10 @@ public class KisDailyPriceHistoryClient {
         return restClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path(DAILY_PRICE_HISTORY_PATH)
-                        .queryParam("FID_COND_MRKT_DIV_CODE", KRX_MARKET_CODE)
+                        .queryParam(
+                                "FID_COND_MRKT_DIV_CODE",
+                                market.code()
+                        )
                         .queryParam("FID_INPUT_ISCD", request.symbol())
                         .queryParam(
                                 "FID_INPUT_DATE_1",
