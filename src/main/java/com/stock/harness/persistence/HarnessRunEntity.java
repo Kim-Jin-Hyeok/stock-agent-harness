@@ -61,6 +61,9 @@ public class HarnessRunEntity {
     @Lob
     private String toolExecutionSnapshotsJson;
 
+    @Lob
+    private String candidateSymbolsJson;
+
     public static HarnessRunEntity of(
             String runId,
             InvestmentStrategyIdentity strategyIdentity,
@@ -71,7 +74,8 @@ public class HarnessRunEntity {
             String riskCheckSnapshotJson,
             String portfolioSnapshotJson,
             String marketSnapshotJson,
-            String toolExecutionSnapshotsJson
+            String toolExecutionSnapshotsJson,
+            String candidateSymbolsJson
     ) {
         HarnessRunEntity entity = new HarnessRunEntity();
         entity.runId = runId;
@@ -86,7 +90,35 @@ public class HarnessRunEntity {
         entity.portfolioSnapshotJson = portfolioSnapshotJson;
         entity.marketSnapshotJson = marketSnapshotJson;
         entity.toolExecutionSnapshotsJson = toolExecutionSnapshotsJson;
+        entity.candidateSymbolsJson = candidateSymbolsJson;
         return entity;
+    }
+
+    public static HarnessRunEntity of(
+            String runId,
+            InvestmentStrategyIdentity strategyIdentity,
+            HarnessRunStatus status,
+            LocalDateTime startedAt,
+            LocalDateTime finishedAt,
+            String decisionSnapshotJson,
+            String riskCheckSnapshotJson,
+            String portfolioSnapshotJson,
+            String marketSnapshotJson,
+            String toolExecutionSnapshotsJson
+    ) {
+        return of(
+                runId,
+                strategyIdentity,
+                status,
+                startedAt,
+                finishedAt,
+                decisionSnapshotJson,
+                riskCheckSnapshotJson,
+                portfolioSnapshotJson,
+                marketSnapshotJson,
+                toolExecutionSnapshotsJson,
+                null
+        );
     }
 
     public static HarnessRunEntity of(
@@ -120,7 +152,8 @@ public class HarnessRunEntity {
             String riskCheckSnapshotJson,
             String portfolioSnapshotJson,
             String marketSnapshotJson,
-            String toolExecutionSnapshotsJson
+            String toolExecutionSnapshotsJson,
+            String candidateSymbolsJson
     ) {
         return of(
                 result.runId(),
@@ -132,7 +165,27 @@ public class HarnessRunEntity {
                 riskCheckSnapshotJson,
                 portfolioSnapshotJson,
                 marketSnapshotJson,
-                toolExecutionSnapshotsJson
+                toolExecutionSnapshotsJson,
+                candidateSymbolsJson
+        );
+    }
+
+    public static HarnessRunEntity from(
+            HarnessRunResult result,
+            String decisionSnapshotJson,
+            String riskCheckSnapshotJson,
+            String portfolioSnapshotJson,
+            String marketSnapshotJson,
+            String toolExecutionSnapshotsJson
+    ) {
+        return from(
+                result,
+                decisionSnapshotJson,
+                riskCheckSnapshotJson,
+                portfolioSnapshotJson,
+                marketSnapshotJson,
+                toolExecutionSnapshotsJson,
+                null
         );
     }
 
@@ -169,6 +222,7 @@ public class HarnessRunEntity {
             HarnessPortfolioSnapshot portfolioSnapshot,
             HarnessMarketSnapshot marketSnapshot,
             List<HarnessToolExecutionSnapshot> toolExecutionSnapshots,
+            List<String> candidateSymbols,
             List<HarnessStepResult> steps,
             List<TradeRecord> tradeRecords
     ) {
@@ -178,6 +232,7 @@ public class HarnessRunEntity {
                 status,
                 startedAt,
                 finishedAt,
+                candidateSymbols,
                 decisionSnapshot,
                 riskCheckSnapshot,
                 portfolioSnapshot,

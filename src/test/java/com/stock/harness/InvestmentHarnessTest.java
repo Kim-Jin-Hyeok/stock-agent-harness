@@ -181,6 +181,9 @@ class InvestmentHarnessTest {
 
         assertThat(result.strategyIdentity()).isEqualTo(STRATEGY_IDENTITY);
         assertThat(result.status()).isEqualTo(HarnessRunStatus.COMPLETED);
+        assertThat(result.candidateSymbols()).containsExactly("005930");
+        assertThatThrownBy(() -> result.candidateSymbols().add("000660"))
+                .isInstanceOf(UnsupportedOperationException.class);
         assertThat(result.decision().action()).isEqualTo(InvestmentAction.HOLD);
         assertThat(result.riskCheckResult().status()).isEqualTo(RiskCheckStatus.APPROVED);
         assertThat(result.tradeResult().status()).isEqualTo(TradeStatus.SKIPPED);
@@ -402,6 +405,7 @@ class InvestmentHarnessTest {
         assertThat(agentStep.startedAt()).isBeforeOrEqualTo(agentStep.finishedAt());
 
         assertThat(result.steps().getLast().status()).isEqualTo(HarnessStepStatus.FAILED);
+        assertThat(result.candidateSymbols()).containsExactly("005930");
     }
 
     @Test
@@ -428,6 +432,7 @@ class InvestmentHarnessTest {
         assertThat(result.steps().getFirst().message()).isEqualTo(
                 "Strategy stock universe not found: " + unknown
         );
+        assertThat(result.candidateSymbols()).isEmpty();
     }
 
     @Test

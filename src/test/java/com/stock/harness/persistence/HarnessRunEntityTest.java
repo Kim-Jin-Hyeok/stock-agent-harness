@@ -88,6 +88,21 @@ class HarnessRunEntityTest {
     }
 
     @Test
+    void fromCreatesEntityWithCandidateSymbolsJson() {
+        HarnessRunEntity entity = HarnessRunEntity.from(
+                completedRunResult("run-1"),
+                decisionSnapshotJson(),
+                riskCheckSnapshotJson(),
+                portfolioSnapshotJson(),
+                marketSnapshotJson(),
+                toolExecutionSnapshotsJson(),
+                candidateSymbolsJson()
+        );
+
+        assertThat(entity.getCandidateSymbolsJson()).isEqualTo(candidateSymbolsJson());
+    }
+
+    @Test
     void toDetailIncludesToolExecutionSnapshots() {
         HarnessRunEntity entity = HarnessRunEntity.from(
                 completedRunResult("run-1"),
@@ -105,11 +120,13 @@ class HarnessRunEntityTest {
                 null,
                 null,
                 snapshots,
+                candidateSymbols(),
                 List.of(),
                 List.of()
         );
 
         assertThat(detail.toolExecutionSnapshots()).containsExactlyElementsOf(snapshots);
+        assertThat(detail.candidateSymbols()).containsExactlyElementsOf(candidateSymbols());
         assertThat(detail.strategyIdentity()).isEqualTo(STRATEGY_IDENTITY);
     }
 
@@ -144,7 +161,9 @@ class HarnessRunEntityTest {
                 HarnessRunStatus.COMPLETED,
                 startedAt(),
                 finishedAt(),
+                candidateSymbols(),
                 List.of(completedStep()),
+                List.of(),
                 buyDecision(),
                 approvedRiskCheckResult(),
                 executedBuyTradeResult(),
@@ -163,6 +182,14 @@ class HarnessRunEntityTest {
                 recordedAt,
                 recordedAt
         );
+    }
+
+    private List<String> candidateSymbols() {
+        return List.of("005930", "000660");
+    }
+
+    private String candidateSymbolsJson() {
+        return "[\"005930\",\"000660\"]";
     }
 
     private InvestmentDecision buyDecision() {

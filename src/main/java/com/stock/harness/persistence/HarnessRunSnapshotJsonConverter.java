@@ -53,6 +53,14 @@ public class HarnessRunSnapshotJsonConverter {
         }
     }
 
+    public String toCandidateSymbolsJson(List<String> candidateSymbols) {
+        try {
+            return objectMapper.writeValueAsString(candidateSymbols);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Failed to serialize candidate symbols.", e);
+        }
+    }
+
     public HarnessDecisionSnapshot toDecisionSnapshot(String json) {
         try {
             return objectMapper.readValue(json, HarnessDecisionSnapshot.class);
@@ -94,6 +102,21 @@ public class HarnessRunSnapshotJsonConverter {
             return List.copyOf(snapshots);
         } catch (JsonProcessingException e) {
             throw new IllegalArgumentException("Failed to deserialize tool execution snapshots json.", e);
+        }
+    }
+
+    public List<String> toCandidateSymbols(String json) {
+        try {
+            List<String> candidateSymbols = objectMapper.readValue(
+                    json,
+                    new TypeReference<>() {}
+            );
+            return List.copyOf(candidateSymbols);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException(
+                    "Failed to deserialize candidate symbols json.",
+                    e
+            );
         }
     }
 }

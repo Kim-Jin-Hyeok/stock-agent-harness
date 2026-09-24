@@ -18,6 +18,7 @@ public record HarnessRunResult(
         HarnessRunStatus status,
         LocalDateTime startedAt,
         LocalDateTime finishedAt,
+        List<String> candidateSymbols,
         List<HarnessStepResult> steps,
         List<HarnessToolExecutionResult> toolResults,
         InvestmentDecision decision,
@@ -28,8 +29,41 @@ public record HarnessRunResult(
 ) {
     public HarnessRunResult {
         Objects.requireNonNull(strategyIdentity, "strategyIdentity must not be null.");
+        candidateSymbols = List.copyOf(candidateSymbols);
         steps = List.copyOf(steps);
         toolResults = List.copyOf(toolResults);
+    }
+
+    public static HarnessRunResult of(
+            String runId,
+            InvestmentStrategyIdentity strategyIdentity,
+            HarnessRunStatus status,
+            LocalDateTime startedAt,
+            LocalDateTime finishedAt,
+            List<String> candidateSymbols,
+            List<HarnessStepResult> steps,
+            List<HarnessToolExecutionResult> toolResults,
+            InvestmentDecision decision,
+            RiskCheckResult riskCheckResult,
+            TradeResult tradeResult,
+            PortfolioSnapshot portfolioSnapshot,
+            MarketSnapshot marketSnapshot
+    ) {
+        return new HarnessRunResult(
+                runId,
+                strategyIdentity,
+                status,
+                startedAt,
+                finishedAt,
+                candidateSymbols,
+                steps,
+                toolResults,
+                decision,
+                riskCheckResult,
+                tradeResult,
+                portfolioSnapshot,
+                marketSnapshot
+        );
     }
 
     public static HarnessRunResult of(
@@ -46,12 +80,13 @@ public record HarnessRunResult(
             PortfolioSnapshot portfolioSnapshot,
             MarketSnapshot marketSnapshot
     ) {
-        return new HarnessRunResult(
+        return of(
                 runId,
                 strategyIdentity,
                 status,
                 startedAt,
                 finishedAt,
+                List.of(),
                 steps,
                 toolResults,
                 decision,
@@ -81,6 +116,7 @@ public record HarnessRunResult(
                 status,
                 startedAt,
                 finishedAt,
+                List.of(),
                 steps,
                 List.of(),
                 decision,
@@ -96,6 +132,7 @@ public record HarnessRunResult(
             InvestmentStrategyIdentity strategyIdentity,
             LocalDateTime startedAt,
             LocalDateTime finishedAt,
+            List<String> candidateSymbols,
             List<HarnessStepResult> steps,
             List<HarnessToolExecutionResult> toolResults
     ) {
@@ -105,6 +142,7 @@ public record HarnessRunResult(
                 HarnessRunStatus.FAILED,
                 startedAt,
                 finishedAt,
+                candidateSymbols,
                 steps,
                 toolResults,
                 null,
@@ -120,6 +158,25 @@ public record HarnessRunResult(
             InvestmentStrategyIdentity strategyIdentity,
             LocalDateTime startedAt,
             LocalDateTime finishedAt,
+            List<HarnessStepResult> steps,
+            List<HarnessToolExecutionResult> toolResults
+    ) {
+        return failed(
+                runId,
+                strategyIdentity,
+                startedAt,
+                finishedAt,
+                List.of(),
+                steps,
+                toolResults
+        );
+    }
+
+    public static HarnessRunResult failed(
+            String runId,
+            InvestmentStrategyIdentity strategyIdentity,
+            LocalDateTime startedAt,
+            LocalDateTime finishedAt,
             List<HarnessStepResult> steps
     ) {
         return failed(
@@ -127,6 +184,7 @@ public record HarnessRunResult(
                 strategyIdentity,
                 startedAt,
                 finishedAt,
+                List.of(),
                 steps,
                 List.of()
         );

@@ -39,6 +39,8 @@ class HarnessRunRepositoryTest {
         assertThat(entity.get().getStatus()).isEqualTo(HarnessRunStatus.COMPLETED);
         assertThat(entity.get().getStartedAt()).isEqualTo(startedAt());
         assertThat(entity.get().getFinishedAt()).isEqualTo(finishedAt());
+        assertThat(entity.get().getCandidateSymbolsJson())
+                .isEqualTo("[\"005930\",\"000660\"]");
     }
 
     @Test
@@ -159,7 +161,9 @@ class HarnessRunRepositoryTest {
                 null,
                 null,
                 null,
-                null
+                null,
+                null,
+                "[\"005930\",\"000660\"]"
         );
     }
 

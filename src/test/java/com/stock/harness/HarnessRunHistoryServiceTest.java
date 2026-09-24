@@ -154,6 +154,24 @@ class HarnessRunHistoryServiceTest {
     }
 
     @Test
+    void recordStoresCandidateSymbolsJson() {
+        HarnessRunResult result = completedRunWithCandidates("run-1");
+        when(harnessRunSnapshotJsonConverter.toCandidateSymbolsJson(candidateSymbols()))
+                .thenReturn(candidateSymbolsJson());
+
+        harnessRunHistoryService.record(result);
+
+        ArgumentCaptor<HarnessRunEntity> entityCaptor = ArgumentCaptor.forClass(
+                HarnessRunEntity.class
+        );
+        verify(harnessRunRepository).save(entityCaptor.capture());
+
+        assertThat(entityCaptor.getValue().getCandidateSymbolsJson())
+                .isEqualTo(candidateSymbolsJson());
+        verify(harnessRunSnapshotJsonConverter).toCandidateSymbolsJson(candidateSymbols());
+    }
+
+    @Test
     void getRunDetailReturnsPortfolioSnapshot() {
         String runId = "run-1";
         HarnessRunEntity entity = HarnessRunEntity.of(
@@ -274,6 +292,58 @@ class HarnessRunHistoryServiceTest {
         assertThat(result).isPresent();
         assertThat(result.get().toolExecutionSnapshots()).isEmpty();
         verify(harnessRunSnapshotJsonConverter, never()).toToolExecutionSnapshots(any());
+    }
+
+    @Test
+    void getRunDetailReturnsCandidateSymbols() {
+        String runId = "run-1";
+        HarnessRunEntity entity = HarnessRunEntity.of(
+                runId,
+                STRATEGY_IDENTITY,
+                HarnessRunStatus.COMPLETED,
+                startedAt(),
+                finishedAt(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                candidateSymbolsJson()
+        );
+        when(harnessRunRepository.findByRunId(runId))
+                .thenReturn(Optional.of(entity));
+        when(harnessStepRepository.findAllByRunIdOrderByStepOrderAsc(runId))
+                .thenReturn(List.of());
+        when(harnessRunSnapshotJsonConverter.toCandidateSymbols(candidateSymbolsJson()))
+                .thenReturn(candidateSymbols());
+
+        Optional<HarnessRunDetail> result = harnessRunHistoryService.getRunDetail(
+                runId,
+                List.of()
+        );
+
+        assertThat(result).isPresent();
+        assertThat(result.get().candidateSymbols()).containsExactlyElementsOf(candidateSymbols());
+        verify(harnessRunSnapshotJsonConverter).toCandidateSymbols(candidateSymbolsJson());
+    }
+
+    @Test
+    void getRunDetailReturnsEmptyCandidateSymbolsForLegacyRun() {
+        String runId = "run-1";
+        HarnessRunEntity entity = completedRunEntity(runId);
+        when(harnessRunRepository.findByRunId(runId))
+                .thenReturn(Optional.of(entity));
+        when(harnessStepRepository.findAllByRunIdOrderByStepOrderAsc(runId))
+                .thenReturn(List.of());
+
+        Optional<HarnessRunDetail> result = harnessRunHistoryService.getRunDetail(
+                runId,
+                List.of()
+        );
+
+        assertThat(result).isPresent();
+        assertThat(result.get().candidateSymbols()).isEmpty();
+        verify(harnessRunSnapshotJsonConverter, never()).toCandidateSymbols(any());
     }
 
     @Test
@@ -399,6 +469,24 @@ class HarnessRunHistoryServiceTest {
                 startedAt(),
                 finishedAt(),
                 List.of(failedStep())
+        );
+    }
+
+    private HarnessRunResult completedRunWithCandidates(String runId) {
+        return HarnessRunResult.of(
+                runId,
+                STRATEGY_IDENTITY,
+                HarnessRunStatus.COMPLETED,
+                startedAt(),
+                finishedAt(),
+                candidateSymbols(),
+                List.of(completedStep()),
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                null
         );
     }
 
@@ -556,6 +644,14 @@ class HarnessRunHistoryServiceTest {
 
     private String marketSnapshotJson() {
         return "{\"market\":\"KR\",\"marketOpen\":true,\"description\":\"Korean market is open.\"}";
+    }
+
+    private List<String> candidateSymbols() {
+        return List.of("005930", "000660");
+    }
+
+    private String candidateSymbolsJson() {
+        return "[\"005930\",\"000660\"]";
     }
 
     private HarnessPortfolioSnapshot harnessPortfolioSnapshot() {

@@ -49,6 +49,9 @@ public class HarnessRunHistoryService {
                         .map(HarnessToolExecutionSnapshot::from)
                         .toList()
         );
+        String candidateSymbolsJson = harnessRunSnapshotJsonConverter.toCandidateSymbolsJson(
+                result.candidateSymbols()
+        );
 
         harnessRunRepository.save(HarnessRunEntity.from(
                 result,
@@ -56,7 +59,8 @@ public class HarnessRunHistoryService {
                 riskCheckSnapshotJson,
                 portfolioSnapshotJson,
                 marketSnapshotJson,
-                toolExecutionSnapshotsJson
+                toolExecutionSnapshotsJson,
+                candidateSymbolsJson
         ));
 
         List<HarnessStepEntity> stepEntities = IntStream.range(0, result.steps().size())
@@ -118,6 +122,7 @@ public class HarnessRunHistoryService {
         HarnessPortfolioSnapshot portfolioSnapshot = getPortfolioSnapshot(entity);
         HarnessMarketSnapshot marketSnapshot = getMarketSnapshot(entity);
         List<HarnessToolExecutionSnapshot> toolExecutionSnapshots = getToolExecutionSnapshots(entity);
+        List<String> candidateSymbols = getCandidateSymbols(entity);
         List<HarnessStepResult> steps = getStepsByRunId(runId);
 
         HarnessRunDetail detail = entity.toDetail(
@@ -126,6 +131,7 @@ public class HarnessRunHistoryService {
                 portfolioSnapshot,
                 marketSnapshot,
                 toolExecutionSnapshots,
+                candidateSymbols,
                 steps,
                 tradeRecords
         );
@@ -185,6 +191,16 @@ public class HarnessRunHistoryService {
 
         return harnessRunSnapshotJsonConverter.toToolExecutionSnapshots(
                 entity.getToolExecutionSnapshotsJson()
+        );
+    }
+
+    private List<String> getCandidateSymbols(HarnessRunEntity entity) {
+        if (entity.getCandidateSymbolsJson() == null) {
+            return List.of();
+        }
+
+        return harnessRunSnapshotJsonConverter.toCandidateSymbols(
+                entity.getCandidateSymbolsJson()
         );
     }
 }

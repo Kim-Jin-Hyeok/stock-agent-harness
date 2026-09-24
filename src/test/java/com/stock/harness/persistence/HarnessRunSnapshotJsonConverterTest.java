@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class HarnessRunSnapshotJsonConverterTest {
     private static final Instant OBSERVED_AT = Instant.parse("2026-01-01T00:00:00Z");
@@ -175,6 +176,18 @@ class HarnessRunSnapshotJsonConverterTest {
             assertThat(snapshot.currentPriceSnapshot().observedAt()).isNull();
             assertThat(snapshot.currentPriceSource()).isNull();
         });
+    }
+
+    @Test
+    void convertsCandidateSymbolsToJsonAndBack() {
+        List<String> candidateSymbols = List.of("005930", "000660");
+
+        String json = converter.toCandidateSymbolsJson(candidateSymbols);
+        List<String> restored = converter.toCandidateSymbols(json);
+
+        assertThat(restored).containsExactly("005930", "000660");
+        assertThatThrownBy(() -> restored.add("035420"))
+                .isInstanceOf(UnsupportedOperationException.class);
     }
 
     private HarnessDecisionSnapshot decisionSnapshot() {

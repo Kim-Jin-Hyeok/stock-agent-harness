@@ -106,6 +106,8 @@ class HarnessControllerTest {
                 .andExpect(jsonPath("$.strategyIdentity.strategyVersion").value(1))
                 .andExpect(jsonPath("$.strategyIdentity.horizon").value("DAY_TRADING"))
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.candidateSymbols[0]").value("005930"))
+                .andExpect(jsonPath("$.candidateSymbols[1]").value("000660"))
                 .andExpect(jsonPath("$.toolResults[0].status").value("EXECUTED"))
                 .andExpect(jsonPath("$.toolResults[0].type").value("GET_PORTFOLIO"))
                 .andExpect(jsonPath("$.toolResults[0].request.type").value("GET_PORTFOLIO"))
@@ -182,6 +184,8 @@ class HarnessControllerTest {
                 .andExpect(jsonPath("$.strategyIdentity.horizon")
                         .value(STRATEGY_IDENTITY.horizon().name()))
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.candidateSymbols[0]").value("005930"))
+                .andExpect(jsonPath("$.candidateSymbols[1]").value("000660"))
                 .andExpect(jsonPath("$.decisionSnapshot.action").value("BUY"))
                 .andExpect(jsonPath("$.riskCheckSnapshot.status").value("APPROVED"))
                 .andExpect(jsonPath("$.portfolioSnapshot.cashAmountKrw").value(9_300_000L))
@@ -262,6 +266,7 @@ class HarnessControllerTest {
                 HarnessRunStatus.COMPLETED,
                 startedAt,
                 finishedAt,
+                List.of("005930", "000660"),
                 List.of(completedStep()),
                 List.of(
                         portfolioToolExecutionResult(),
@@ -319,6 +324,7 @@ class HarnessControllerTest {
                 HarnessRunStatus.COMPLETED,
                 startedAt,
                 finishedAt,
+                List.of("005930", "000660"),
                 decisionSnapshot(),
                 riskCheckSnapshot(),
                 harnessPortfolioSnapshot(),

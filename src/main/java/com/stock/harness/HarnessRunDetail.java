@@ -17,6 +17,7 @@ public record HarnessRunDetail(
         HarnessRunStatus status,
         LocalDateTime startedAt,
         LocalDateTime finishedAt,
+        List<String> candidateSymbols,
         HarnessDecisionSnapshot decisionSnapshot,
         HarnessRiskCheckSnapshot riskCheckSnapshot,
         HarnessPortfolioSnapshot portfolioSnapshot,
@@ -25,4 +26,7 @@ public record HarnessRunDetail(
         List<HarnessStepResult> steps,
         List<TradeRecord> tradeRecords
 ) {
+    public HarnessRunDetail {
+        candidateSymbols = List.copyOf(candidateSymbols);
+    }
 }

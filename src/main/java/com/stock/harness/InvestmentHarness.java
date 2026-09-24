@@ -77,12 +77,12 @@ public class InvestmentHarness {
         String runId = UUID.randomUUID().toString();
         HarnessStepRecorder stepRecorder = new HarnessStepRecorder();
         List<HarnessToolExecutionResult> recordedToolResults = new ArrayList<>();
+        List<String> candidateSymbols = List.of();
 
         try {
-            List<String> candidateSymbols =
-                    strategyStockUniverseRegistry.getCandidateSymbols(
-                            strategyIdentity
-                    );
+            candidateSymbols = strategyStockUniverseRegistry.getCandidateSymbols(
+                    strategyIdentity
+            );
             PortfolioSnapshot portfolioSnapshot = stepRecorder.record(
                     HarnessStepType.LOAD_PORTFOLIO,
                     () -> portfolioService.getCurrentSnapshot(strategyIdentity),
@@ -185,6 +185,7 @@ public class InvestmentHarness {
                     runStatus,
                     startedAt,
                     finishedAt,
+                    candidateSymbols,
                     steps,
                     agentLoopResult.toolResults(),
                     decision,
@@ -203,6 +204,7 @@ public class InvestmentHarness {
                     strategyIdentity,
                     startedAt,
                     e,
+                    candidateSymbols,
                     stepRecorder.steps(),
                     recordedToolResults
             );
@@ -256,6 +258,7 @@ public class InvestmentHarness {
             InvestmentStrategyIdentity strategyIdentity,
             LocalDateTime startedAt,
             Exception e,
+            List<String> candidateSymbols,
             List<HarnessStepResult> recordedSteps,
             List<HarnessToolExecutionResult> recordedToolResults
     ) {
@@ -288,6 +291,7 @@ public class InvestmentHarness {
                 strategyIdentity,
                 startedAt,
                 finishedAt,
+                candidateSymbols,
                 steps,
                 recordedToolResults
         );
