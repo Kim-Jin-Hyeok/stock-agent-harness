@@ -239,6 +239,11 @@ public class KisConfiguration {
     }
 
     @Bean
+    @ConditionalOnProperty(
+            prefix = "broker.order.cancellation.scheduler",
+            name = "enabled",
+            havingValue = "true"
+    )
     public BrokerOrderExpirationCancellationScheduler
     brokerOrderExpirationCancellationScheduler(
             BrokerOrderExpirationCancellationService cancellationService,
@@ -287,6 +292,11 @@ public class KisConfiguration {
     }
 
     @Bean
+    @ConditionalOnProperty(
+            prefix = "broker.order.reconciliation.scheduler",
+            name = "enabled",
+            havingValue = "true"
+    )
     public BrokerOrderReconciliationScheduler
     brokerOrderReconciliationScheduler(
             BrokerOrderReconciliationService reconciliationService,

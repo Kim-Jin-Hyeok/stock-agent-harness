@@ -143,9 +143,41 @@ class KisConfigurationTest {
     }
 
     @Test
+    void doesNotCreateOrderSchedulerBeansWhenSchedulersAreDisabled() {
+        contextRunner
+                .withPropertyValues(
+                        "broker.kis.enabled=true",
+                        "broker.order.reconciliation.scheduler.enabled=false",
+                        "broker.order.cancellation.scheduler.enabled=false"
+                )
+                .withBean(KisProperties.class, this::enabledProperties)
+                .run(context -> {
+                    assertThat(context).hasSingleBean(
+                            BrokerOrderReconciliationService.class
+                    );
+                    assertThat(context).hasSingleBean(
+                            BrokerOrderPortfolioApplicationService.class
+                    );
+                    assertThat(context).hasSingleBean(
+                            BrokerOrderExpirationCancellationService.class
+                    );
+                    assertThat(context).doesNotHaveBean(
+                            BrokerOrderReconciliationScheduler.class
+                    );
+                    assertThat(context).doesNotHaveBean(
+                            BrokerOrderExpirationCancellationScheduler.class
+                    );
+                });
+    }
+
+    @Test
     void createsSingletonKisBeansWhenEnabled() {
         contextRunner
-                .withPropertyValues("broker.kis.enabled=true")
+                .withPropertyValues(
+                        "broker.kis.enabled=true",
+                        "broker.order.reconciliation.scheduler.enabled=true",
+                        "broker.order.cancellation.scheduler.enabled=true"
+                )
                 .withBean(KisProperties.class, this::enabledProperties)
                 .run(context -> {
                     assertThat(context).hasSingleBean(RestClient.class);
