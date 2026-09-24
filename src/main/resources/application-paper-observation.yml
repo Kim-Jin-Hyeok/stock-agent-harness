@@ -14,6 +14,10 @@ broker:
   kis:
     enabled: true
     base-url: https://openapivts.koreainvestment.com:29443
+    app-key: ${KIS_PAPER_APP_KEY:}
+    app-secret: ${KIS_PAPER_APP_SECRET:}
+    account-number: ${KIS_PAPER_ACCOUNT_NUMBER:}
+    account-product-code: ${KIS_PAPER_ACCOUNT_PRODUCT_CODE:}
 
 trade:
   execution:
