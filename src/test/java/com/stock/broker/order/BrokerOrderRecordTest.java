@@ -1,5 +1,7 @@
 package com.stock.broker.order;
 
+import com.stock.broker.order.cancellation.BrokerOrderCancellationSubmission;
+import com.stock.broker.order.cancellation.BrokerOrderCancellationSubmissionStatus;
 import com.stock.broker.order.inquiry.BrokerOrderExecutionSnapshot;
 import com.stock.broker.order.inquiry.BrokerOrderInquiryResult;
 import com.stock.strategy.profile.InvestmentHorizon;
@@ -15,6 +17,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class BrokerOrderRecordTest {
     private static final Instant SUBMITTED_AT = Instant.parse("2026-09-23T00:00:00Z");
     private static final Instant EXPIRES_AT = SUBMITTED_AT.plusSeconds(300);
+    private static final Instant CANCELLATION_SUBMITTED_AT =
+            SUBMITTED_AT.plusSeconds(10);
 
     @Test
     void createsPendingOrder() {
@@ -82,6 +86,106 @@ class BrokerOrderRecordTest {
                         null
                 ))
                 .withMessage("expiresAt must not be null for a submitted order.");
+    }
+
+    @Test
+    void recordsAcceptedCancellationWithoutChangingOrderStatus() {
+        BrokerOrderCancellationSubmission submission = acceptedCancellation(
+                CANCELLATION_SUBMITTED_AT
+        );
+
+        BrokerOrderRecord recorded = pendingOrder().recordCancellation(
+                submission
+        );
+
+        assertThat(recorded.status()).isEqualTo(BrokerOrderStatus.PENDING);
+        assertThat(recorded.cancellationSubmission()).isEqualTo(submission);
+        assertThat(recorded.reference()).isEqualTo(orderReference());
+    }
+
+    @Test
+    void recordsRejectedCancellationWithoutChangingOrderStatus() {
+        BrokerOrderCancellationSubmission submission =
+                rejectedCancellation(CANCELLATION_SUBMITTED_AT);
+
+        BrokerOrderRecord recorded = pendingOrder().recordCancellation(
+                submission
+        );
+
+        assertThat(recorded.status()).isEqualTo(BrokerOrderStatus.PENDING);
+        assertThat(recorded.cancellationSubmission()).isEqualTo(submission);
+    }
+
+    @Test
+    void rejectsCancellationForTerminalOrder() {
+        BrokerOrderRecord filledOrder = order(
+                orderReference(),
+                10L,
+                69_800L,
+                BrokerOrderStatus.FILLED,
+                null,
+                EXPIRES_AT
+        );
+
+        assertThatThrownBy(() -> filledOrder.recordCancellation(
+                acceptedCancellation(CANCELLATION_SUBMITTED_AT)
+        )).isInstanceOf(IllegalStateException.class)
+                .hasMessage(
+                        "Only pending or partially filled orders can be "
+                                + "canceled."
+                );
+    }
+
+    @Test
+    void rejectsDuplicateCancellationSubmission() {
+        BrokerOrderRecord recorded = pendingOrder().recordCancellation(
+                acceptedCancellation(CANCELLATION_SUBMITTED_AT)
+        );
+
+        assertThatThrownBy(() -> recorded.recordCancellation(
+                rejectedCancellation(CANCELLATION_SUBMITTED_AT.plusSeconds(1))
+        )).isInstanceOf(IllegalStateException.class)
+                .hasMessage(
+                        "Cancellation submission has already been recorded."
+                );
+    }
+
+    @Test
+    void rejectsCancellationSubmittedBeforeOrder() {
+        assertThatThrownBy(() -> pendingOrder().recordCancellation(
+                acceptedCancellation(SUBMITTED_AT.minusSeconds(1))
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "cancellation submittedAt must not be before "
+                                + "submittedAt."
+                );
+    }
+
+    @Test
+    void preservesCancellationSubmissionAfterReconciliation() {
+        BrokerOrderCancellationSubmission cancellation = acceptedCancellation(
+                CANCELLATION_SUBMITTED_AT
+        );
+        BrokerOrderRecord order = pendingOrder().recordCancellation(
+                cancellation
+        );
+
+        BrokerOrderRecord reconciled = order.reconcile(
+                BrokerOrderInquiryResult.found(
+                        snapshot(
+                                orderReference(),
+                                10L,
+                                0L,
+                                null,
+                                BrokerOrderStatus.CANCELED
+                        ),
+                        SUBMITTED_AT.plusSeconds(30)
+                )
+        );
+
+        assertThat(reconciled.status()).isEqualTo(BrokerOrderStatus.CANCELED);
+        assertThat(reconciled.cancellationSubmission())
+                .isEqualTo(cancellation);
     }
 
     @Test
@@ -389,5 +493,27 @@ class BrokerOrderRecordTest {
 
     private BrokerOrderReference orderReference() {
         return new BrokerOrderReference("0000123456", "06010");
+    }
+
+    private BrokerOrderCancellationSubmission acceptedCancellation(
+            Instant submittedAt
+    ) {
+        return new BrokerOrderCancellationSubmission(
+                BrokerOrderCancellationSubmissionStatus.ACCEPTED,
+                new BrokerOrderReference("0000123457", "06010"),
+                submittedAt,
+                null
+        );
+    }
+
+    private BrokerOrderCancellationSubmission rejectedCancellation(
+            Instant submittedAt
+    ) {
+        return new BrokerOrderCancellationSubmission(
+                BrokerOrderCancellationSubmissionStatus.REJECTED,
+                null,
+                submittedAt,
+                "The order cannot be canceled."
+        );
     }
 }

@@ -4,6 +4,8 @@ import com.stock.broker.order.BrokerOrderRecord;
 import com.stock.broker.order.BrokerOrderReference;
 import com.stock.broker.order.BrokerOrderSide;
 import com.stock.broker.order.BrokerOrderStatus;
+import com.stock.broker.order.cancellation.BrokerOrderCancellationSubmission;
+import com.stock.broker.order.cancellation.BrokerOrderCancellationSubmissionStatus;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import org.junit.jupiter.api.Test;
@@ -103,6 +105,32 @@ class BrokerOrderRepositoryTest {
         assertThat(restored.averageFilledPriceKrw()).isEqualTo(69_900L);
         assertThat(restored.lastReconciledAt()).isEqualTo(reconciledAt);
         assertThat(repository.count()).isEqualTo(1L);
+    }
+
+    @Test
+    void savesAndRestoresCancellationSubmission() {
+        BrokerOrderRecord order = pendingOrder("run-1", submittedAt());
+        BrokerOrderCancellationSubmission cancellation =
+                new BrokerOrderCancellationSubmission(
+                        BrokerOrderCancellationSubmissionStatus.ACCEPTED,
+                        new BrokerOrderReference(
+                                "cancellation-order-1",
+                                "06010"
+                        ),
+                        submittedAt().plusSeconds(30),
+                        null
+                );
+        BrokerOrderRecord canceled = order.recordCancellation(cancellation);
+
+        BrokerOrderEntity saved = repository.saveAndFlush(
+                BrokerOrderEntity.from(canceled)
+        );
+
+        BrokerOrderRecord restored = repository.findById(saved.getId())
+                .orElseThrow()
+                .toRecord();
+        assertThat(restored.cancellationSubmission()).isEqualTo(cancellation);
+        assertThat(restored.status()).isEqualTo(BrokerOrderStatus.PENDING);
     }
 
     private BrokerOrderRecord pendingOrder(String runId, Instant submittedAt) {

@@ -1,5 +1,6 @@
 package com.stock.broker.order;
 
+import com.stock.broker.order.cancellation.BrokerOrderCancellationSubmission;
 import com.stock.broker.order.inquiry.BrokerOrderExecutionSnapshot;
 import com.stock.broker.order.inquiry.BrokerOrderInquiryResult;
 import com.stock.broker.order.inquiry.BrokerOrderInquiryStatus;
@@ -23,7 +24,8 @@ public record BrokerOrderRecord(
         String reason,
         Instant submittedAt,
         Instant expiresAt,
-        Instant lastReconciledAt
+        Instant lastReconciledAt,
+        BrokerOrderCancellationSubmission cancellationSubmission
 ) {
     public BrokerOrderRecord {
         if (id != null && id < 1) {
@@ -75,6 +77,48 @@ public record BrokerOrderRecord(
                     "lastReconciledAt must not be before submittedAt."
             );
         }
+        validateCancellationSubmission(
+                status,
+                submittedAt,
+                cancellationSubmission
+        );
+    }
+
+    public BrokerOrderRecord(
+            Long id,
+            BrokerOrderReference reference,
+            String runId,
+            InvestmentStrategyIdentity strategyIdentity,
+            BrokerOrderSide side,
+            String symbol,
+            long requestedQuantity,
+            long limitPriceKrw,
+            long cumulativeFilledQuantity,
+            Long averageFilledPriceKrw,
+            BrokerOrderStatus status,
+            String reason,
+            Instant submittedAt,
+            Instant expiresAt,
+            Instant lastReconciledAt
+    ) {
+        this(
+                id,
+                reference,
+                runId,
+                strategyIdentity,
+                side,
+                symbol,
+                requestedQuantity,
+                limitPriceKrw,
+                cumulativeFilledQuantity,
+                averageFilledPriceKrw,
+                status,
+                reason,
+                submittedAt,
+                expiresAt,
+                lastReconciledAt,
+                null
+        );
     }
 
     public BrokerOrderRecord reconcile(BrokerOrderInquiryResult result) {
@@ -105,6 +149,49 @@ public record BrokerOrderRecord(
                 snapshot.status(),
                 snapshot.reason(),
                 result.observedAt()
+        );
+    }
+
+    public BrokerOrderRecord recordCancellation(
+            BrokerOrderCancellationSubmission submission
+    ) {
+        Objects.requireNonNull(submission, "submission must not be null.");
+        if (status != BrokerOrderStatus.PENDING
+                && status != BrokerOrderStatus.PARTIALLY_FILLED) {
+            throw new IllegalStateException(
+                    "Only pending or partially filled orders can be canceled."
+            );
+        }
+        if (cancellationSubmission != null) {
+            throw new IllegalStateException(
+                    "Cancellation submission has already been recorded."
+            );
+        }
+        if (lastReconciledAt != null
+                && submission.submittedAt().isBefore(lastReconciledAt)) {
+            throw new IllegalArgumentException(
+                    "cancellation submittedAt must not be before "
+                            + "lastReconciledAt."
+            );
+        }
+
+        return new BrokerOrderRecord(
+                id,
+                reference,
+                runId,
+                strategyIdentity,
+                side,
+                symbol,
+                requestedQuantity,
+                limitPriceKrw,
+                cumulativeFilledQuantity,
+                averageFilledPriceKrw,
+                status,
+                reason,
+                submittedAt,
+                expiresAt,
+                lastReconciledAt,
+                submission
         );
     }
 
@@ -163,7 +250,8 @@ public record BrokerOrderRecord(
                 reconciledReason,
                 submittedAt,
                 expiresAt,
-                reconciledAt
+                reconciledAt,
+                cancellationSubmission
         );
     }
 
@@ -255,6 +343,26 @@ public record BrokerOrderRecord(
         if (expiresAt != null && !expiresAt.isAfter(submittedAt)) {
             throw new IllegalArgumentException(
                     "expiresAt must be after submittedAt."
+            );
+        }
+    }
+
+    private static void validateCancellationSubmission(
+            BrokerOrderStatus status,
+            Instant submittedAt,
+            BrokerOrderCancellationSubmission cancellationSubmission
+    ) {
+        if (cancellationSubmission == null) {
+            return;
+        }
+        if (status == BrokerOrderStatus.REJECTED) {
+            throw new IllegalArgumentException(
+                    "REJECTED order must not have a cancellation submission."
+            );
+        }
+        if (cancellationSubmission.submittedAt().isBefore(submittedAt)) {
+            throw new IllegalArgumentException(
+                    "cancellation submittedAt must not be before submittedAt."
             );
         }
     }

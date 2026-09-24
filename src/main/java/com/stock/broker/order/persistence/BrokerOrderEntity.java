@@ -4,6 +4,8 @@ import com.stock.broker.order.BrokerOrderRecord;
 import com.stock.broker.order.BrokerOrderReference;
 import com.stock.broker.order.BrokerOrderSide;
 import com.stock.broker.order.BrokerOrderStatus;
+import com.stock.broker.order.cancellation.BrokerOrderCancellationSubmission;
+import com.stock.broker.order.cancellation.BrokerOrderCancellationSubmissionStatus;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import jakarta.persistence.Column;
@@ -96,6 +98,22 @@ public class BrokerOrderEntity {
     @Column(name = "last_reconciled_at")
     private Instant lastReconciledAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "cancellation_status", length = 30)
+    private BrokerOrderCancellationSubmissionStatus cancellationStatus;
+
+    @Column(name = "cancellation_order_id", length = 100)
+    private String cancellationOrderId;
+
+    @Column(name = "cancellation_order_organization_number", length = 100)
+    private String cancellationOrderOrganizationNumber;
+
+    @Column(name = "cancellation_submitted_at")
+    private Instant cancellationSubmittedAt;
+
+    @Column(name = "cancellation_reason", length = 1000)
+    private String cancellationReason;
+
     public static BrokerOrderEntity from(BrokerOrderRecord record) {
         BrokerOrderEntity entity = new BrokerOrderEntity();
         entity.id = record.id();
@@ -119,6 +137,20 @@ public class BrokerOrderEntity {
         entity.submittedAt = record.submittedAt();
         entity.expiresAt = record.expiresAt();
         entity.lastReconciledAt = record.lastReconciledAt();
+        if (record.cancellationSubmission() != null) {
+            BrokerOrderCancellationSubmission cancellation =
+                    record.cancellationSubmission();
+            entity.cancellationStatus = cancellation.status();
+            if (cancellation.cancellationReference() != null) {
+                entity.cancellationOrderId =
+                        cancellation.cancellationReference().orderId();
+                entity.cancellationOrderOrganizationNumber =
+                        cancellation.cancellationReference()
+                                .organizationNumber();
+            }
+            entity.cancellationSubmittedAt = cancellation.submittedAt();
+            entity.cancellationReason = cancellation.reason();
+        }
         return entity;
     }
 
@@ -142,7 +174,8 @@ public class BrokerOrderEntity {
                 reason,
                 submittedAt,
                 expiresAt,
-                lastReconciledAt
+                lastReconciledAt,
+                toCancellationSubmission()
         );
     }
 
@@ -153,6 +186,28 @@ public class BrokerOrderEntity {
         return new BrokerOrderReference(
                 brokerOrderId,
                 brokerOrderOrganizationNumber
+        );
+    }
+
+    private BrokerOrderCancellationSubmission toCancellationSubmission() {
+        if (cancellationStatus == null) {
+            return null;
+        }
+        return new BrokerOrderCancellationSubmission(
+                cancellationStatus,
+                toCancellationReference(),
+                cancellationSubmittedAt,
+                cancellationReason
+        );
+    }
+
+    private BrokerOrderReference toCancellationReference() {
+        if (cancellationOrderId == null) {
+            return null;
+        }
+        return new BrokerOrderReference(
+                cancellationOrderId,
+                cancellationOrderOrganizationNumber
         );
     }
 }

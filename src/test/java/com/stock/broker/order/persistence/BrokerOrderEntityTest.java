@@ -4,6 +4,8 @@ import com.stock.broker.order.BrokerOrderRecord;
 import com.stock.broker.order.BrokerOrderReference;
 import com.stock.broker.order.BrokerOrderSide;
 import com.stock.broker.order.BrokerOrderStatus;
+import com.stock.broker.order.cancellation.BrokerOrderCancellationSubmission;
+import com.stock.broker.order.cancellation.BrokerOrderCancellationSubmissionStatus;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import org.junit.jupiter.api.Test;
@@ -21,6 +23,42 @@ class BrokerOrderEntityTest {
         BrokerOrderRecord restored = BrokerOrderEntity.from(record).toRecord();
 
         assertThat(restored).isEqualTo(record);
+    }
+
+    @Test
+    void convertsAcceptedCancellationSubmissionToEntityAndBack() {
+        BrokerOrderRecord record = partiallyFilledOrder();
+        BrokerOrderCancellationSubmission cancellation =
+                new BrokerOrderCancellationSubmission(
+                        BrokerOrderCancellationSubmissionStatus.ACCEPTED,
+                        new BrokerOrderReference("0000123457", "06010"),
+                        record.submittedAt().plusSeconds(20),
+                        null
+                );
+        BrokerOrderRecord canceled = record.recordCancellation(cancellation);
+
+        BrokerOrderRecord restored = BrokerOrderEntity.from(canceled)
+                .toRecord();
+
+        assertThat(restored).isEqualTo(canceled);
+    }
+
+    @Test
+    void convertsRejectedCancellationSubmissionToEntityAndBack() {
+        BrokerOrderRecord record = partiallyFilledOrder();
+        BrokerOrderCancellationSubmission cancellation =
+                new BrokerOrderCancellationSubmission(
+                        BrokerOrderCancellationSubmissionStatus.REJECTED,
+                        null,
+                        record.submittedAt().plusSeconds(20),
+                        "The order cannot be canceled."
+                );
+        BrokerOrderRecord canceled = record.recordCancellation(cancellation);
+
+        BrokerOrderRecord restored = BrokerOrderEntity.from(canceled)
+                .toRecord();
+
+        assertThat(restored).isEqualTo(canceled);
     }
 
     private BrokerOrderRecord partiallyFilledOrder() {
