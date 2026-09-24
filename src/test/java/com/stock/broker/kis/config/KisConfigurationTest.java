@@ -13,6 +13,7 @@ import com.stock.broker.kis.order.inquiry.KisOrderInquiryClient;
 import com.stock.broker.kis.order.inquiry.provider.KisBrokerOrderInquiryProvider;
 import com.stock.broker.kis.order.provider.KisBrokerOrderProvider;
 import com.stock.broker.order.application.BrokerOrderReconciliationService;
+import com.stock.broker.order.cancellation.application.BrokerOrderExpirationCancellationService;
 import com.stock.broker.order.inquiry.provider.BrokerOrderInquiryProvider;
 import com.stock.broker.order.provider.BrokerOrderProvider;
 import com.stock.broker.order.application.BrokerOrderSubmissionService;
@@ -100,6 +101,9 @@ class KisConfigurationTest {
                             BrokerOrderCancellationProvider.class
                     );
                     assertThat(context).doesNotHaveBean(
+                            BrokerOrderExpirationCancellationService.class
+                    );
+                    assertThat(context).doesNotHaveBean(
                             BrokerOrderInquiryProvider.class
                     );
                     assertThat(context).doesNotHaveBean(
@@ -161,6 +165,9 @@ class KisConfigurationTest {
                             BrokerOrderCancellationProvider.class
                     )).isInstanceOf(
                             KisBrokerOrderCancellationProvider.class
+                    );
+                    assertThat(context).hasSingleBean(
+                            BrokerOrderExpirationCancellationService.class
                     );
                     assertThat(context).hasSingleBean(
                             BrokerOrderInquiryProvider.class

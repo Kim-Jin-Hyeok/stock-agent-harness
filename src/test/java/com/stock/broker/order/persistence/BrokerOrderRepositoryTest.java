@@ -133,6 +133,50 @@ class BrokerOrderRepositoryTest {
         assertThat(restored.status()).isEqualTo(BrokerOrderStatus.PENDING);
     }
 
+    @Test
+    void findsExpiredOrdersWithoutCancellationOldestFirst() {
+        Instant submittedAt = submittedAt();
+        Instant now = submittedAt.plusSeconds(360);
+        repository.save(BrokerOrderEntity.from(
+                pendingOrder("run-earlier", submittedAt)
+        ));
+        repository.save(BrokerOrderEntity.from(
+                partiallyFilledOrder(
+                        "run-boundary",
+                        submittedAt.plusSeconds(60)
+                )
+        ));
+        repository.save(BrokerOrderEntity.from(
+                pendingOrder("run-future", submittedAt.plusSeconds(61))
+        ));
+        repository.save(BrokerOrderEntity.from(
+                filledOrder("run-filled", submittedAt.plusSeconds(10))
+        ));
+        BrokerOrderRecord cancellationAttempted = pendingOrder(
+                "run-attempted",
+                submittedAt.plusSeconds(30)
+        ).recordCancellation(new BrokerOrderCancellationSubmission(
+                BrokerOrderCancellationSubmissionStatus.REJECTED,
+                null,
+                submittedAt.plusSeconds(340),
+                "The order cannot be canceled."
+        ));
+        repository.save(BrokerOrderEntity.from(cancellationAttempted));
+
+        List<BrokerOrderEntity> targets = repository
+                .findAllByStatusInAndExpiresAtLessThanEqualAndCancellationStatusIsNullOrderByExpiresAtAsc(
+                        List.of(
+                                BrokerOrderStatus.PENDING,
+                                BrokerOrderStatus.PARTIALLY_FILLED
+                        ),
+                        now
+                );
+
+        assertThat(targets)
+                .extracting(BrokerOrderEntity::getRunId)
+                .containsExactly("run-earlier", "run-boundary");
+    }
+
     private BrokerOrderRecord pendingOrder(String runId, Instant submittedAt) {
         return order(
                 runId,

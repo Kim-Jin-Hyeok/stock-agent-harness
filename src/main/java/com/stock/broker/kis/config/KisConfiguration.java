@@ -13,6 +13,8 @@ import com.stock.broker.kis.order.inquiry.provider.KisBrokerOrderInquiryProvider
 import com.stock.broker.kis.order.provider.KisBrokerOrderProvider;
 import com.stock.broker.order.application.BrokerOrderReconciliationService;
 import com.stock.broker.order.application.BrokerOrderSubmissionService;
+import com.stock.broker.order.cancellation.application.BrokerOrderExpirationCancellationService;
+import com.stock.broker.order.cancellation.provider.BrokerOrderCancellationProvider;
 import com.stock.broker.order.config.BrokerOrderProperties;
 import com.stock.broker.order.inquiry.provider.BrokerOrderInquiryProvider;
 import com.stock.broker.order.persistence.BrokerOrderRepository;
@@ -214,6 +216,20 @@ public class KisConfiguration {
                 orderCancellationClient,
                 kisTokenProvider,
                 properties,
+                clock
+        );
+    }
+
+    @Bean
+    public BrokerOrderExpirationCancellationService
+    brokerOrderExpirationCancellationService(
+            BrokerOrderCancellationProvider cancellationProvider,
+            BrokerOrderRepository brokerOrderRepository,
+            Clock clock
+    ) {
+        return new BrokerOrderExpirationCancellationService(
+                cancellationProvider,
+                brokerOrderRepository,
                 clock
         );
     }

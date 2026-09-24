@@ -34,6 +34,10 @@ import java.time.Instant;
                 @Index(
                         name = "idx_broker_order_run_id",
                         columnList = "run_id"
+                ),
+                @Index(
+                        name = "idx_broker_order_cancellation_target",
+                        columnList = "status, cancellation_status, expires_at"
                 )
         }
 )
