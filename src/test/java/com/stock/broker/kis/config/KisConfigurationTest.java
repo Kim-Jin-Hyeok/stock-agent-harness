@@ -14,6 +14,8 @@ import com.stock.broker.kis.order.inquiry.provider.KisBrokerOrderInquiryProvider
 import com.stock.broker.kis.order.provider.KisBrokerOrderProvider;
 import com.stock.broker.order.application.BrokerOrderReconciliationService;
 import com.stock.broker.order.cancellation.application.BrokerOrderExpirationCancellationService;
+import com.stock.broker.order.cancellation.scheduler.BrokerOrderExpirationCancellationScheduler;
+import com.stock.broker.order.cancellation.scheduler.config.BrokerOrderExpirationCancellationSchedulerProperties;
 import com.stock.broker.order.inquiry.provider.BrokerOrderInquiryProvider;
 import com.stock.broker.order.provider.BrokerOrderProvider;
 import com.stock.broker.order.application.BrokerOrderSubmissionService;
@@ -61,6 +63,13 @@ class KisConfigurationTest {
                                     false,
                                     10_000L
                             )
+                    )
+                    .withBean(
+                            BrokerOrderExpirationCancellationSchedulerProperties.class,
+                            () -> new BrokerOrderExpirationCancellationSchedulerProperties(
+                                    false,
+                                    10_000L
+                            )
                     );
 
     @Test
@@ -102,6 +111,9 @@ class KisConfigurationTest {
                     );
                     assertThat(context).doesNotHaveBean(
                             BrokerOrderExpirationCancellationService.class
+                    );
+                    assertThat(context).doesNotHaveBean(
+                            BrokerOrderExpirationCancellationScheduler.class
                     );
                     assertThat(context).doesNotHaveBean(
                             BrokerOrderInquiryProvider.class
@@ -168,6 +180,9 @@ class KisConfigurationTest {
                     );
                     assertThat(context).hasSingleBean(
                             BrokerOrderExpirationCancellationService.class
+                    );
+                    assertThat(context).hasSingleBean(
+                            BrokerOrderExpirationCancellationScheduler.class
                     );
                     assertThat(context).hasSingleBean(
                             BrokerOrderInquiryProvider.class

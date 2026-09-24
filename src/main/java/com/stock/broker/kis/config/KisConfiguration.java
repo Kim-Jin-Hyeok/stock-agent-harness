@@ -15,6 +15,8 @@ import com.stock.broker.order.application.BrokerOrderReconciliationService;
 import com.stock.broker.order.application.BrokerOrderSubmissionService;
 import com.stock.broker.order.cancellation.application.BrokerOrderExpirationCancellationService;
 import com.stock.broker.order.cancellation.provider.BrokerOrderCancellationProvider;
+import com.stock.broker.order.cancellation.scheduler.BrokerOrderExpirationCancellationScheduler;
+import com.stock.broker.order.cancellation.scheduler.config.BrokerOrderExpirationCancellationSchedulerProperties;
 import com.stock.broker.order.config.BrokerOrderProperties;
 import com.stock.broker.order.inquiry.provider.BrokerOrderInquiryProvider;
 import com.stock.broker.order.persistence.BrokerOrderRepository;
@@ -231,6 +233,18 @@ public class KisConfiguration {
                 cancellationProvider,
                 brokerOrderRepository,
                 clock
+        );
+    }
+
+    @Bean
+    public BrokerOrderExpirationCancellationScheduler
+    brokerOrderExpirationCancellationScheduler(
+            BrokerOrderExpirationCancellationService cancellationService,
+            BrokerOrderExpirationCancellationSchedulerProperties properties
+    ) {
+        return new BrokerOrderExpirationCancellationScheduler(
+                cancellationService,
+                properties
         );
     }
 
