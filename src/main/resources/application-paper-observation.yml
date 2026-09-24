@@ -1,0 +1,24 @@
+spring:
+  config:
+    activate:
+      on-profile: paper-observation
+
+broker:
+  order:
+    reconciliation:
+      scheduler:
+        enabled: false
+    cancellation:
+      scheduler:
+        enabled: false
+  kis:
+    enabled: true
+    base-url: https://openapivts.koreainvestment.com:29443
+
+trade:
+  execution:
+    mode: VIRTUAL
+
+harness:
+  scheduler:
+    enabled: true
