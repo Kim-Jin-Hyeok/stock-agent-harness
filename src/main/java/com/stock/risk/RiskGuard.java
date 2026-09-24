@@ -2,9 +2,11 @@ package com.stock.risk;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
+import com.stock.market.MarketSnapshot;
 import com.stock.portfolio.PortfolioSnapshot;
 import org.springframework.stereotype.Component;
 
+import java.util.Objects;
 import java.util.Optional;
 
 @Component
@@ -17,8 +19,11 @@ public class RiskGuard {
 
     public RiskCheckResult validate(
             InvestmentDecision decision,
-            PortfolioSnapshot portfolioSnapshot
+            PortfolioSnapshot portfolioSnapshot,
+            MarketSnapshot marketSnapshot
     ) {
+        Objects.requireNonNull(marketSnapshot, "marketSnapshot must not be null.");
+
         if (decision.action() == InvestmentAction.HOLD) {
             return approved(
                     decision,
@@ -31,6 +36,15 @@ public class RiskGuard {
 
         if (commonValidateResult.isPresent()) {
             return commonValidateResult.get();
+        }
+
+        if (!marketSnapshot.marketOpen()) {
+            return denied(
+                    decision,
+                    RiskReasonCode.MARKET_CLOSED,
+                    "Order is not allowed while market is closed. market="
+                            + marketSnapshot.market()
+            );
         }
 
         if (decision.action() == InvestmentAction.BUY) {

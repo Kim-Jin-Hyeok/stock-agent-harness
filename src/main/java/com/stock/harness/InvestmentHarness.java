@@ -129,7 +129,11 @@ public class InvestmentHarness {
 
             RiskCheckResult riskCheckResult = stepRecorder.record(
                     HarnessStepType.VALIDATE_DECISION,
-                    () -> riskGuard.validate(decision, context.portfolioSnapshot()),
+                    () -> riskGuard.validate(
+                            decision,
+                            context.portfolioSnapshot(),
+                            context.marketSnapshot()
+                    ),
                     result -> result.status() == RiskCheckStatus.APPROVED
                             ? HarnessStepStatus.COMPLETED
                             : HarnessStepStatus.FAILED,
