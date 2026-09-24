@@ -23,6 +23,7 @@ import com.stock.harness.tool.validation.HarnessToolResultValidationStatus;
 import com.stock.harness.tool.validation.HarnessToolResultValidator;
 import com.stock.market.MarketService;
 import com.stock.market.MarketSnapshot;
+import com.stock.market.price.observation.CurrentPriceObservationService;
 import com.stock.portfolio.PortfolioService;
 import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.risk.RiskCheckResult;
@@ -61,6 +62,7 @@ public class InvestmentHarness {
     private final HarnessToolRequestValidator harnessToolRequestValidator;
     private final HarnessRetryWaiter harnessRetryWaiter;
     private final StrategyStockUniverseRegistry strategyStockUniverseRegistry;
+    private final CurrentPriceObservationService currentPriceObservationService;
 
     public HarnessRunResult run(InvestmentStrategyIdentity strategyIdentity) {
         Objects.requireNonNull(strategyIdentity, "strategyIdentity must not be null.");
@@ -418,8 +420,29 @@ public class InvestmentHarness {
                 );
             }
 
+            recordValidatedToolObservation(
+                    currentContext,
+                    executionResult
+            );
             currentContext = currentContext.withToolResult(executionResult);
         }
+    }
+
+    private void recordValidatedToolObservation(
+            HarnessRunContext context,
+            HarnessToolExecutionResult executionResult
+    ) {
+        if (executionResult.type() != HarnessToolType.GET_CURRENT_PRICE) {
+            return;
+        }
+
+        HarnessToolOutput output = executionResult.output();
+        currentPriceObservationService.record(
+                context.runId(),
+                context.strategyIdentity(),
+                output.currentPriceSnapshot(),
+                output.currentPriceSource()
+        );
     }
 
     private HarnessToolExecutionResult executeToolRequest(

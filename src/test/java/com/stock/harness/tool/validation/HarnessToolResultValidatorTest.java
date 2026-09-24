@@ -8,6 +8,7 @@ import com.stock.harness.tool.HarnessToolRequest;
 import com.stock.harness.tool.HarnessToolType;
 import com.stock.market.MarketSnapshot;
 import com.stock.market.price.CurrentPriceSnapshot;
+import com.stock.market.price.lookup.CurrentPriceLookupResult;
 import com.stock.market.price.validation.CurrentPriceFreshnessPolicy;
 import com.stock.market.price.validation.CurrentPriceFreshnessProperties;
 import com.stock.portfolio.PortfolioSnapshot;
@@ -94,6 +95,31 @@ class HarnessToolResultValidatorTest {
     }
 
     @Test
+    void rejectsMissingCurrentPriceSource() {
+        HarnessToolResultValidationResult result = validator.validate(
+                HarnessToolRequest.currentPrice("005930"),
+                HarnessToolExecutionResult.executed(
+                        HarnessToolOutput.currentPrice(
+                                new CurrentPriceSnapshot(
+                                        "005930",
+                                        70_000L,
+                                        OBSERVED_AT
+                                )
+                        )
+                )
+        );
+
+        assertThat(result.status())
+                .isEqualTo(HarnessToolResultValidationStatus.INVALID);
+        assertThat(result.reasonCode()).isEqualTo(
+                HarnessToolResultValidationReasonCode
+                        .OUTPUT_CURRENT_PRICE_SOURCE_MISSING
+        );
+        assertThat(result.reason())
+                .isEqualTo("Current price source is missing.");
+    }
+
+    @Test
     void rejectsZeroCurrentPrice() {
         HarnessToolResultValidationResult result = validator.validate(
                 HarnessToolRequest.currentPrice("005930"),
@@ -172,7 +198,13 @@ class HarnessToolResultValidatorTest {
                 HarnessToolRequest.currentPrice("005930"),
                 HarnessToolExecutionResult.executed(
                         HarnessToolOutput.currentPrice(
-                                new CurrentPriceSnapshot("005930", 70_000L, null)
+                                CurrentPriceLookupResult.provider(
+                                        new CurrentPriceSnapshot(
+                                                "005930",
+                                                70_000L,
+                                                null
+                                        )
+                                )
                         )
                 )
         );
@@ -307,8 +339,13 @@ class HarnessToolResultValidatorTest {
         ));
     }
 
-    private CurrentPriceSnapshot currentPrice(String symbol, long priceKrw) {
-        return new CurrentPriceSnapshot(symbol, priceKrw, OBSERVED_AT);
+    private CurrentPriceLookupResult currentPrice(
+            String symbol,
+            long priceKrw
+    ) {
+        return CurrentPriceLookupResult.provider(
+                new CurrentPriceSnapshot(symbol, priceKrw, OBSERVED_AT)
+        );
     }
 
     private PortfolioSnapshot portfolioSnapshot() {

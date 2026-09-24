@@ -60,6 +60,16 @@ public class HarnessToolResultValidator {
         }
 
         if (requestedType == HarnessToolType.GET_CURRENT_PRICE
+                && output.currentPriceSource() == null) {
+            return HarnessToolResultValidationResult.invalid(
+                    requestedType,
+                    HarnessToolResultValidationReasonCode
+                            .OUTPUT_CURRENT_PRICE_SOURCE_MISSING,
+                    "Current price source is missing."
+            );
+        }
+
+        if (requestedType == HarnessToolType.GET_CURRENT_PRICE
                 && !request.symbol().equals(output.currentPriceSnapshot().symbol())) {
             return HarnessToolResultValidationResult.invalid(
                     requestedType,

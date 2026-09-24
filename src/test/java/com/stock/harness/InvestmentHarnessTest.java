@@ -30,6 +30,9 @@ import com.stock.market.price.CurrentPriceService;
 import com.stock.market.price.CurrentPriceSnapshot;
 import com.stock.market.price.cache.CurrentPriceCache;
 import com.stock.market.price.cache.CurrentPriceCacheProperties;
+import com.stock.market.price.lookup.CurrentPriceLookupResult;
+import com.stock.market.price.lookup.CurrentPriceLookupSource;
+import com.stock.market.price.observation.CurrentPriceObservationService;
 import com.stock.market.price.provider.CurrentPriceProvider;
 import com.stock.market.price.provider.FixedCurrentPriceProvider;
 import com.stock.market.price.validation.CurrentPriceFreshnessPolicy;
@@ -146,6 +149,8 @@ class InvestmentHarnessTest {
                             )
                     ))
             );
+    private final CurrentPriceObservationService currentPriceObservationService =
+            mock(CurrentPriceObservationService.class);
 
     @BeforeEach
     void setUpRetryWaiter() {
@@ -166,7 +171,8 @@ class InvestmentHarnessTest {
             harnessAgentActionValidator,
             harnessToolRequestValidator,
             harnessRetryWaiter,
-            strategyStockUniverseRegistry
+            strategyStockUniverseRegistry,
+            currentPriceObservationService
     );
 
     @Test
@@ -268,6 +274,41 @@ class InvestmentHarnessTest {
         assertThat(finalPortfolioStep.startedAt()).isNotNull();
         assertThat(finalPortfolioStep.finishedAt()).isNotNull();
         assertThat(finalPortfolioStep.startedAt()).isBeforeOrEqualTo(finalPortfolioStep.finishedAt());
+
+        verify(currentPriceObservationService).record(
+                result.runId(),
+                STRATEGY_IDENTITY,
+                new CurrentPriceSnapshot(
+                        "005930",
+                        100_000L,
+                        CURRENT_PRICE_OBSERVED_AT
+                ),
+                CurrentPriceLookupSource.PROVIDER
+        );
+    }
+
+    @Test
+    void repeatedRunsRecordProviderAndCacheObservationsSeparately() {
+        HarnessRunResult first = investmentHarness.run(STRATEGY_IDENTITY);
+        HarnessRunResult second = investmentHarness.run(STRATEGY_IDENTITY);
+        CurrentPriceSnapshot snapshot = new CurrentPriceSnapshot(
+                "005930",
+                100_000L,
+                CURRENT_PRICE_OBSERVED_AT
+        );
+
+        verify(currentPriceObservationService).record(
+                first.runId(),
+                STRATEGY_IDENTITY,
+                snapshot,
+                CurrentPriceLookupSource.PROVIDER
+        );
+        verify(currentPriceObservationService).record(
+                second.runId(),
+                STRATEGY_IDENTITY,
+                snapshot,
+                CurrentPriceLookupSource.CACHE
+        );
     }
 
     @Test
@@ -286,7 +327,8 @@ class InvestmentHarnessTest {
                 harnessAgentActionValidator,
                 harnessToolRequestValidator,
                 harnessRetryWaiter,
-                strategyStockUniverseRegistry
+                strategyStockUniverseRegistry,
+                currentPriceObservationService
         );
 
         HarnessRunResult result = limitedHarness.run(STRATEGY_IDENTITY);
@@ -335,7 +377,8 @@ class InvestmentHarnessTest {
                 harnessAgentActionValidator,
                 harnessToolRequestValidator,
                 harnessRetryWaiter,
-                strategyStockUniverseRegistry
+                strategyStockUniverseRegistry,
+                currentPriceObservationService
         );
 
         HarnessRunResult result = failingHarness.run(STRATEGY_IDENTITY);
@@ -410,7 +453,8 @@ class InvestmentHarnessTest {
                 harnessAgentActionValidator,
                 harnessToolRequestValidator,
                 harnessRetryWaiter,
-                strategyStockUniverseRegistry
+                strategyStockUniverseRegistry,
+                currentPriceObservationService
         );
 
         HarnessRunResult result = validatingHarness.run(STRATEGY_IDENTITY);
@@ -458,7 +502,8 @@ class InvestmentHarnessTest {
                 harnessAgentActionValidator,
                 harnessToolRequestValidator,
                 harnessRetryWaiter,
-                strategyStockUniverseRegistry
+                strategyStockUniverseRegistry,
+                currentPriceObservationService
         );
 
         HarnessRunResult result = validatingHarness.run(STRATEGY_IDENTITY);
@@ -503,7 +548,8 @@ class InvestmentHarnessTest {
                 harnessAgentActionValidator,
                 harnessToolRequestValidator,
                 harnessRetryWaiter,
-                strategyStockUniverseRegistry
+                strategyStockUniverseRegistry,
+                currentPriceObservationService
         );
 
         HarnessRunResult result = successHarness.run(STRATEGY_IDENTITY);
@@ -549,7 +595,8 @@ class InvestmentHarnessTest {
                 harnessAgentActionValidator,
                 harnessToolRequestValidator,
                 harnessRetryWaiter,
-                strategyStockUniverseRegistry
+                strategyStockUniverseRegistry,
+                currentPriceObservationService
         );
 
         HarnessRunResult result = deniedHarness.run(STRATEGY_IDENTITY);
@@ -605,7 +652,8 @@ class InvestmentHarnessTest {
                 harnessAgentActionValidator,
                 harnessToolRequestValidator,
                 harnessRetryWaiter,
-                strategyStockUniverseRegistry
+                strategyStockUniverseRegistry,
+                currentPriceObservationService
         );
 
         HarnessRunResult result = sellHarness.run(STRATEGY_IDENTITY);
@@ -637,7 +685,8 @@ class InvestmentHarnessTest {
                 harnessAgentActionValidator,
                 harnessToolRequestValidator,
                 harnessRetryWaiter,
-                strategyStockUniverseRegistry
+                strategyStockUniverseRegistry,
+                currentPriceObservationService
         );
 
         HarnessRunResult result = toolRequestingHarness.run(STRATEGY_IDENTITY);
@@ -730,6 +779,7 @@ class InvestmentHarnessTest {
         assertThat(secondAgentStep.type()).isEqualTo(HarnessStepType.RUN_INVESTMENT_AGENT);
         assertThat(secondAgentStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
         assertThat(secondAgentStep.message()).isEqualTo(result.decision().reason());
+        verifyNoInteractions(currentPriceObservationService);
     }
 
     @Test
@@ -748,7 +798,8 @@ class InvestmentHarnessTest {
                 harnessAgentActionValidator,
                 harnessToolRequestValidator,
                 harnessRetryWaiter,
-                strategyStockUniverseRegistry
+                strategyStockUniverseRegistry,
+                currentPriceObservationService
         );
 
         HarnessRunResult result = multipleToolHarness.run(STRATEGY_IDENTITY);
@@ -815,7 +866,8 @@ class InvestmentHarnessTest {
                 harnessAgentActionValidator,
                 harnessToolRequestValidator,
                 harnessRetryWaiter,
-                strategyStockUniverseRegistry
+                strategyStockUniverseRegistry,
+                currentPriceObservationService
         );
 
         HarnessRunResult result = currentPriceHarness.run(STRATEGY_IDENTITY);
@@ -851,7 +903,8 @@ class InvestmentHarnessTest {
                 harnessAgentActionValidator,
                 harnessToolRequestValidator,
                 harnessRetryWaiter,
-                strategyStockUniverseRegistry
+                strategyStockUniverseRegistry,
+                currentPriceObservationService
         );
 
         HarnessRunResult result = limitedToolHarness.run(STRATEGY_IDENTITY);
@@ -919,7 +972,8 @@ class InvestmentHarnessTest {
                 harnessAgentActionValidator,
                 harnessToolRequestValidator,
                 harnessRetryWaiter,
-                strategyStockUniverseRegistry
+                strategyStockUniverseRegistry,
+                currentPriceObservationService
         );
 
         HarnessRunResult result = deniedHarness.run(STRATEGY_IDENTITY);
@@ -959,7 +1013,8 @@ class InvestmentHarnessTest {
                 harnessAgentActionValidator,
                 harnessToolRequestValidator,
                 harnessRetryWaiter,
-                strategyStockUniverseRegistry
+                strategyStockUniverseRegistry,
+                currentPriceObservationService
         );
 
         HarnessRunResult result = failingToolHarness.run(STRATEGY_IDENTITY);
@@ -1008,7 +1063,8 @@ class InvestmentHarnessTest {
                 harnessAgentActionValidator,
                 harnessToolRequestValidator,
                 harnessRetryWaiter,
-                strategyStockUniverseRegistry
+                strategyStockUniverseRegistry,
+                currentPriceObservationService
         );
 
         HarnessRunResult result = retryingHarness.run(STRATEGY_IDENTITY);
@@ -1071,11 +1127,15 @@ class InvestmentHarnessTest {
                         ),
                         HarnessToolExecutionResult.executed(
                                 request,
-                                HarnessToolOutput.currentPrice(new CurrentPriceSnapshot(
-                                        "005930",
-                                        100_000L,
-                                        CURRENT_PRICE_OBSERVED_AT
-                                ))
+                                HarnessToolOutput.currentPrice(
+                                        CurrentPriceLookupResult.provider(
+                                                new CurrentPriceSnapshot(
+                                                        "005930",
+                                                        100_000L,
+                                                        CURRENT_PRICE_OBSERVED_AT
+                                                )
+                                        )
+                                )
                         )
                 );
         InvestmentHarness retryingHarness = new InvestmentHarness(
@@ -1092,7 +1152,8 @@ class InvestmentHarnessTest {
                 harnessAgentActionValidator,
                 harnessToolRequestValidator,
                 harnessRetryWaiter,
-                strategyStockUniverseRegistry
+                strategyStockUniverseRegistry,
+                currentPriceObservationService
         );
 
         HarnessRunResult result = retryingHarness.run(STRATEGY_IDENTITY);
@@ -1178,7 +1239,8 @@ class InvestmentHarnessTest {
                 harnessAgentActionValidator,
                 harnessToolRequestValidator,
                 harnessRetryWaiter,
-                strategyStockUniverseRegistry
+                strategyStockUniverseRegistry,
+                currentPriceObservationService
         );
 
         HarnessRunResult result = failingHarness.run(STRATEGY_IDENTITY);
@@ -1237,7 +1299,8 @@ class InvestmentHarnessTest {
                 harnessAgentActionValidator,
                 harnessToolRequestValidator,
                 harnessRetryWaiter,
-                strategyStockUniverseRegistry
+                strategyStockUniverseRegistry,
+                currentPriceObservationService
         );
 
         HarnessRunResult result = interruptedHarness.run(STRATEGY_IDENTITY);
@@ -1294,7 +1357,8 @@ class InvestmentHarnessTest {
                 harnessAgentActionValidator,
                 harnessToolRequestValidator,
                 harnessRetryWaiter,
-                strategyStockUniverseRegistry
+                strategyStockUniverseRegistry,
+                currentPriceObservationService
         );
 
         HarnessRunResult result = retryingHarness.run(STRATEGY_IDENTITY);
@@ -1358,7 +1422,8 @@ class InvestmentHarnessTest {
                 harnessAgentActionValidator,
                 harnessToolRequestValidator,
                 harnessRetryWaiter,
-                strategyStockUniverseRegistry
+                strategyStockUniverseRegistry,
+                currentPriceObservationService
         );
 
         HarnessRunResult result = providerLimitedHarness.run(STRATEGY_IDENTITY);
@@ -1410,7 +1475,8 @@ class InvestmentHarnessTest {
                 harnessAgentActionValidator,
                 harnessToolRequestValidator,
                 harnessRetryWaiter,
-                strategyStockUniverseRegistry
+                strategyStockUniverseRegistry,
+                currentPriceObservationService
         );
 
         HarnessRunResult result = validatingHarness.run(STRATEGY_IDENTITY);
@@ -1443,6 +1509,7 @@ class InvestmentHarnessTest {
                 HarnessToolResultValidationReasonCode.OUTPUT_PAYLOAD_MISSING.name()
         );
         verify(requestingAgent).next(any());
+        verifyNoInteractions(currentPriceObservationService);
     }
 
     @Test
@@ -1461,7 +1528,8 @@ class InvestmentHarnessTest {
                 harnessAgentActionValidator,
                 harnessToolRequestValidator,
                 harnessRetryWaiter,
-                strategyStockUniverseRegistry
+                strategyStockUniverseRegistry,
+                currentPriceObservationService
         );
 
         HarnessRunResult result = toolRequestingHarness.run(STRATEGY_IDENTITY);

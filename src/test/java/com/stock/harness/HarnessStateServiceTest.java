@@ -4,6 +4,7 @@ import com.stock.agent.InvestmentAction;
 import com.stock.harness.persistence.HarnessRunRepository;
 import com.stock.harness.persistence.HarnessRunSnapshotJsonConverter;
 import com.stock.harness.persistence.HarnessStepRepository;
+import com.stock.market.price.observation.CurrentPriceObservationService;
 import com.stock.portfolio.PortfolioService;
 import com.stock.portfolio.PortfolioSnapshotStore;
 import com.stock.strategy.profile.InvestmentHorizon;
@@ -38,10 +39,13 @@ class HarnessStateServiceTest {
             harnessRunRepository,
             harnessStepRepository
     );
+    private final CurrentPriceObservationService currentPriceObservationService =
+            mock(CurrentPriceObservationService.class);
     private final HarnessStateService harnessStateService = new HarnessStateService(
             portfolioService,
             tradeHistoryService,
-            harnessRunHistoryService
+            harnessRunHistoryService,
+            currentPriceObservationService
     );
 
     @Test
@@ -67,6 +71,7 @@ class HarnessStateServiceTest {
 
         verify(harnessRunRepository).deleteAll();
         verify(harnessStepRepository).deleteAll();
+        verify(currentPriceObservationService).clear();
     }
 
     private TradeResult executedBuyTradeResult() {
