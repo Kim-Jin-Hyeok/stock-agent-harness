@@ -51,6 +51,8 @@ public class KisCurrentPriceProvider implements CurrentPriceProvider {
                 throw permanentFailure(
                         "KIS current price response was not successful. messageCode="
                                 + response.messageCode()
+                                + ", message="
+                                + response.message()
                 );
             }
             if (response.output() == null) {

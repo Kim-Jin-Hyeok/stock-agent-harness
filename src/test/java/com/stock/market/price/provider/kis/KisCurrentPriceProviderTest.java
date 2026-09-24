@@ -73,7 +73,7 @@ class KisCurrentPriceProviderTest {
         assertPermanentFailure(
                 provider,
                 "KIS current price response was not successful. "
-                        + "messageCode=EGW00123"
+                        + "messageCode=EGW00123, message=Request failed."
         );
     }
 
