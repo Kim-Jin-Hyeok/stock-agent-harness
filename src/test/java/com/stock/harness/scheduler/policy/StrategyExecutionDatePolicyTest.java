@@ -63,6 +63,17 @@ class StrategyExecutionDatePolicyTest {
         assertThat(policy.isExecutionDate(LONG_TERM, thursday)).isTrue();
     }
 
+    @Test
+    void allowsLongTermOnWednesdayBeforeChuseokClosure() {
+        LocalDate wednesday = LocalDate.of(2026, 9, 23);
+        StrategyExecutionDatePolicy policy = policyWithClosedDates(Set.of(
+                LocalDate.of(2026, 9, 24),
+                LocalDate.of(2026, 9, 25)
+        ));
+
+        assertThat(policy.isExecutionDate(LONG_TERM, wednesday)).isTrue();
+    }
+
     private StrategyExecutionDatePolicy policyWithClosedDates(Set<LocalDate> closedDates) {
         MarketCalendarProperties properties = new MarketCalendarProperties(closedDates);
         MarketTradingDayPolicy tradingDayPolicy = new MarketTradingDayPolicy(properties);
