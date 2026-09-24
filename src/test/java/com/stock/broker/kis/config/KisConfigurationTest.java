@@ -12,6 +12,7 @@ import com.stock.broker.kis.order.cancellation.provider.KisBrokerOrderCancellati
 import com.stock.broker.kis.order.inquiry.KisOrderInquiryClient;
 import com.stock.broker.kis.order.inquiry.provider.KisBrokerOrderInquiryProvider;
 import com.stock.broker.kis.order.provider.KisBrokerOrderProvider;
+import com.stock.broker.order.application.BrokerOrderPortfolioApplicationService;
 import com.stock.broker.order.application.BrokerOrderReconciliationService;
 import com.stock.broker.order.cancellation.application.BrokerOrderExpirationCancellationService;
 import com.stock.broker.order.cancellation.scheduler.BrokerOrderExpirationCancellationScheduler;
@@ -28,6 +29,7 @@ import com.stock.market.price.provider.kis.KisCurrentPriceClient;
 import com.stock.market.price.provider.CurrentPriceProvider;
 import com.stock.market.price.provider.FixedCurrentPriceProvider;
 import com.stock.market.price.provider.kis.KisCurrentPriceProvider;
+import com.stock.portfolio.PortfolioService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.web.client.RestClient;
@@ -50,6 +52,10 @@ class KisConfigurationTest {
                     .withBean(
                             BrokerOrderRepository.class,
                             () -> mock(BrokerOrderRepository.class)
+                    )
+                    .withBean(
+                            PortfolioService.class,
+                            () -> mock(PortfolioService.class)
                     )
                     .withBean(
                             BrokerOrderProperties.class,
@@ -128,6 +134,9 @@ class KisConfigurationTest {
                             BrokerOrderReconciliationService.class
                     );
                     assertThat(context).doesNotHaveBean(
+                            BrokerOrderPortfolioApplicationService.class
+                    );
+                    assertThat(context).doesNotHaveBean(
                             BrokerOrderReconciliationScheduler.class
                     );
                 });
@@ -200,6 +209,9 @@ class KisConfigurationTest {
                     );
                     assertThat(context).hasSingleBean(
                             BrokerOrderReconciliationService.class
+                    );
+                    assertThat(context).hasSingleBean(
+                            BrokerOrderPortfolioApplicationService.class
                     );
                     assertThat(context).hasSingleBean(
                             BrokerOrderReconciliationScheduler.class

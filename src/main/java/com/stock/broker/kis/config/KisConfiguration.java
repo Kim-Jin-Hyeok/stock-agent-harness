@@ -11,6 +11,7 @@ import com.stock.broker.kis.order.cancellation.provider.KisBrokerOrderCancellati
 import com.stock.broker.kis.order.inquiry.KisOrderInquiryClient;
 import com.stock.broker.kis.order.inquiry.provider.KisBrokerOrderInquiryProvider;
 import com.stock.broker.kis.order.provider.KisBrokerOrderProvider;
+import com.stock.broker.order.application.BrokerOrderPortfolioApplicationService;
 import com.stock.broker.order.application.BrokerOrderReconciliationService;
 import com.stock.broker.order.application.BrokerOrderSubmissionService;
 import com.stock.broker.order.cancellation.application.BrokerOrderExpirationCancellationService;
@@ -24,6 +25,7 @@ import com.stock.broker.order.scheduler.BrokerOrderReconciliationScheduler;
 import com.stock.broker.order.scheduler.config.BrokerOrderReconciliationSchedulerProperties;
 import com.stock.market.price.provider.kis.KisCurrentPriceClient;
 import com.stock.market.price.provider.kis.KisCurrentPriceProvider;
+import com.stock.portfolio.PortfolioService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -269,6 +271,18 @@ public class KisConfiguration {
         return new BrokerOrderReconciliationService(
                 inquiryProvider,
                 brokerOrderRepository
+        );
+    }
+
+    @Bean
+    public BrokerOrderPortfolioApplicationService
+    brokerOrderPortfolioApplicationService(
+            BrokerOrderRepository brokerOrderRepository,
+            PortfolioService portfolioService
+    ) {
+        return new BrokerOrderPortfolioApplicationService(
+                brokerOrderRepository,
+                portfolioService
         );
     }
 

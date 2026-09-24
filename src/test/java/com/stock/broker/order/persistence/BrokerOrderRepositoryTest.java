@@ -70,6 +70,39 @@ class BrokerOrderRepositoryTest {
     }
 
     @Test
+    void findsOrdersWithUnappliedFillsOldestFirst() {
+        Instant submittedAt = submittedAt();
+        repository.save(BrokerOrderEntity.from(
+                partiallyFilledOrder(
+                        "run-later",
+                        submittedAt.plusSeconds(20)
+                )
+        ));
+        repository.save(BrokerOrderEntity.from(
+                canceledPartiallyFilledOrder(
+                        "run-earlier-canceled",
+                        submittedAt.plusSeconds(10)
+                )
+        ));
+        repository.save(BrokerOrderEntity.from(
+                pendingOrder("run-pending", submittedAt)
+        ));
+        repository.save(BrokerOrderEntity.from(
+                partiallyFilledOrder(
+                        "run-applied",
+                        submittedAt.plusSeconds(5)
+                ).markCurrentFillAppliedToPortfolio()
+        ));
+
+        List<BrokerOrderEntity> targets =
+                repository.findAllWithUnappliedFills();
+
+        assertThat(targets)
+                .extracting(BrokerOrderEntity::getRunId)
+                .containsExactly("run-earlier-canceled", "run-later");
+    }
+
+    @Test
     void updatesExistingOrderWithReconciledExecutionState() {
         BrokerOrderEntity saved = repository.saveAndFlush(
                 BrokerOrderEntity.from(pendingOrder("run-1", submittedAt()))
@@ -214,6 +247,19 @@ class BrokerOrderRepositoryTest {
                 3L,
                 69_900L,
                 BrokerOrderStatus.PARTIALLY_FILLED,
+                submittedAt
+        );
+    }
+
+    private BrokerOrderRecord canceledPartiallyFilledOrder(
+            String runId,
+            Instant submittedAt
+    ) {
+        return order(
+                runId,
+                3L,
+                69_900L,
+                BrokerOrderStatus.CANCELED,
                 submittedAt
         );
     }
