@@ -28,6 +28,16 @@ class HarnessRunContextTest {
     }
 
     @Test
+    void createsContextWithImmutableCandidateSymbols() {
+        List<String> candidateSymbols = new ArrayList<>(List.of("005930"));
+        HarnessRunContext context = runContext(candidateSymbols, List.of());
+
+        candidateSymbols.add("000660");
+
+        assertThat(context.candidateSymbols()).containsExactly("005930");
+    }
+
+    @Test
     void withToolResultKeepsOriginalContextUnchanged() {
         HarnessRunContext context = runContext(List.of());
 
@@ -51,6 +61,13 @@ class HarnessRunContextTest {
     }
 
     private HarnessRunContext runContext(List<HarnessToolExecutionResult> toolResults) {
+        return runContext(List.of("005930"), toolResults);
+    }
+
+    private HarnessRunContext runContext(
+            List<String> candidateSymbols,
+            List<HarnessToolExecutionResult> toolResults
+    ) {
         return new HarnessRunContext(
                 "run-1",
                 new InvestmentStrategyIdentity("DAY_TRADING_V1", 1, InvestmentHorizon.DAY_TRADING),
@@ -58,6 +75,7 @@ class HarnessRunContextTest {
                 HarnessAllowedTools.readOnly(),
                 portfolioSnapshot(),
                 marketSnapshot(),
+                candidateSymbols,
                 toolResults
         );
     }

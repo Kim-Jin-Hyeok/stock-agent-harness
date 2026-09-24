@@ -17,10 +17,12 @@ public record HarnessRunContext(
         HarnessAllowedTools allowedTools,
         PortfolioSnapshot portfolioSnapshot,
         MarketSnapshot marketSnapshot,
+        List<String> candidateSymbols,
         List<HarnessToolExecutionResult> toolResults
 ) {
     public HarnessRunContext {
         Objects.requireNonNull(strategyIdentity, "strategyIdentity must not be null.");
+        candidateSymbols = List.copyOf(candidateSymbols);
         toolResults = List.copyOf(toolResults);
     }
 
@@ -35,6 +37,7 @@ public record HarnessRunContext(
                 allowedTools,
                 portfolioSnapshot,
                 marketSnapshot,
+                candidateSymbols,
                 updatedToolResults
         );
     }

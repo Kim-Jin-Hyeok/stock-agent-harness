@@ -29,6 +29,7 @@ import com.stock.risk.RiskCheckResult;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskGuard;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
+import com.stock.strategy.universe.StrategyStockUniverseRegistry;
 import com.stock.trade.TradeExecutor;
 import com.stock.trade.TradeResult;
 import com.stock.trade.TradeStatus;
@@ -59,6 +60,7 @@ public class InvestmentHarness {
     private final HarnessAgentActionValidator harnessAgentActionValidator;
     private final HarnessToolRequestValidator harnessToolRequestValidator;
     private final HarnessRetryWaiter harnessRetryWaiter;
+    private final StrategyStockUniverseRegistry strategyStockUniverseRegistry;
 
     public HarnessRunResult run(InvestmentStrategyIdentity strategyIdentity) {
         Objects.requireNonNull(strategyIdentity, "strategyIdentity must not be null.");
@@ -75,6 +77,10 @@ public class InvestmentHarness {
         List<HarnessToolExecutionResult> recordedToolResults = new ArrayList<>();
 
         try {
+            List<String> candidateSymbols =
+                    strategyStockUniverseRegistry.getCandidateSymbols(
+                            strategyIdentity
+                    );
             PortfolioSnapshot portfolioSnapshot = stepRecorder.record(
                     HarnessStepType.LOAD_PORTFOLIO,
                     () -> portfolioService.getCurrentSnapshot(strategyIdentity),
@@ -90,7 +96,8 @@ public class InvestmentHarness {
                     runId,
                     strategyIdentity,
                     portfolioSnapshot,
-                    marketSnapshot
+                    marketSnapshot,
+                    candidateSymbols
             );
             HarnessAgentStepBudget agentStepBudget = new HarnessAgentStepBudget(
                     context.limits().maxSteps()
@@ -208,7 +215,8 @@ public class InvestmentHarness {
             String runId,
             InvestmentStrategyIdentity strategyIdentity,
             PortfolioSnapshot portfolioSnapshot,
-            MarketSnapshot marketSnapshot
+            MarketSnapshot marketSnapshot,
+            List<String> candidateSymbols
     ) {
         HarnessRunLimits limits = new HarnessRunLimits(
                 harnessProperties.maxSteps(),
@@ -226,6 +234,7 @@ public class InvestmentHarness {
                 allowedTools,
                 portfolioSnapshot,
                 marketSnapshot,
+                candidateSymbols,
                 List.of()
         );
     }

@@ -58,6 +58,21 @@ portfolio:
         horizon: LONG_TERM
         weight: 1
 
+strategy:
+  universes:
+    - strategy-id: DAY_TRADING_V1
+      strategy-version: 1
+      horizon: DAY_TRADING
+      symbols: ["005930"]
+    - strategy-id: SWING_V1
+      strategy-version: 1
+      horizon: SWING
+      symbols: ["005930"]
+    - strategy-id: LONG_TERM_V1
+      strategy-version: 1
+      horizon: LONG_TERM
+      symbols: ["005930"]
+
 trade:
   execution:
     mode: ${TRADE_EXECUTION_MODE:VIRTUAL}

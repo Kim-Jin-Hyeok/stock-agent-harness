@@ -18,6 +18,8 @@ public class InvestmentAgent {
                 + context.marketSnapshot().marketOpen()
                 + ", allowedTools="
                 + context.allowedTools().types()
+                + ", candidateSymbols="
+                + context.candidateSymbols()
         );
     }
 
