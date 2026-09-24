@@ -3,6 +3,8 @@ package com.stock.harness.tool;
 import com.stock.harness.execution.limit.HarnessProviderCallBudget;
 import com.stock.market.MarketService;
 import com.stock.market.MarketSnapshot;
+import com.stock.market.calendar.MarketCalendarProperties;
+import com.stock.market.calendar.MarketTradingDayPolicy;
 import com.stock.market.price.CurrentPriceService;
 import com.stock.market.price.CurrentPriceSnapshot;
 import com.stock.market.price.cache.CurrentPriceCache;
@@ -14,6 +16,7 @@ import com.stock.market.price.provider.error.CurrentPriceProviderException;
 import com.stock.market.price.provider.error.CurrentPriceProviderFailureType;
 import com.stock.market.price.validation.CurrentPriceFreshnessPolicy;
 import com.stock.market.price.validation.CurrentPriceFreshnessProperties;
+import com.stock.market.session.MarketSessionPolicy;
 import com.stock.portfolio.PortfolioService;
 import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.portfolio.PortfolioSnapshotStore;
@@ -25,6 +28,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static com.stock.portfolio.support.PortfolioSnapshotStoreFixture.create;
@@ -270,7 +274,14 @@ class HarnessToolExecutorTest {
     }
 
     private MarketService marketService() {
-        return new MarketService();
+        return new MarketService(
+                new MarketSessionPolicy(
+                        new MarketTradingDayPolicy(
+                                new MarketCalendarProperties(Set.of())
+                        )
+                ),
+                Clock.fixed(OBSERVED_AT, ZoneOffset.UTC)
+        );
     }
 
     private HarnessToolRequest portfolioToolRequest() {

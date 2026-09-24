@@ -26,6 +26,8 @@ import com.stock.harness.tool.validation.HarnessToolRequestValidator;
 import com.stock.harness.tool.validation.HarnessToolResultValidationReasonCode;
 import com.stock.harness.tool.validation.HarnessToolResultValidator;
 import com.stock.market.MarketService;
+import com.stock.market.calendar.MarketCalendarProperties;
+import com.stock.market.calendar.MarketTradingDayPolicy;
 import com.stock.market.price.CurrentPriceService;
 import com.stock.market.price.CurrentPriceSnapshot;
 import com.stock.market.price.cache.CurrentPriceCache;
@@ -37,6 +39,7 @@ import com.stock.market.price.provider.CurrentPriceProvider;
 import com.stock.market.price.provider.FixedCurrentPriceProvider;
 import com.stock.market.price.validation.CurrentPriceFreshnessPolicy;
 import com.stock.market.price.validation.CurrentPriceFreshnessProperties;
+import com.stock.market.session.MarketSessionPolicy;
 import com.stock.portfolio.PortfolioPosition;
 import com.stock.portfolio.PortfolioService;
 import com.stock.portfolio.PortfolioSnapshotStore;
@@ -61,6 +64,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -104,7 +108,14 @@ class InvestmentHarnessTest {
             new VirtualTradeExecutionHandler(portfolioService),
             tradeHistoryService
     );
-    private final MarketService marketService = new MarketService();
+    private final MarketService marketService = new MarketService(
+            new MarketSessionPolicy(
+                    new MarketTradingDayPolicy(
+                            new MarketCalendarProperties(Set.of())
+                    )
+            ),
+            Clock.fixed(CURRENT_PRICE_OBSERVED_AT, ZoneOffset.UTC)
+    );
     private final CurrentPriceFreshnessPolicy currentPriceFreshnessPolicy =
             new CurrentPriceFreshnessPolicy(
                     new CurrentPriceFreshnessProperties(CURRENT_PRICE_MAX_AGE),
