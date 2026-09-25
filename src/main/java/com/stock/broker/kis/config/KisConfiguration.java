@@ -31,6 +31,7 @@ import com.stock.market.price.history.persistence.DailyPriceBarRepository;
 import com.stock.market.price.history.provider.DailyPriceHistoryProvider;
 import com.stock.market.price.history.provider.kis.KisDailyPriceHistoryClient;
 import com.stock.market.price.history.provider.kis.KisDailyPriceHistoryProvider;
+import com.stock.market.price.history.provider.kis.KisDailyPriceHistoryRequestWaiter;
 import com.stock.market.price.provider.kis.KisCurrentPriceClient;
 import com.stock.market.price.provider.kis.KisCurrentPriceProvider;
 import com.stock.portfolio.PortfolioService;
@@ -123,12 +124,22 @@ public class KisConfiguration {
     public KisDailyPriceHistoryProvider kisDailyPriceHistoryProvider(
             KisDailyPriceHistoryClient kisDailyPriceHistoryClient,
             KisTokenProvider kisTokenProvider,
+            KisDailyPriceHistoryRequestWaiter requestWaiter,
             KisProperties properties
     ) {
         return new KisDailyPriceHistoryProvider(
                 kisDailyPriceHistoryClient,
                 kisTokenProvider,
+                requestWaiter,
                 properties.dailyPriceHistoryMaxPages()
+        );
+    }
+
+    @Bean
+    public KisDailyPriceHistoryRequestWaiter
+    kisDailyPriceHistoryRequestWaiter(KisProperties properties) {
+        return new KisDailyPriceHistoryRequestWaiter(
+                properties.dailyPriceHistoryRequestDelay()
         );
     }
 

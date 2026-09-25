@@ -20,6 +20,7 @@ public record KisProperties(
         int orderInquiryMaxPages,
         int cancelableOrderInquiryMaxPages,
         int dailyPriceHistoryMaxPages,
+        Duration dailyPriceHistoryRequestDelay,
         KisDailyPriceHistoryMarket dailyPriceHistoryMarket
 ) {
     public KisProperties {
@@ -47,6 +48,12 @@ public record KisProperties(
         if (dailyPriceHistoryMaxPages <= 0) {
             throw new IllegalArgumentException(
                     "dailyPriceHistoryMaxPages must be positive."
+            );
+        }
+        if (dailyPriceHistoryRequestDelay == null
+                || dailyPriceHistoryRequestDelay.isNegative()) {
+            throw new IllegalArgumentException(
+                    "dailyPriceHistoryRequestDelay must not be null or negative."
             );
         }
         Objects.requireNonNull(

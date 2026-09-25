@@ -66,6 +66,9 @@ class KisDailyPriceHistoryProviderTest {
                 KisDailyPriceHistoryClient.class
         );
         KisTokenProvider tokenProvider = tokenProvider();
+        KisDailyPriceHistoryRequestWaiter requestWaiter = mock(
+                KisDailyPriceHistoryRequestWaiter.class
+        );
         List<KisDailyPriceBarOutput> firstPage = IntStream.range(0, 100)
                 .mapToObj(offset -> output(TO_DATE.minusDays(offset)))
                 .toList();
@@ -87,6 +90,7 @@ class KisDailyPriceHistoryProviderTest {
         KisDailyPriceHistoryProvider provider = provider(
                 client,
                 tokenProvider,
+                requestWaiter,
                 3
         );
 
@@ -103,6 +107,7 @@ class KisDailyPriceHistoryProviderTest {
                 secondRequest,
                 ACCESS_TOKEN
         );
+        verify(requestWaiter, times(2)).waitBeforeRequest();
     }
 
     @Test
@@ -123,6 +128,7 @@ class KisDailyPriceHistoryProviderTest {
                 .isThrownBy(() -> provider(
                         mock(KisDailyPriceHistoryClient.class),
                         mock(KisTokenProvider.class),
+                        mock(KisDailyPriceHistoryRequestWaiter.class),
                         0
                 ))
                 .withMessage("maxPages must be positive.");
@@ -318,9 +324,24 @@ class KisDailyPriceHistoryProviderTest {
             KisTokenProvider tokenProvider,
             int maxPages
     ) {
+        return provider(
+                client,
+                tokenProvider,
+                mock(KisDailyPriceHistoryRequestWaiter.class),
+                maxPages
+        );
+    }
+
+    private KisDailyPriceHistoryProvider provider(
+            KisDailyPriceHistoryClient client,
+            KisTokenProvider tokenProvider,
+            KisDailyPriceHistoryRequestWaiter requestWaiter,
+            int maxPages
+    ) {
         return new KisDailyPriceHistoryProvider(
                 client,
                 tokenProvider,
+                requestWaiter,
                 maxPages
         );
     }

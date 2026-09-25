@@ -28,6 +28,7 @@ class KisPropertiesTest {
                 10,
                 10,
                 10,
+                Duration.ofSeconds(1),
                 KisDailyPriceHistoryMarket.INTEGRATED
         );
 
@@ -63,6 +64,7 @@ class KisPropertiesTest {
                         10,
                         10,
                         10,
+                        Duration.ofSeconds(1),
                         KisDailyPriceHistoryMarket.INTEGRATED
                 ))
                 .withMessage(
@@ -85,6 +87,7 @@ class KisPropertiesTest {
                         10,
                         10,
                         10,
+                        Duration.ofSeconds(1),
                         KisDailyPriceHistoryMarket.INTEGRATED
                 ))
                 .withMessage("accountBalanceMaxPages must be positive.");
@@ -105,6 +108,7 @@ class KisPropertiesTest {
                         0,
                         10,
                         10,
+                        Duration.ofSeconds(1),
                         KisDailyPriceHistoryMarket.INTEGRATED
                 ))
                 .withMessage("orderInquiryMaxPages must be positive.");
@@ -125,6 +129,7 @@ class KisPropertiesTest {
                         10,
                         0,
                         10,
+                        Duration.ofSeconds(1),
                         KisDailyPriceHistoryMarket.INTEGRATED
                 ))
                 .withMessage(
@@ -147,10 +152,34 @@ class KisPropertiesTest {
                         10,
                         10,
                         0,
+                        Duration.ofSeconds(1),
                         KisDailyPriceHistoryMarket.INTEGRATED
                 ))
                 .withMessage(
                         "dailyPriceHistoryMaxPages must be positive."
+                );
+    }
+
+    @Test
+    void rejectsNegativeDailyPriceHistoryRequestDelay() {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> new KisProperties(
+                        false,
+                        BASE_URL,
+                        "",
+                        "",
+                        "",
+                        "",
+                        Duration.ofMinutes(1),
+                        10,
+                        10,
+                        10,
+                        10,
+                        Duration.ofMillis(-1),
+                        KisDailyPriceHistoryMarket.INTEGRATED
+                ))
+                .withMessage(
+                        "dailyPriceHistoryRequestDelay must not be null or negative."
                 );
     }
 
@@ -167,6 +196,7 @@ class KisPropertiesTest {
                 10,
                 10,
                 10,
+                Duration.ofSeconds(1),
                 KisDailyPriceHistoryMarket.INTEGRATED
         );
     }

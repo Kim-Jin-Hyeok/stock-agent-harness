@@ -11,6 +11,7 @@ import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.io.ClassPathResource;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -66,6 +67,8 @@ class PaperObservationProfileConfigurationTest {
         assertThat(properties.appSecret()).isEqualTo("paper-app-secret");
         assertThat(properties.accountNumber()).isEqualTo("paper-account-number");
         assertThat(properties.accountProductCode()).isEqualTo("paper-product-code");
+        assertThat(properties.dailyPriceHistoryRequestDelay())
+                .isEqualTo(Duration.ofSeconds(1));
     }
 
     private ConfigurableEnvironment loadEnvironment() throws IOException {

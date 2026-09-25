@@ -33,6 +33,7 @@ broker:
     order-inquiry-max-pages: 10
     cancelable-order-inquiry-max-pages: 10
     daily-price-history-max-pages: 10
+    daily-price-history-request-delay: 1s
     daily-price-history-market: INTEGRATED
 
 market:

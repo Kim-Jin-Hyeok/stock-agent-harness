@@ -152,6 +152,7 @@ class KisBrokerAccountProviderTest {
                 10,
                 10,
                 10,
+                Duration.ofSeconds(1),
                 KisDailyPriceHistoryMarket.INTEGRATED
         );
     }

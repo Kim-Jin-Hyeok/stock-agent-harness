@@ -34,6 +34,7 @@ import com.stock.market.price.history.provider.DailyPriceHistoryProvider;
 import com.stock.market.price.history.provider.kis.KisDailyPriceHistoryClient;
 import com.stock.market.price.history.provider.kis.KisDailyPriceHistoryMarket;
 import com.stock.market.price.history.provider.kis.KisDailyPriceHistoryProvider;
+import com.stock.market.price.history.provider.kis.KisDailyPriceHistoryRequestWaiter;
 import com.stock.market.price.provider.kis.KisCurrentPriceClient;
 import com.stock.market.price.provider.CurrentPriceProvider;
 import com.stock.market.price.provider.FixedCurrentPriceProvider;
@@ -108,6 +109,9 @@ class KisConfigurationTest {
                     );
                     assertThat(context).doesNotHaveBean(
                             DailyPriceHistoryProvider.class
+                    );
+                    assertThat(context).doesNotHaveBean(
+                            KisDailyPriceHistoryRequestWaiter.class
                     );
                     assertThat(context).doesNotHaveBean(
                             DailyPriceHistoryCollectionService.class
@@ -248,6 +252,9 @@ class KisConfigurationTest {
                     assertThat(context).hasSingleBean(
                             DailyPriceHistoryProvider.class
                     );
+                    assertThat(context).hasSingleBean(
+                            KisDailyPriceHistoryRequestWaiter.class
+                    );
                     assertThat(context.getBean(
                             DailyPriceHistoryProvider.class
                     )).isInstanceOf(KisDailyPriceHistoryProvider.class);
@@ -335,6 +342,7 @@ class KisConfigurationTest {
                 10,
                 10,
                 10,
+                Duration.ofSeconds(1),
                 KisDailyPriceHistoryMarket.INTEGRATED
         );
     }

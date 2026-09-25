@@ -23,11 +23,13 @@ public class KisDailyPriceHistoryProvider implements DailyPriceHistoryProvider {
 
     private final KisDailyPriceHistoryClient dailyPriceHistoryClient;
     private final KisTokenProvider tokenProvider;
+    private final KisDailyPriceHistoryRequestWaiter requestWaiter;
     private final int maxPages;
 
     public KisDailyPriceHistoryProvider(
             KisDailyPriceHistoryClient dailyPriceHistoryClient,
             KisTokenProvider tokenProvider,
+            KisDailyPriceHistoryRequestWaiter requestWaiter,
             int maxPages
     ) {
         this.dailyPriceHistoryClient = Objects.requireNonNull(
@@ -37,6 +39,10 @@ public class KisDailyPriceHistoryProvider implements DailyPriceHistoryProvider {
         this.tokenProvider = Objects.requireNonNull(
                 tokenProvider,
                 "tokenProvider must not be null."
+        );
+        this.requestWaiter = Objects.requireNonNull(
+                requestWaiter,
+                "requestWaiter must not be null."
         );
         if (maxPages <= 0) {
             throw new IllegalArgumentException("maxPages must be positive.");
@@ -62,6 +68,7 @@ public class KisDailyPriceHistoryProvider implements DailyPriceHistoryProvider {
                                 request.fromDate(),
                                 pageToDate
                         );
+                requestWaiter.waitBeforeRequest();
                 List<DailyPriceBar> pageBars = getPage(
                         pageRequest,
                         accessToken
