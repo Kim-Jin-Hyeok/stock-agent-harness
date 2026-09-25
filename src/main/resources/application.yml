@@ -104,6 +104,20 @@ strategy:
       strategy-version: 1
       horizon: LONG_TERM
       symbols: ["005930"]
+  daily-price-history:
+    limits:
+      - strategy-id: DAY_TRADING_V1
+        strategy-version: 1
+        horizon: DAY_TRADING
+        latest-bar-count: 60
+      - strategy-id: SWING_V1
+        strategy-version: 1
+        horizon: SWING
+        latest-bar-count: 120
+      - strategy-id: LONG_TERM_V1
+        strategy-version: 1
+        horizon: LONG_TERM
+        latest-bar-count: 250
 
 trade:
   execution:
