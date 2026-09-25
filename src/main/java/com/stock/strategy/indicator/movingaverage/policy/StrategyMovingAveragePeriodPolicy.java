@@ -64,13 +64,16 @@ public class StrategyMovingAveragePeriodPolicy {
         int latestBarCount = dailyPriceHistoryPolicy.getLatestBarCount(
                 identity
         );
-        if (configured.longPeriod() > latestBarCount) {
+        long requiredBarCount = (long) configured.longPeriod() + 1;
+        if (requiredBarCount > latestBarCount) {
             throw new IllegalArgumentException(
-                    "Moving average longPeriod exceeds daily price history "
-                            + "limit. strategyIdentity="
+                    "Moving average crossover analysis requires more daily "
+                            + "price bars than configured. strategyIdentity="
                             + identity
                             + ", longPeriod="
                             + configured.longPeriod()
+                            + ", requiredBarCount="
+                            + requiredBarCount
                             + ", latestBarCount="
                             + latestBarCount
             );

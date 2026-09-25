@@ -25,7 +25,7 @@ class StrategyMovingAveragePeriodPolicyTest {
 
     @Test
     void returnsPeriodsForStrategyIdentity() {
-        StrategyMovingAveragePeriodPolicy policy = policy(5, 20, 60);
+        StrategyMovingAveragePeriodPolicy policy = policy(5, 20, 21);
 
         MovingAveragePeriods periods = policy.getPeriods(
                 STRATEGY_IDENTITY
@@ -36,7 +36,7 @@ class StrategyMovingAveragePeriodPolicyTest {
 
     @Test
     void rejectsUnregisteredStrategyIdentity() {
-        StrategyMovingAveragePeriodPolicy policy = policy(5, 20, 60);
+        StrategyMovingAveragePeriodPolicy policy = policy(5, 20, 21);
         InvestmentStrategyIdentity unknown = new InvestmentStrategyIdentity(
                 "DAY_TRADING_V2",
                 2,
@@ -52,15 +52,17 @@ class StrategyMovingAveragePeriodPolicyTest {
     }
 
     @Test
-    void rejectsLongPeriodExceedingDailyPriceHistoryLimit() {
+    void rejectsHistoryLimitWithoutPreviousIndicatorBar() {
         assertThatIllegalArgumentException()
-                .isThrownBy(() -> policy(5, 20, 19))
+                .isThrownBy(() -> policy(5, 20, 20))
                 .withMessageContaining(
-                        "Moving average longPeriod exceeds daily price "
-                                + "history limit."
+                        "Moving average crossover analysis requires more "
+                                + "daily price bars than configured."
                 )
                 .withMessageContaining("longPeriod=20")
-                .withMessageContaining("latestBarCount=19");
+                .withMessageContaining("requiredBarCount=21")
+                .withMessageContaining("latestBarCount=20")
+                .withMessageContaining(STRATEGY_IDENTITY.toString());
     }
 
     private StrategyMovingAveragePeriodPolicy policy(
