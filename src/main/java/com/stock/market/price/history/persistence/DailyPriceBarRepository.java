@@ -1,5 +1,6 @@
 package com.stock.market.price.history.persistence;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDate;
@@ -17,5 +18,10 @@ public interface DailyPriceBarRepository
 
     Optional<DailyPriceBarEntity> findTopBySymbolOrderByTradingDateDesc(
             String symbol
+    );
+
+    List<DailyPriceBarEntity> findAllBySymbolOrderByTradingDateDesc(
+            String symbol,
+            Pageable pageable
     );
 }

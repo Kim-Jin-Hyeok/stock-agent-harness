@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -75,6 +76,31 @@ class DailyPriceBarRepositoryTest {
 
         assertThat(latest.getTradingDate()).isEqualTo(TRADING_DATE);
         assertThat(latest.getClosePriceKrw()).isEqualTo(72_000L);
+    }
+
+    @Test
+    void findsLimitedLatestBarsForSymbol() {
+        repository.saveAllAndFlush(List.of(
+                entity(SYMBOL, TRADING_DATE.minusDays(3), 69_000L),
+                entity(SYMBOL, TRADING_DATE.minusDays(2), 70_000L),
+                entity(SYMBOL, TRADING_DATE.minusDays(1), 71_000L),
+                entity(SYMBOL, TRADING_DATE, 72_000L),
+                entity("000660", TRADING_DATE.plusDays(1), 200_000L)
+        ));
+
+        List<DailyPriceBarEntity> result = repository
+                .findAllBySymbolOrderByTradingDateDesc(
+                        SYMBOL,
+                        PageRequest.of(0, 3)
+                );
+
+        assertThat(result)
+                .extracting(DailyPriceBarEntity::getTradingDate)
+                .containsExactly(
+                        TRADING_DATE,
+                        TRADING_DATE.minusDays(1),
+                        TRADING_DATE.minusDays(2)
+                );
     }
 
     @Test

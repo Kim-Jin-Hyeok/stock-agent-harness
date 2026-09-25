@@ -6,6 +6,7 @@ import com.stock.market.price.history.DailyPriceHistoryRequest;
 import com.stock.market.price.history.persistence.DailyPriceBarEntity;
 import com.stock.market.price.history.persistence.DailyPriceBarRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.PageRequest;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -88,6 +89,91 @@ class DailyPriceHistoryQueryServiceTest {
         assertThatThrownBy(() -> service.getDailyPriceHistory(null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("request must not be null.");
+        verifyNoInteractions(repository);
+    }
+
+    @Test
+    void returnsLatestDailyPriceHistoryInTradingDateOrder() {
+        DailyPriceBarRepository repository = mock(
+                DailyPriceBarRepository.class
+        );
+        DailyPriceHistoryQueryService service =
+                new DailyPriceHistoryQueryService(repository);
+        DailyPriceBar oldestBar = bar(FROM_DATE, 71_000L);
+        DailyPriceBar middleBar = bar(FROM_DATE.plusDays(1), 72_000L);
+        DailyPriceBar latestBar = bar(FROM_DATE.plusDays(2), 73_000L);
+        when(repository.findAllBySymbolOrderByTradingDateDesc(
+                SYMBOL,
+                PageRequest.of(0, 3)
+        )).thenReturn(List.of(
+                DailyPriceBarEntity.from(SYMBOL, latestBar),
+                DailyPriceBarEntity.from(SYMBOL, middleBar),
+                DailyPriceBarEntity.from(SYMBOL, oldestBar)
+        ));
+
+        DailyPriceHistory history = service.getLatestDailyPriceHistory(
+                SYMBOL,
+                3
+        );
+
+        assertThat(history.symbol()).isEqualTo(SYMBOL);
+        assertThat(history.bars()).containsExactly(
+                oldestBar,
+                middleBar,
+                latestBar
+        );
+        verify(repository).findAllBySymbolOrderByTradingDateDesc(
+                SYMBOL,
+                PageRequest.of(0, 3)
+        );
+    }
+
+    @Test
+    void returnsEmptyLatestHistoryWhenStoredBarsDoNotExist() {
+        DailyPriceBarRepository repository = mock(
+                DailyPriceBarRepository.class
+        );
+        DailyPriceHistoryQueryService service =
+                new DailyPriceHistoryQueryService(repository);
+        when(repository.findAllBySymbolOrderByTradingDateDesc(
+                SYMBOL,
+                PageRequest.of(0, 3)
+        )).thenReturn(List.of());
+
+        DailyPriceHistory history = service.getLatestDailyPriceHistory(
+                SYMBOL,
+                3
+        );
+
+        assertThat(history.symbol()).isEqualTo(SYMBOL);
+        assertThat(history.bars()).isEmpty();
+    }
+
+    @Test
+    void rejectsBlankSymbolForLatestHistory() {
+        DailyPriceBarRepository repository = mock(
+                DailyPriceBarRepository.class
+        );
+        DailyPriceHistoryQueryService service =
+                new DailyPriceHistoryQueryService(repository);
+
+        assertThatThrownBy(() -> service.getLatestDailyPriceHistory(" ", 3))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("symbol must not be blank.");
+        verifyNoInteractions(repository);
+    }
+
+    @Test
+    void rejectsNonPositiveLimitForLatestHistory() {
+        DailyPriceBarRepository repository = mock(
+                DailyPriceBarRepository.class
+        );
+        DailyPriceHistoryQueryService service =
+                new DailyPriceHistoryQueryService(repository);
+
+        assertThatThrownBy(() -> service.getLatestDailyPriceHistory(SYMBOL, 0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("limit must be at least 1.");
         verifyNoInteractions(repository);
     }
 
