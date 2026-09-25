@@ -146,9 +146,11 @@ public record HarnessMovingAverageEvidenceSnapshot(
                     "Moving average periods are invalid."
             );
         }
-        if (longPeriod != requiredBarCount) {
+        if (requiredBarCount != longPeriod
+                && requiredBarCount != longPeriod + 1) {
             throw new IllegalArgumentException(
-                    "longPeriod must match requiredBarCount."
+                    "requiredBarCount must match the legacy trend analysis "
+                            + "or crossover analysis requirement."
             );
         }
         if (availableBarCount < requiredBarCount) {

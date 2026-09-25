@@ -3,6 +3,7 @@ package com.stock.strategy.analysis.movingaverage;
 import com.stock.strategy.indicator.movingaverage.MovingAverageIndicatorCalculator;
 import com.stock.strategy.indicator.movingaverage.SimpleMovingAverageCalculator;
 import com.stock.strategy.indicator.movingaverage.policy.StrategyMovingAveragePeriodPolicy;
+import com.stock.strategy.signal.movingaverage.MovingAverageCrossoverSignalEvaluator;
 import com.stock.strategy.signal.movingaverage.MovingAverageTrendEvaluator;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -23,6 +24,7 @@ class MovingAverageAnalysisServiceContextTest {
                             SimpleMovingAverageCalculator.class,
                             MovingAverageIndicatorCalculator.class,
                             MovingAverageTrendEvaluator.class,
+                            MovingAverageCrossoverSignalEvaluator.class,
                             MovingAverageAnalysisService.class
                     );
 
@@ -38,6 +40,9 @@ class MovingAverageAnalysisServiceContextTest {
             );
             assertThat(context).hasSingleBean(
                     MovingAverageTrendEvaluator.class
+            );
+            assertThat(context).hasSingleBean(
+                    MovingAverageCrossoverSignalEvaluator.class
             );
             assertThat(context).hasSingleBean(
                     MovingAverageAnalysisService.class

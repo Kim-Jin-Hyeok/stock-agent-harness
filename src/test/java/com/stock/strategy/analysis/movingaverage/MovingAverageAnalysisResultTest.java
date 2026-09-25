@@ -4,6 +4,7 @@ import com.stock.strategy.indicator.movingaverage.MovingAverageIndicator;
 import com.stock.strategy.indicator.movingaverage.SimpleMovingAverage;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
+import com.stock.strategy.signal.movingaverage.MovingAverageCrossoverSignal;
 import com.stock.strategy.signal.movingaverage.MovingAverageTrend;
 import org.junit.jupiter.api.Test;
 
@@ -30,16 +31,24 @@ class MovingAverageAnalysisResultTest {
                 MovingAverageAnalysisResult.analyzed(
                         STRATEGY_IDENTITY,
                         60,
+                        previousIndicator(),
+                        MovingAverageTrend.FLAT,
                         indicator,
-                        MovingAverageTrend.UPTREND
+                        MovingAverageTrend.UPTREND,
+                        MovingAverageCrossoverSignal.GOLDEN_CROSS
                 );
 
         assertThat(result.status())
                 .isEqualTo(MovingAverageAnalysisStatus.ANALYZED);
-        assertThat(result.requiredBarCount()).isEqualTo(20);
+        assertThat(result.requiredBarCount()).isEqualTo(21);
         assertThat(result.availableBarCount()).isEqualTo(60);
+        assertThat(result.previousIndicator())
+                .isEqualTo(previousIndicator());
+        assertThat(result.previousTrend()).isEqualTo(MovingAverageTrend.FLAT);
         assertThat(result.indicator()).isEqualTo(indicator);
         assertThat(result.trend()).isEqualTo(MovingAverageTrend.UPTREND);
+        assertThat(result.crossoverSignal())
+                .isEqualTo(MovingAverageCrossoverSignal.GOLDEN_CROSS);
     }
 
     @Test
@@ -48,14 +57,17 @@ class MovingAverageAnalysisResultTest {
                 MovingAverageAnalysisResult.insufficientData(
                         STRATEGY_IDENTITY,
                         "005930",
-                        20,
-                        19
+                        21,
+                        20
                 );
 
         assertThat(result.status())
                 .isEqualTo(MovingAverageAnalysisStatus.INSUFFICIENT_DATA);
+        assertThat(result.previousIndicator()).isNull();
+        assertThat(result.previousTrend()).isNull();
         assertThat(result.indicator()).isNull();
         assertThat(result.trend()).isNull();
+        assertThat(result.crossoverSignal()).isNull();
     }
 
     @Test
@@ -65,10 +77,13 @@ class MovingAverageAnalysisResultTest {
                         STRATEGY_IDENTITY,
                         "005930",
                         MovingAverageAnalysisStatus.ANALYZED,
+                        21,
                         20,
-                        19,
+                        previousIndicator(),
+                        MovingAverageTrend.FLAT,
                         indicator(),
-                        MovingAverageTrend.UPTREND
+                        MovingAverageTrend.UPTREND,
+                        MovingAverageCrossoverSignal.GOLDEN_CROSS
                 ))
                 .withMessage(
                         "Analyzed result requires enough available bars."
@@ -82,10 +97,13 @@ class MovingAverageAnalysisResultTest {
                         STRATEGY_IDENTITY,
                         "005930",
                         MovingAverageAnalysisStatus.INSUFFICIENT_DATA,
+                        21,
                         20,
-                        19,
+                        previousIndicator(),
+                        MovingAverageTrend.FLAT,
                         indicator(),
-                        MovingAverageTrend.UPTREND
+                        MovingAverageTrend.UPTREND,
+                        MovingAverageCrossoverSignal.GOLDEN_CROSS
                 ))
                 .withMessage(
                         "Insufficient data result must not contain analysis."
@@ -93,24 +111,45 @@ class MovingAverageAnalysisResultTest {
     }
 
     private MovingAverageIndicator indicator() {
+        return indicator(
+                AS_OF_DATE,
+                "71000.00",
+                "70000.00"
+        );
+    }
+
+    private MovingAverageIndicator previousIndicator() {
+        return indicator(
+                AS_OF_DATE.minusDays(1),
+                "70000.00",
+                "70000.00"
+        );
+    }
+
+    private MovingAverageIndicator indicator(
+            LocalDate asOfDate,
+            String shortAveragePriceKrw,
+            String longAveragePriceKrw
+    ) {
         return new MovingAverageIndicator(
                 "005930",
-                AS_OF_DATE,
-                movingAverage(5, "71000.00"),
-                movingAverage(20, "70000.00")
+                asOfDate,
+                movingAverage(5, shortAveragePriceKrw, asOfDate),
+                movingAverage(20, longAveragePriceKrw, asOfDate)
         );
     }
 
     private SimpleMovingAverage movingAverage(
             int period,
-            String averagePriceKrw
+            String averagePriceKrw,
+            LocalDate asOfDate
     ) {
         return new SimpleMovingAverage(
                 "005930",
                 period,
                 new BigDecimal(averagePriceKrw),
-                AS_OF_DATE.minusDays(period - 1L),
-                AS_OF_DATE
+                asOfDate.minusDays(period - 1L),
+                asOfDate
         );
     }
 }

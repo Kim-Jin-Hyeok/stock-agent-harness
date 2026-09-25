@@ -25,8 +25,9 @@ import com.stock.strategy.indicator.movingaverage.config.StrategyMovingAveragePr
 import com.stock.strategy.indicator.movingaverage.policy.StrategyMovingAveragePeriodPolicy;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
-import com.stock.strategy.signal.movingaverage.MovingAverageTrendEvaluator;
+import com.stock.strategy.signal.movingaverage.MovingAverageCrossoverSignalEvaluator;
 import com.stock.strategy.signal.movingaverage.MovingAverageTrend;
+import com.stock.strategy.signal.movingaverage.MovingAverageTrendEvaluator;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -71,7 +72,7 @@ class InvestmentAgentTest {
     void nextRequestsCurrentPriceAfterDailyPriceHistoryIsReceived() {
         HarnessRunContext context = runContext(
                 List.of("005930"),
-                List.of(dailyPriceHistoryResult("005930", dailyBars(20)))
+                List.of(dailyPriceHistoryResult("005930", dailyBars(21)))
         );
 
         AgentNextAction action = agent.next(context);
@@ -90,7 +91,7 @@ class InvestmentAgentTest {
                 List.of(
                         dailyPriceHistoryResult(
                                 "005930",
-                                dailyBars(20)
+                                dailyBars(21)
                         ),
                         currentPriceResult("005930", 80_000L)
                 )
@@ -109,10 +110,10 @@ class InvestmentAgentTest {
                 .isEqualTo(
                         "Moving average analyzed. symbol=005930, "
                                 + "trend=UPTREND, shortPeriod=5, "
-                                + "shortAveragePriceKrw=77000.00, "
+                                + "shortAveragePriceKrw=78000.00, "
                                 + "longPeriod=20, "
-                                + "longAveragePriceKrw=69500.00, "
-                                + "asOfTradingDate=2026-09-20, "
+                                + "longAveragePriceKrw=70500.00, "
+                                + "asOfTradingDate=2026-09-21, "
                                 + "currentPriceKrw=80000, source=PROVIDER"
                 );
         assertThat(action.investmentDecision().movingAverageEvidence()
@@ -133,7 +134,7 @@ class InvestmentAgentTest {
     void nextReturnsHoldWithoutCurrentPriceWhenHistoryIsInsufficient() {
         HarnessRunContext context = runContext(
                 List.of("005930"),
-                List.of(dailyPriceHistoryResult("005930", dailyBars(19)))
+                List.of(dailyPriceHistoryResult("005930", dailyBars(20)))
         );
 
         AgentNextAction action = agent.next(context);
@@ -143,7 +144,7 @@ class InvestmentAgentTest {
                 .isEqualTo(InvestmentAction.HOLD);
         assertThat(action.investmentDecision().reason()).isEqualTo(
                 "Moving average data is insufficient. symbol=005930, "
-                        + "requiredBars=20, availableBars=19"
+                        + "requiredBars=21, availableBars=20"
         );
         assertThat(action.investmentDecision().movingAverageEvidence()
                 .analysis().status())
@@ -179,7 +180,7 @@ class InvestmentAgentTest {
                 List.of(
                         dailyPriceHistoryResult(
                                 "005930",
-                                dailyBars(20)
+                                dailyBars(21)
                         ),
                         currentPriceResult("000660", 120_000L)
                 )
@@ -302,7 +303,8 @@ class InvestmentAgentTest {
         return new MovingAverageAnalysisService(
                 periodPolicy,
                 new MovingAverageIndicatorCalculator(simpleCalculator),
-                new MovingAverageTrendEvaluator()
+                new MovingAverageTrendEvaluator(),
+                new MovingAverageCrossoverSignalEvaluator()
         );
     }
 

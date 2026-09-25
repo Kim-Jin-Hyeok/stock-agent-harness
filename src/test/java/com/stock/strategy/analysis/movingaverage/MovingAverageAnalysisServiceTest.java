@@ -12,6 +12,8 @@ import com.stock.strategy.indicator.movingaverage.config.StrategyMovingAveragePr
 import com.stock.strategy.indicator.movingaverage.policy.StrategyMovingAveragePeriodPolicy;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
+import com.stock.strategy.signal.movingaverage.MovingAverageCrossoverSignal;
+import com.stock.strategy.signal.movingaverage.MovingAverageCrossoverSignalEvaluator;
 import com.stock.strategy.signal.movingaverage.MovingAverageTrend;
 import com.stock.strategy.signal.movingaverage.MovingAverageTrendEvaluator;
 import org.junit.jupiter.api.Test;
@@ -38,33 +40,68 @@ class MovingAverageAnalysisServiceTest {
     void analyzesHistoryUsingStrategyPeriods() {
         MovingAverageAnalysisResult result = service.analyze(
                 STRATEGY_IDENTITY,
-                history(20)
+                history(21)
         );
 
         assertThat(result.status())
                 .isEqualTo(MovingAverageAnalysisStatus.ANALYZED);
-        assertThat(result.requiredBarCount()).isEqualTo(20);
-        assertThat(result.availableBarCount()).isEqualTo(20);
+        assertThat(result.requiredBarCount()).isEqualTo(21);
+        assertThat(result.availableBarCount()).isEqualTo(21);
+        assertThat(result.previousIndicator().asOfTradingDate())
+                .isEqualTo(FIRST_DATE.plusDays(19));
+        assertThat(result.previousTrend())
+                .isEqualTo(MovingAverageTrend.UPTREND);
         assertThat(result.indicator().shortMovingAverage().period())
                 .isEqualTo(5);
         assertThat(result.indicator().longMovingAverage().period())
                 .isEqualTo(20);
         assertThat(result.trend()).isEqualTo(MovingAverageTrend.UPTREND);
+        assertThat(result.crossoverSignal())
+                .isEqualTo(MovingAverageCrossoverSignal.NONE);
     }
 
     @Test
     void returnsInsufficientDataWithBarCounts() {
         MovingAverageAnalysisResult result = service.analyze(
                 STRATEGY_IDENTITY,
-                history(19)
+                history(20)
         );
 
         assertThat(result.status())
                 .isEqualTo(MovingAverageAnalysisStatus.INSUFFICIENT_DATA);
-        assertThat(result.requiredBarCount()).isEqualTo(20);
-        assertThat(result.availableBarCount()).isEqualTo(19);
+        assertThat(result.requiredBarCount()).isEqualTo(21);
+        assertThat(result.availableBarCount()).isEqualTo(20);
+        assertThat(result.previousIndicator()).isNull();
+        assertThat(result.previousTrend()).isNull();
         assertThat(result.indicator()).isNull();
         assertThat(result.trend()).isNull();
+        assertThat(result.crossoverSignal()).isNull();
+    }
+
+    @Test
+    void returnsGoldenCrossWhenFlatTrendChangesToUptrend() {
+        MovingAverageAnalysisResult result = service.analyze(
+                STRATEGY_IDENTITY,
+                historyWithLatestPrice(200_000L)
+        );
+
+        assertThat(result.previousTrend()).isEqualTo(MovingAverageTrend.FLAT);
+        assertThat(result.trend()).isEqualTo(MovingAverageTrend.UPTREND);
+        assertThat(result.crossoverSignal())
+                .isEqualTo(MovingAverageCrossoverSignal.GOLDEN_CROSS);
+    }
+
+    @Test
+    void returnsDeadCrossWhenFlatTrendChangesToDowntrend() {
+        MovingAverageAnalysisResult result = service.analyze(
+                STRATEGY_IDENTITY,
+                historyWithLatestPrice(1_000L)
+        );
+
+        assertThat(result.previousTrend()).isEqualTo(MovingAverageTrend.FLAT);
+        assertThat(result.trend()).isEqualTo(MovingAverageTrend.DOWNTREND);
+        assertThat(result.crossoverSignal())
+                .isEqualTo(MovingAverageCrossoverSignal.DEAD_CROSS);
     }
 
     @Test
@@ -76,7 +113,7 @@ class MovingAverageAnalysisServiceTest {
         );
 
         assertThatIllegalArgumentException()
-                .isThrownBy(() -> service.analyze(unknown, history(20)))
+                .isThrownBy(() -> service.analyze(unknown, history(21)))
                 .withMessage(
                         "Strategy moving average periods not found: "
                                 + unknown
@@ -94,7 +131,8 @@ class MovingAverageAnalysisServiceTest {
         return new MovingAverageAnalysisService(
                 periodPolicy,
                 new MovingAverageIndicatorCalculator(simpleCalculator),
-                new MovingAverageTrendEvaluator()
+                new MovingAverageTrendEvaluator(),
+                new MovingAverageCrossoverSignalEvaluator()
         );
     }
 
@@ -128,6 +166,16 @@ class MovingAverageAnalysisServiceTest {
                 .mapToObj(index -> bar(
                         FIRST_DATE.plusDays(index - 1L),
                         index * 1_000L
+                ))
+                .toList();
+        return new DailyPriceHistory("005930", bars);
+    }
+
+    private DailyPriceHistory historyWithLatestPrice(long latestPriceKrw) {
+        List<DailyPriceBar> bars = IntStream.rangeClosed(1, 21)
+                .mapToObj(index -> bar(
+                        FIRST_DATE.plusDays(index - 1L),
+                        index == 21 ? latestPriceKrw : 100_000L
                 ))
                 .toList();
         return new DailyPriceHistory("005930", bars);

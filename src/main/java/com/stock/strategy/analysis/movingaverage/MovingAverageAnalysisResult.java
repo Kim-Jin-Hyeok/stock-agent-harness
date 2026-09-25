@@ -2,6 +2,7 @@ package com.stock.strategy.analysis.movingaverage;
 
 import com.stock.strategy.indicator.movingaverage.MovingAverageIndicator;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
+import com.stock.strategy.signal.movingaverage.MovingAverageCrossoverSignal;
 import com.stock.strategy.signal.movingaverage.MovingAverageTrend;
 
 import java.util.Objects;
@@ -12,8 +13,11 @@ public record MovingAverageAnalysisResult(
         MovingAverageAnalysisStatus status,
         int requiredBarCount,
         int availableBarCount,
+        MovingAverageIndicator previousIndicator,
+        MovingAverageTrend previousTrend,
         MovingAverageIndicator indicator,
-        MovingAverageTrend trend
+        MovingAverageTrend trend,
+        MovingAverageCrossoverSignal crossoverSignal
 ) {
     public MovingAverageAnalysisResult {
         Objects.requireNonNull(
@@ -40,15 +44,21 @@ public record MovingAverageAnalysisResult(
                     symbol,
                     requiredBarCount,
                     availableBarCount,
+                    previousIndicator,
+                    previousTrend,
                     indicator,
-                    trend
+                    trend,
+                    crossoverSignal
             );
         } else {
             validateInsufficientDataResult(
                     requiredBarCount,
                     availableBarCount,
+                    previousIndicator,
+                    previousTrend,
                     indicator,
-                    trend
+                    trend,
+                    crossoverSignal
             );
         }
     }
@@ -56,18 +66,31 @@ public record MovingAverageAnalysisResult(
     public static MovingAverageAnalysisResult analyzed(
             InvestmentStrategyIdentity strategyIdentity,
             int availableBarCount,
+            MovingAverageIndicator previousIndicator,
+            MovingAverageTrend previousTrend,
             MovingAverageIndicator indicator,
-            MovingAverageTrend trend
+            MovingAverageTrend trend,
+            MovingAverageCrossoverSignal crossoverSignal
     ) {
+        Objects.requireNonNull(
+                previousIndicator,
+                "previousIndicator must not be null."
+        );
         Objects.requireNonNull(indicator, "indicator must not be null.");
         return new MovingAverageAnalysisResult(
                 strategyIdentity,
                 indicator.symbol(),
                 MovingAverageAnalysisStatus.ANALYZED,
-                indicator.longMovingAverage().period(),
+                Math.addExact(
+                        indicator.longMovingAverage().period(),
+                        1
+                ),
                 availableBarCount,
+                previousIndicator,
+                previousTrend,
                 indicator,
-                trend
+                trend,
+                crossoverSignal
         );
     }
 
@@ -84,6 +107,9 @@ public record MovingAverageAnalysisResult(
                 requiredBarCount,
                 availableBarCount,
                 null,
+                null,
+                null,
+                null,
                 null
         );
     }
@@ -92,19 +118,45 @@ public record MovingAverageAnalysisResult(
             String symbol,
             int requiredBarCount,
             int availableBarCount,
+            MovingAverageIndicator previousIndicator,
+            MovingAverageTrend previousTrend,
             MovingAverageIndicator indicator,
-            MovingAverageTrend trend
+            MovingAverageTrend trend,
+            MovingAverageCrossoverSignal crossoverSignal
     ) {
+        Objects.requireNonNull(
+                previousIndicator,
+                "previousIndicator must not be null."
+        );
+        Objects.requireNonNull(
+                previousTrend,
+                "previousTrend must not be null."
+        );
         Objects.requireNonNull(indicator, "indicator must not be null.");
         Objects.requireNonNull(trend, "trend must not be null.");
-        if (!symbol.equals(indicator.symbol())) {
+        Objects.requireNonNull(
+                crossoverSignal,
+                "crossoverSignal must not be null."
+        );
+        if (!symbol.equals(previousIndicator.symbol())
+                || !symbol.equals(indicator.symbol())) {
             throw new IllegalArgumentException(
-                    "symbol must match indicator symbol."
+                    "symbol must match indicator symbols."
             );
         }
-        if (requiredBarCount != indicator.longMovingAverage().period()) {
+        if (previousIndicator.shortMovingAverage().period()
+                != indicator.shortMovingAverage().period()
+                || previousIndicator.longMovingAverage().period()
+                != indicator.longMovingAverage().period()) {
             throw new IllegalArgumentException(
-                    "requiredBarCount must match long moving average period."
+                    "Previous and current indicator periods must match."
+            );
+        }
+        if (requiredBarCount
+                != indicator.longMovingAverage().period() + 1) {
+            throw new IllegalArgumentException(
+                    "requiredBarCount must be one greater than long moving "
+                            + "average period."
             );
         }
         if (availableBarCount < requiredBarCount) {
@@ -112,15 +164,29 @@ public record MovingAverageAnalysisResult(
                     "Analyzed result requires enough available bars."
             );
         }
+        if (!previousIndicator.asOfTradingDate()
+                .isBefore(indicator.asOfTradingDate())) {
+            throw new IllegalArgumentException(
+                    "Previous indicator date must be before current "
+                            + "indicator date."
+            );
+        }
     }
 
     private static void validateInsufficientDataResult(
             int requiredBarCount,
             int availableBarCount,
+            MovingAverageIndicator previousIndicator,
+            MovingAverageTrend previousTrend,
             MovingAverageIndicator indicator,
-            MovingAverageTrend trend
+            MovingAverageTrend trend,
+            MovingAverageCrossoverSignal crossoverSignal
     ) {
-        if (indicator != null || trend != null) {
+        if (previousIndicator != null
+                || previousTrend != null
+                || indicator != null
+                || trend != null
+                || crossoverSignal != null) {
             throw new IllegalArgumentException(
                     "Insufficient data result must not contain analysis."
             );

@@ -40,6 +40,7 @@ import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisResult;
 import com.stock.strategy.indicator.movingaverage.MovingAverageIndicator;
 import com.stock.strategy.indicator.movingaverage.SimpleMovingAverage;
+import com.stock.strategy.signal.movingaverage.MovingAverageCrossoverSignal;
 import com.stock.strategy.signal.movingaverage.MovingAverageTrend;
 import com.stock.trade.TradeReasonCode;
 import com.stock.trade.TradeRecord;
@@ -450,25 +451,44 @@ class HarnessControllerTest {
         return MovingAverageAnalysisResult.analyzed(
                 STRATEGY_IDENTITY,
                 60,
-                new MovingAverageIndicator(
-                        "005930",
-                        asOfTradingDate,
-                        new SimpleMovingAverage(
-                                "005930",
-                                5,
-                                new BigDecimal("71000.00"),
-                                asOfTradingDate.minusDays(4),
-                                asOfTradingDate
-                        ),
-                        new SimpleMovingAverage(
-                                "005930",
-                                20,
-                                new BigDecimal("70000.00"),
-                                asOfTradingDate.minusDays(19),
-                                asOfTradingDate
-                        )
+                movingAverageIndicator(
+                        asOfTradingDate.minusDays(1),
+                        "70000.00",
+                        "70000.00"
                 ),
-                MovingAverageTrend.UPTREND
+                MovingAverageTrend.FLAT,
+                movingAverageIndicator(
+                        asOfTradingDate,
+                        "71000.00",
+                        "70000.00"
+                ),
+                MovingAverageTrend.UPTREND,
+                MovingAverageCrossoverSignal.GOLDEN_CROSS
+        );
+    }
+
+    private MovingAverageIndicator movingAverageIndicator(
+            LocalDate asOfTradingDate,
+            String shortAveragePriceKrw,
+            String longAveragePriceKrw
+    ) {
+        return new MovingAverageIndicator(
+                "005930",
+                asOfTradingDate,
+                new SimpleMovingAverage(
+                        "005930",
+                        5,
+                        new BigDecimal(shortAveragePriceKrw),
+                        asOfTradingDate.minusDays(4),
+                        asOfTradingDate
+                ),
+                new SimpleMovingAverage(
+                        "005930",
+                        20,
+                        new BigDecimal(longAveragePriceKrw),
+                        asOfTradingDate.minusDays(19),
+                        asOfTradingDate
+                )
         );
     }
 

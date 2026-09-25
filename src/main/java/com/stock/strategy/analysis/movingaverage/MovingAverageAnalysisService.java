@@ -6,23 +6,26 @@ import com.stock.strategy.indicator.movingaverage.MovingAverageIndicatorCalculat
 import com.stock.strategy.indicator.movingaverage.MovingAveragePeriods;
 import com.stock.strategy.indicator.movingaverage.policy.StrategyMovingAveragePeriodPolicy;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
+import com.stock.strategy.signal.movingaverage.MovingAverageCrossoverSignal;
+import com.stock.strategy.signal.movingaverage.MovingAverageCrossoverSignalEvaluator;
 import com.stock.strategy.signal.movingaverage.MovingAverageTrend;
 import com.stock.strategy.signal.movingaverage.MovingAverageTrendEvaluator;
 import org.springframework.stereotype.Service;
 
 import java.util.Objects;
-import java.util.Optional;
 
 @Service
 public class MovingAverageAnalysisService {
     private final StrategyMovingAveragePeriodPolicy periodPolicy;
     private final MovingAverageIndicatorCalculator indicatorCalculator;
     private final MovingAverageTrendEvaluator trendEvaluator;
+    private final MovingAverageCrossoverSignalEvaluator crossoverSignalEvaluator;
 
     public MovingAverageAnalysisService(
             StrategyMovingAveragePeriodPolicy periodPolicy,
             MovingAverageIndicatorCalculator indicatorCalculator,
-            MovingAverageTrendEvaluator trendEvaluator
+            MovingAverageTrendEvaluator trendEvaluator,
+            MovingAverageCrossoverSignalEvaluator crossoverSignalEvaluator
     ) {
         this.periodPolicy = Objects.requireNonNull(
                 periodPolicy,
@@ -35,6 +38,10 @@ public class MovingAverageAnalysisService {
         this.trendEvaluator = Objects.requireNonNull(
                 trendEvaluator,
                 "trendEvaluator must not be null."
+        );
+        this.crossoverSignalEvaluator = Objects.requireNonNull(
+                crossoverSignalEvaluator,
+                "crossoverSignalEvaluator must not be null."
         );
     }
 
@@ -51,27 +58,46 @@ public class MovingAverageAnalysisService {
         MovingAveragePeriods periods = periodPolicy.getPeriods(
                 strategyIdentity
         );
-        Optional<MovingAverageIndicator> indicator =
-                indicatorCalculator.calculate(history, periods);
-        if (indicator.isEmpty()) {
+        int requiredBarCount = Math.addExact(periods.longPeriod(), 1);
+        if (history.bars().size() < requiredBarCount) {
             return MovingAverageAnalysisResult.insufficientData(
                     strategyIdentity,
                     history.symbol(),
-                    periods.longPeriod(),
+                    requiredBarCount,
                     history.bars().size()
             );
         }
 
-        MovingAverageIndicator calculatedIndicator =
-                indicator.orElseThrow();
+        MovingAverageIndicator calculatedIndicator = indicatorCalculator
+                .calculate(history, periods)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Current moving average indicator must be available."
+                ));
+        DailyPriceHistory previousHistory = new DailyPriceHistory(
+                history.symbol(),
+                history.bars().subList(0, history.bars().size() - 1)
+        );
+        MovingAverageIndicator previousIndicator = indicatorCalculator
+                .calculate(previousHistory, periods)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Previous moving average indicator must be available."
+                ));
+        MovingAverageTrend previousTrend = trendEvaluator.evaluate(
+                previousIndicator
+        );
         MovingAverageTrend trend = trendEvaluator.evaluate(
                 calculatedIndicator
         );
+        MovingAverageCrossoverSignal crossoverSignal =
+                crossoverSignalEvaluator.evaluate(previousTrend, trend);
         return MovingAverageAnalysisResult.analyzed(
                 strategyIdentity,
                 history.bars().size(),
+                previousIndicator,
+                previousTrend,
                 calculatedIndicator,
-                trend
+                trend,
+                crossoverSignal
         );
     }
 }

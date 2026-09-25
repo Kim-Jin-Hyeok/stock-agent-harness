@@ -60,6 +60,7 @@ import com.stock.strategy.indicator.movingaverage.config.StrategyMovingAveragePr
 import com.stock.strategy.indicator.movingaverage.policy.StrategyMovingAveragePeriodPolicy;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
+import com.stock.strategy.signal.movingaverage.MovingAverageCrossoverSignalEvaluator;
 import com.stock.strategy.signal.movingaverage.MovingAverageTrendEvaluator;
 import com.stock.strategy.universe.StrategyStockUniverseRegistry;
 import com.stock.strategy.universe.config.ConfiguredStrategyStockUniverse;
@@ -310,10 +311,10 @@ class InvestmentHarnessTest {
                 .isEqualTo(
                         "Moving average analyzed. symbol=005930, "
                                 + "trend=UPTREND, shortPeriod=5, "
-                                + "shortAveragePriceKrw=97000.00, "
+                                + "shortAveragePriceKrw=98000.00, "
                                 + "longPeriod=20, "
-                                + "longAveragePriceKrw=89500.00, "
-                                + "asOfTradingDate=2026-09-23, "
+                                + "longAveragePriceKrw=90500.00, "
+                                + "asOfTradingDate=2026-09-24, "
                                 + "currentPriceKrw=100000, source=PROVIDER"
                 );
 
@@ -375,7 +376,7 @@ class InvestmentHarnessTest {
         assertThat(result.decision().action()).isEqualTo(InvestmentAction.HOLD);
         assertThat(result.decision().reason()).isEqualTo(
                 "Moving average data is insufficient. symbol=005930, "
-                        + "requiredBars=20, availableBars=0"
+                        + "requiredBars=21, availableBars=0"
         );
         verifyNoInteractions(currentPriceObservationService);
     }
@@ -1693,7 +1694,7 @@ class InvestmentHarnessTest {
     }
 
     private DailyPriceHistory dailyPriceHistory() {
-        List<DailyPriceBar> bars = IntStream.range(0, 20)
+        List<DailyPriceBar> bars = IntStream.range(0, 21)
                 .mapToObj(index -> {
                     long closePriceKrw = 80_000L + index * 1_000L;
                     return new DailyPriceBar(
@@ -1739,7 +1740,8 @@ class InvestmentHarnessTest {
         return new MovingAverageAnalysisService(
                 periodPolicy,
                 new MovingAverageIndicatorCalculator(simpleCalculator),
-                new MovingAverageTrendEvaluator()
+                new MovingAverageTrendEvaluator(),
+                new MovingAverageCrossoverSignalEvaluator()
         );
     }
 

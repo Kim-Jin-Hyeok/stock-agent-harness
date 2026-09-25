@@ -10,6 +10,7 @@ import com.stock.strategy.indicator.movingaverage.MovingAverageIndicator;
 import com.stock.strategy.indicator.movingaverage.SimpleMovingAverage;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
+import com.stock.strategy.signal.movingaverage.MovingAverageCrossoverSignal;
 import com.stock.strategy.signal.movingaverage.MovingAverageTrend;
 import org.junit.jupiter.api.Test;
 
@@ -70,13 +71,19 @@ class HarnessDecisionSnapshotTest {
                 MovingAverageAnalysisResult.analyzed(
                         STRATEGY_IDENTITY,
                         60,
-                        new MovingAverageIndicator(
-                                "005930",
-                                AS_OF_DATE,
-                                movingAverage(5, "71000.00"),
-                                movingAverage(20, "70000.00")
+                        indicator(
+                                AS_OF_DATE.minusDays(1),
+                                "70000.00",
+                                "70000.00"
                         ),
-                        MovingAverageTrend.UPTREND
+                        MovingAverageTrend.FLAT,
+                        indicator(
+                                AS_OF_DATE,
+                                "71000.00",
+                                "70000.00"
+                        ),
+                        MovingAverageTrend.UPTREND,
+                        MovingAverageCrossoverSignal.GOLDEN_CROSS
                 );
         InvestmentDecision decision = new InvestmentDecision(
                 InvestmentAction.HOLD,
@@ -135,16 +142,30 @@ class HarnessDecisionSnapshotTest {
         );
     }
 
+    private MovingAverageIndicator indicator(
+            LocalDate asOfDate,
+            String shortAveragePriceKrw,
+            String longAveragePriceKrw
+    ) {
+        return new MovingAverageIndicator(
+                "005930",
+                asOfDate,
+                movingAverage(5, shortAveragePriceKrw, asOfDate),
+                movingAverage(20, longAveragePriceKrw, asOfDate)
+        );
+    }
+
     private SimpleMovingAverage movingAverage(
             int period,
-            String averagePriceKrw
+            String averagePriceKrw,
+            LocalDate asOfDate
     ) {
         return new SimpleMovingAverage(
                 "005930",
                 period,
                 new BigDecimal(averagePriceKrw),
-                AS_OF_DATE.minusDays(period - 1L),
-                AS_OF_DATE
+                asOfDate.minusDays(period - 1L),
+                asOfDate
         );
     }
 }

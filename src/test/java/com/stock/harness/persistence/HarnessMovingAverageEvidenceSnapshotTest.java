@@ -8,6 +8,7 @@ import com.stock.strategy.indicator.movingaverage.MovingAverageIndicator;
 import com.stock.strategy.indicator.movingaverage.SimpleMovingAverage;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
+import com.stock.strategy.signal.movingaverage.MovingAverageCrossoverSignal;
 import com.stock.strategy.signal.movingaverage.MovingAverageTrend;
 import org.junit.jupiter.api.Test;
 
@@ -39,7 +40,7 @@ class HarnessMovingAverageEvidenceSnapshotTest {
         assertThat(snapshot.status())
                 .isEqualTo(MovingAverageAnalysisStatus.ANALYZED);
         assertThat(snapshot.symbol()).isEqualTo("005930");
-        assertThat(snapshot.requiredBarCount()).isEqualTo(20);
+        assertThat(snapshot.requiredBarCount()).isEqualTo(21);
         assertThat(snapshot.availableBarCount()).isEqualTo(60);
         assertThat(snapshot.trend()).isEqualTo(MovingAverageTrend.UPTREND);
         assertThat(snapshot.shortPeriod()).isEqualTo(5);
@@ -60,8 +61,8 @@ class HarnessMovingAverageEvidenceSnapshotTest {
                 MovingAverageAnalysisResult.insufficientData(
                         STRATEGY_IDENTITY,
                         "005930",
-                        20,
-                        19
+                        21,
+                        20
                 );
 
         HarnessMovingAverageEvidenceSnapshot snapshot =
@@ -73,8 +74,8 @@ class HarnessMovingAverageEvidenceSnapshotTest {
 
         assertThat(snapshot.status())
                 .isEqualTo(MovingAverageAnalysisStatus.INSUFFICIENT_DATA);
-        assertThat(snapshot.requiredBarCount()).isEqualTo(20);
-        assertThat(snapshot.availableBarCount()).isEqualTo(19);
+        assertThat(snapshot.requiredBarCount()).isEqualTo(21);
+        assertThat(snapshot.availableBarCount()).isEqualTo(20);
         assertThat(snapshot.trend()).isNull();
         assertThat(snapshot.shortPeriod()).isNull();
         assertThat(snapshot.longPeriod()).isNull();
@@ -86,26 +87,42 @@ class HarnessMovingAverageEvidenceSnapshotTest {
         return MovingAverageAnalysisResult.analyzed(
                 STRATEGY_IDENTITY,
                 60,
-                new MovingAverageIndicator(
-                        "005930",
-                        AS_OF_DATE,
-                        movingAverage(5, "71000.00"),
-                        movingAverage(20, "70000.00")
+                indicator(
+                        AS_OF_DATE.minusDays(1),
+                        "70000.00",
+                        "70000.00"
                 ),
-                MovingAverageTrend.UPTREND
+                MovingAverageTrend.FLAT,
+                indicator(AS_OF_DATE, "71000.00", "70000.00"),
+                MovingAverageTrend.UPTREND,
+                MovingAverageCrossoverSignal.GOLDEN_CROSS
+        );
+    }
+
+    private MovingAverageIndicator indicator(
+            LocalDate asOfDate,
+            String shortAveragePriceKrw,
+            String longAveragePriceKrw
+    ) {
+        return new MovingAverageIndicator(
+                "005930",
+                asOfDate,
+                movingAverage(5, shortAveragePriceKrw, asOfDate),
+                movingAverage(20, longAveragePriceKrw, asOfDate)
         );
     }
 
     private SimpleMovingAverage movingAverage(
             int period,
-            String averagePriceKrw
+            String averagePriceKrw,
+            LocalDate asOfDate
     ) {
         return new SimpleMovingAverage(
                 "005930",
                 period,
                 new BigDecimal(averagePriceKrw),
-                AS_OF_DATE.minusDays(period - 1L),
-                AS_OF_DATE
+                asOfDate.minusDays(period - 1L),
+                asOfDate
         );
     }
 }
