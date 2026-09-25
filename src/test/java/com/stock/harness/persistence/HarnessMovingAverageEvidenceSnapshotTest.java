@@ -16,6 +16,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class HarnessMovingAverageEvidenceSnapshotTest {
     private static final InvestmentStrategyIdentity STRATEGY_IDENTITY =
@@ -42,7 +43,16 @@ class HarnessMovingAverageEvidenceSnapshotTest {
         assertThat(snapshot.symbol()).isEqualTo("005930");
         assertThat(snapshot.requiredBarCount()).isEqualTo(21);
         assertThat(snapshot.availableBarCount()).isEqualTo(60);
+        assertThat(snapshot.previousTrend()).isEqualTo(MovingAverageTrend.FLAT);
+        assertThat(snapshot.previousShortAveragePriceKrw())
+                .isEqualByComparingTo("70000.00");
+        assertThat(snapshot.previousLongAveragePriceKrw())
+                .isEqualByComparingTo("70000.00");
+        assertThat(snapshot.previousAsOfTradingDate())
+                .isEqualTo(AS_OF_DATE.minusDays(1));
         assertThat(snapshot.trend()).isEqualTo(MovingAverageTrend.UPTREND);
+        assertThat(snapshot.crossoverSignal())
+                .isEqualTo(MovingAverageCrossoverSignal.GOLDEN_CROSS);
         assertThat(snapshot.shortPeriod()).isEqualTo(5);
         assertThat(snapshot.shortAveragePriceKrw())
                 .isEqualByComparingTo("71000.00");
@@ -76,11 +86,44 @@ class HarnessMovingAverageEvidenceSnapshotTest {
                 .isEqualTo(MovingAverageAnalysisStatus.INSUFFICIENT_DATA);
         assertThat(snapshot.requiredBarCount()).isEqualTo(21);
         assertThat(snapshot.availableBarCount()).isEqualTo(20);
+        assertThat(snapshot.previousTrend()).isNull();
+        assertThat(snapshot.previousShortAveragePriceKrw()).isNull();
+        assertThat(snapshot.previousLongAveragePriceKrw()).isNull();
+        assertThat(snapshot.previousAsOfTradingDate()).isNull();
+        assertThat(snapshot.crossoverSignal()).isNull();
         assertThat(snapshot.trend()).isNull();
         assertThat(snapshot.shortPeriod()).isNull();
         assertThat(snapshot.longPeriod()).isNull();
         assertThat(snapshot.currentPriceKrw()).isNull();
         assertThat(snapshot.currentPriceSource()).isNull();
+    }
+
+    @Test
+    void rejectsPartiallyPopulatedCrossoverSnapshot() {
+        assertThatThrownBy(() -> new HarnessMovingAverageEvidenceSnapshot(
+                MovingAverageAnalysisStatus.ANALYZED,
+                "005930",
+                21,
+                60,
+                MovingAverageTrend.UPTREND,
+                5,
+                new BigDecimal("71000.00"),
+                20,
+                new BigDecimal("70000.00"),
+                AS_OF_DATE,
+                72_000L,
+                CurrentPriceLookupSource.PROVIDER,
+                MovingAverageTrend.FLAT,
+                null,
+                null,
+                null,
+                null
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "Crossover snapshot fields must be all present "
+                                + "or all null."
+                );
     }
 
     private MovingAverageAnalysisResult analyzedResult() {

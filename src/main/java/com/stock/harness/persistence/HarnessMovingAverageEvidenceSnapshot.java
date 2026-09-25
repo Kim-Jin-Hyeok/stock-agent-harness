@@ -5,6 +5,7 @@ import com.stock.market.price.lookup.CurrentPriceLookupSource;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisResult;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisStatus;
 import com.stock.strategy.indicator.movingaverage.MovingAverageIndicator;
+import com.stock.strategy.signal.movingaverage.MovingAverageCrossoverSignal;
 import com.stock.strategy.signal.movingaverage.MovingAverageTrend;
 
 import java.math.BigDecimal;
@@ -23,8 +24,48 @@ public record HarnessMovingAverageEvidenceSnapshot(
         BigDecimal longAveragePriceKrw,
         LocalDate asOfTradingDate,
         Long currentPriceKrw,
-        CurrentPriceLookupSource currentPriceSource
+        CurrentPriceLookupSource currentPriceSource,
+        MovingAverageTrend previousTrend,
+        BigDecimal previousShortAveragePriceKrw,
+        BigDecimal previousLongAveragePriceKrw,
+        LocalDate previousAsOfTradingDate,
+        MovingAverageCrossoverSignal crossoverSignal
 ) {
+    public HarnessMovingAverageEvidenceSnapshot(
+            MovingAverageAnalysisStatus status,
+            String symbol,
+            int requiredBarCount,
+            int availableBarCount,
+            MovingAverageTrend trend,
+            Integer shortPeriod,
+            BigDecimal shortAveragePriceKrw,
+            Integer longPeriod,
+            BigDecimal longAveragePriceKrw,
+            LocalDate asOfTradingDate,
+            Long currentPriceKrw,
+            CurrentPriceLookupSource currentPriceSource
+    ) {
+        this(
+                status,
+                symbol,
+                requiredBarCount,
+                availableBarCount,
+                trend,
+                shortPeriod,
+                shortAveragePriceKrw,
+                longPeriod,
+                longAveragePriceKrw,
+                asOfTradingDate,
+                currentPriceKrw,
+                currentPriceSource,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+    }
+
     public HarnessMovingAverageEvidenceSnapshot {
         Objects.requireNonNull(status, "status must not be null.");
         if (symbol == null || symbol.isBlank()) {
@@ -52,7 +93,12 @@ public record HarnessMovingAverageEvidenceSnapshot(
                     longAveragePriceKrw,
                     asOfTradingDate,
                     currentPriceKrw,
-                    currentPriceSource
+                    currentPriceSource,
+                    previousTrend,
+                    previousShortAveragePriceKrw,
+                    previousLongAveragePriceKrw,
+                    previousAsOfTradingDate,
+                    crossoverSignal
             );
         } else {
             validateInsufficientDataSnapshot(
@@ -65,7 +111,12 @@ public record HarnessMovingAverageEvidenceSnapshot(
                     longAveragePriceKrw,
                     asOfTradingDate,
                     currentPriceKrw,
-                    currentPriceSource
+                    currentPriceSource,
+                    previousTrend,
+                    previousShortAveragePriceKrw,
+                    previousLongAveragePriceKrw,
+                    previousAsOfTradingDate,
+                    crossoverSignal
             );
         }
     }
@@ -94,6 +145,8 @@ public record HarnessMovingAverageEvidenceSnapshot(
         }
 
         MovingAverageIndicator indicator = analysis.indicator();
+        MovingAverageIndicator previousIndicator =
+                analysis.previousIndicator();
         return new HarnessMovingAverageEvidenceSnapshot(
                 analysis.status(),
                 analysis.symbol(),
@@ -106,7 +159,12 @@ public record HarnessMovingAverageEvidenceSnapshot(
                 indicator.longMovingAverage().averagePriceKrw(),
                 indicator.asOfTradingDate(),
                 evidence.currentPriceKrw(),
-                evidence.currentPriceSource()
+                evidence.currentPriceSource(),
+                analysis.previousTrend(),
+                previousIndicator.shortMovingAverage().averagePriceKrw(),
+                previousIndicator.longMovingAverage().averagePriceKrw(),
+                previousIndicator.asOfTradingDate(),
+                analysis.crossoverSignal()
         );
     }
 
@@ -120,7 +178,12 @@ public record HarnessMovingAverageEvidenceSnapshot(
             BigDecimal longAveragePriceKrw,
             LocalDate asOfTradingDate,
             Long currentPriceKrw,
-            CurrentPriceLookupSource currentPriceSource
+            CurrentPriceLookupSource currentPriceSource,
+            MovingAverageTrend previousTrend,
+            BigDecimal previousShortAveragePriceKrw,
+            BigDecimal previousLongAveragePriceKrw,
+            LocalDate previousAsOfTradingDate,
+            MovingAverageCrossoverSignal crossoverSignal
     ) {
         Objects.requireNonNull(trend, "trend must not be null.");
         Objects.requireNonNull(shortPeriod, "shortPeriod must not be null.");
@@ -166,6 +229,15 @@ public record HarnessMovingAverageEvidenceSnapshot(
                     "Analyzed snapshot prices must be positive."
             );
         }
+        validateCrossoverSnapshot(
+                trend,
+                asOfTradingDate,
+                previousTrend,
+                previousShortAveragePriceKrw,
+                previousLongAveragePriceKrw,
+                previousAsOfTradingDate,
+                crossoverSignal
+        );
     }
 
     private static void validateInsufficientDataSnapshot(
@@ -178,7 +250,12 @@ public record HarnessMovingAverageEvidenceSnapshot(
             BigDecimal longAveragePriceKrw,
             LocalDate asOfTradingDate,
             Long currentPriceKrw,
-            CurrentPriceLookupSource currentPriceSource
+            CurrentPriceLookupSource currentPriceSource,
+            MovingAverageTrend previousTrend,
+            BigDecimal previousShortAveragePriceKrw,
+            BigDecimal previousLongAveragePriceKrw,
+            LocalDate previousAsOfTradingDate,
+            MovingAverageCrossoverSignal crossoverSignal
     ) {
         if (availableBarCount >= requiredBarCount) {
             throw new IllegalArgumentException(
@@ -193,10 +270,76 @@ public record HarnessMovingAverageEvidenceSnapshot(
                 || longAveragePriceKrw != null
                 || asOfTradingDate != null
                 || currentPriceKrw != null
-                || currentPriceSource != null) {
+                || currentPriceSource != null
+                || previousTrend != null
+                || previousShortAveragePriceKrw != null
+                || previousLongAveragePriceKrw != null
+                || previousAsOfTradingDate != null
+                || crossoverSignal != null) {
             throw new IllegalArgumentException(
                     "Insufficient data snapshot must not contain analysis."
             );
         }
+    }
+
+    private static void validateCrossoverSnapshot(
+            MovingAverageTrend trend,
+            LocalDate asOfTradingDate,
+            MovingAverageTrend previousTrend,
+            BigDecimal previousShortAveragePriceKrw,
+            BigDecimal previousLongAveragePriceKrw,
+            LocalDate previousAsOfTradingDate,
+            MovingAverageCrossoverSignal crossoverSignal
+    ) {
+        int populatedFieldCount = 0;
+        populatedFieldCount += previousTrend == null ? 0 : 1;
+        populatedFieldCount += previousShortAveragePriceKrw == null ? 0 : 1;
+        populatedFieldCount += previousLongAveragePriceKrw == null ? 0 : 1;
+        populatedFieldCount += previousAsOfTradingDate == null ? 0 : 1;
+        populatedFieldCount += crossoverSignal == null ? 0 : 1;
+
+        if (populatedFieldCount == 0) {
+            return;
+        }
+        if (populatedFieldCount < 5) {
+            throw new IllegalArgumentException(
+                    "Crossover snapshot fields must be all present or all null."
+            );
+        }
+        if (previousShortAveragePriceKrw.signum() <= 0
+                || previousLongAveragePriceKrw.signum() <= 0) {
+            throw new IllegalArgumentException(
+                    "Previous moving average prices must be positive."
+            );
+        }
+        if (!previousAsOfTradingDate.isBefore(asOfTradingDate)) {
+            throw new IllegalArgumentException(
+                    "Previous indicator date must be before current "
+                            + "indicator date."
+            );
+        }
+
+        MovingAverageCrossoverSignal expectedSignal =
+                expectedCrossoverSignal(previousTrend, trend);
+        if (crossoverSignal != expectedSignal) {
+            throw new IllegalArgumentException(
+                    "crossoverSignal does not match trend transition."
+            );
+        }
+    }
+
+    private static MovingAverageCrossoverSignal expectedCrossoverSignal(
+            MovingAverageTrend previousTrend,
+            MovingAverageTrend trend
+    ) {
+        if (trend == MovingAverageTrend.UPTREND
+                && previousTrend != MovingAverageTrend.UPTREND) {
+            return MovingAverageCrossoverSignal.GOLDEN_CROSS;
+        }
+        if (trend == MovingAverageTrend.DOWNTREND
+                && previousTrend != MovingAverageTrend.DOWNTREND) {
+            return MovingAverageCrossoverSignal.DEAD_CROSS;
+        }
+        return MovingAverageCrossoverSignal.NONE;
     }
 }

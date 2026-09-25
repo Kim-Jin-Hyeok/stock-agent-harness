@@ -9,6 +9,7 @@ import com.stock.market.price.lookup.CurrentPriceLookupSource;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskReasonCode;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisStatus;
+import com.stock.strategy.signal.movingaverage.MovingAverageCrossoverSignal;
 import com.stock.strategy.signal.movingaverage.MovingAverageTrend;
 import org.junit.jupiter.api.Test;
 
@@ -62,6 +63,44 @@ class HarnessRunSnapshotJsonConverterTest {
         assertThat(restored.action()).isEqualTo(InvestmentAction.HOLD);
         assertThat(restored.reason()).isEqualTo("No trade decision.");
         assertThat(restored.movingAverageEvidence()).isNull();
+    }
+
+    @Test
+    void restoresLegacyMovingAverageEvidenceWithoutCrossoverFields() {
+        String json = """
+                {
+                  "action": "HOLD",
+                  "symbol": null,
+                  "quantity": null,
+                  "expectedPriceKrw": null,
+                  "estimatedOrderAmountKrw": 0,
+                  "reason": "Moving average analyzed.",
+                  "movingAverageEvidence": {
+                    "status": "ANALYZED",
+                    "symbol": "005930",
+                    "requiredBarCount": 20,
+                    "availableBarCount": 60,
+                    "trend": "UPTREND",
+                    "shortPeriod": 5,
+                    "shortAveragePriceKrw": 71000.00,
+                    "longPeriod": 20,
+                    "longAveragePriceKrw": 70000.00,
+                    "asOfTradingDate": "2026-01-02",
+                    "currentPriceKrw": 72000,
+                    "currentPriceSource": "PROVIDER"
+                  }
+                }
+                """;
+
+        HarnessDecisionSnapshot restored = converter.toDecisionSnapshot(json);
+
+        HarnessMovingAverageEvidenceSnapshot evidence =
+                restored.movingAverageEvidence();
+        assertThat(evidence.previousTrend()).isNull();
+        assertThat(evidence.previousShortAveragePriceKrw()).isNull();
+        assertThat(evidence.previousLongAveragePriceKrw()).isNull();
+        assertThat(evidence.previousAsOfTradingDate()).isNull();
+        assertThat(evidence.crossoverSignal()).isNull();
     }
 
     @Test
@@ -250,7 +289,7 @@ class HarnessRunSnapshotJsonConverterTest {
         return new HarnessMovingAverageEvidenceSnapshot(
                 MovingAverageAnalysisStatus.ANALYZED,
                 "005930",
-                20,
+                21,
                 60,
                 MovingAverageTrend.UPTREND,
                 5,
@@ -259,7 +298,12 @@ class HarnessRunSnapshotJsonConverterTest {
                 new BigDecimal("70000.00"),
                 LocalDate.of(2026, 1, 2),
                 72_000L,
-                CurrentPriceLookupSource.PROVIDER
+                CurrentPriceLookupSource.PROVIDER,
+                MovingAverageTrend.FLAT,
+                new BigDecimal("70000.00"),
+                new BigDecimal("70000.00"),
+                LocalDate.of(2026, 1, 1),
+                MovingAverageCrossoverSignal.GOLDEN_CROSS
         );
     }
 

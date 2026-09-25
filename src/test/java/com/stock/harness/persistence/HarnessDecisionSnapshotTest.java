@@ -104,8 +104,12 @@ class HarnessDecisionSnapshotTest {
 
         assertThat(snapshot.movingAverageEvidence().status())
                 .isEqualTo(MovingAverageAnalysisStatus.ANALYZED);
+        assertThat(snapshot.movingAverageEvidence().previousTrend())
+                .isEqualTo(MovingAverageTrend.FLAT);
         assertThat(snapshot.movingAverageEvidence().trend())
                 .isEqualTo(MovingAverageTrend.UPTREND);
+        assertThat(snapshot.movingAverageEvidence().crossoverSignal())
+                .isEqualTo(MovingAverageCrossoverSignal.GOLDEN_CROSS);
         assertThat(snapshot.movingAverageEvidence().currentPriceKrw())
                 .isEqualTo(72_000L);
         assertThat(snapshot.movingAverageEvidence().currentPriceSource())

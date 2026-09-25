@@ -211,6 +211,15 @@ class HarnessControllerTest {
                         "$.decisionSnapshot.movingAverageEvidence.trend"
                 ).value("UPTREND"))
                 .andExpect(jsonPath(
+                        "$.decisionSnapshot.movingAverageEvidence.previousTrend"
+                ).value("FLAT"))
+                .andExpect(jsonPath(
+                        "$.decisionSnapshot.movingAverageEvidence.previousAsOfTradingDate"
+                ).value("2026-01-01"))
+                .andExpect(jsonPath(
+                        "$.decisionSnapshot.movingAverageEvidence.crossoverSignal"
+                ).value("GOLDEN_CROSS"))
+                .andExpect(jsonPath(
                         "$.decisionSnapshot.movingAverageEvidence.shortPeriod"
                 ).value(5))
                 .andExpect(jsonPath(
