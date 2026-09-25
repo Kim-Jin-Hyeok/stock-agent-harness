@@ -9,6 +9,9 @@ import com.stock.market.price.CurrentPriceService;
 import com.stock.market.price.CurrentPriceSnapshot;
 import com.stock.market.price.cache.CurrentPriceCache;
 import com.stock.market.price.cache.CurrentPriceCacheProperties;
+import com.stock.market.price.history.DailyPriceBar;
+import com.stock.market.price.history.DailyPriceHistory;
+import com.stock.market.price.history.query.DailyPriceHistoryQueryService;
 import com.stock.market.price.lookup.CurrentPriceLookupSource;
 import com.stock.market.price.provider.CurrentPriceProvider;
 import com.stock.market.price.provider.FixedCurrentPriceProvider;
@@ -20,6 +23,7 @@ import com.stock.market.session.MarketSessionPolicy;
 import com.stock.portfolio.PortfolioService;
 import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.portfolio.PortfolioSnapshotStore;
+import com.stock.strategy.data.history.StrategyDailyPriceHistoryPolicy;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import org.junit.jupiter.api.Test;
@@ -27,7 +31,9 @@ import org.junit.jupiter.api.Test;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -102,6 +108,45 @@ class HarnessToolExecutorTest {
         assertThat(result.output().portfolioSnapshot()).isNull();
         assertThat(result.output().marketSnapshot()).isNull();
         assertThat(budget.usedCalls()).isEqualTo(1);
+    }
+
+    @Test
+    void executesDailyPriceHistoryToolRequestWithoutConsumingProviderBudget() {
+        DailyPriceHistoryQueryService queryService = mock(
+                DailyPriceHistoryQueryService.class
+        );
+        StrategyDailyPriceHistoryPolicy policy = mock(
+                StrategyDailyPriceHistoryPolicy.class
+        );
+        DailyPriceHistory history = new DailyPriceHistory(
+                "005930",
+                List.of(dailyPriceBar())
+        );
+        when(policy.getLatestBarCount(STRATEGY_IDENTITY)).thenReturn(60);
+        when(queryService.getLatestDailyPriceHistory("005930", 60))
+                .thenReturn(history);
+        HarnessProviderCallBudget budget = providerCallBudget(0);
+
+        HarnessToolExecutionResult result = executor(
+                currentPriceService(),
+                queryService,
+                policy
+        ).execute(
+                STRATEGY_IDENTITY,
+                HarnessToolRequest.dailyPriceHistory("005930"),
+                budget
+        );
+
+        assertThat(result.status()).isEqualTo(executedStatus());
+        assertThat(result.type())
+                .isEqualTo(HarnessToolType.GET_DAILY_PRICE_HISTORY);
+        assertThat(result.request()).isEqualTo(
+                HarnessToolRequest.dailyPriceHistory("005930")
+        );
+        assertThat(result.output().dailyPriceHistory()).isEqualTo(history);
+        assertThat(budget.usedCalls()).isZero();
+        verify(policy).getLatestBarCount(STRATEGY_IDENTITY);
+        verify(queryService).getLatestDailyPriceHistory("005930", 60);
     }
 
     @Test
@@ -227,10 +272,24 @@ class HarnessToolExecutorTest {
     }
 
     private HarnessToolExecutor executor(CurrentPriceService currentPriceService) {
+        return executor(
+                currentPriceService,
+                mock(DailyPriceHistoryQueryService.class),
+                mock(StrategyDailyPriceHistoryPolicy.class)
+        );
+    }
+
+    private HarnessToolExecutor executor(
+            CurrentPriceService currentPriceService,
+            DailyPriceHistoryQueryService queryService,
+            StrategyDailyPriceHistoryPolicy policy
+    ) {
         return new HarnessToolExecutor(
                 portfolioService(),
                 marketService(),
-                currentPriceService
+                currentPriceService,
+                queryService,
+                policy
         );
     }
 
@@ -306,6 +365,17 @@ class HarnessToolExecutorTest {
 
     private MarketSnapshot marketSnapshot() {
         return marketService().getCurrentSnapshot();
+    }
+
+    private DailyPriceBar dailyPriceBar() {
+        return new DailyPriceBar(
+                LocalDate.of(2026, 1, 2),
+                69_000L,
+                71_000L,
+                68_000L,
+                70_000L,
+                1_000_000L
+        );
     }
 
     private HarnessToolExecutionStatus executedStatus() {

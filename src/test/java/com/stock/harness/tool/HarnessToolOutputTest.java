@@ -2,6 +2,7 @@ package com.stock.harness.tool;
 
 import com.stock.market.MarketSnapshot;
 import com.stock.market.price.CurrentPriceSnapshot;
+import com.stock.market.price.history.DailyPriceHistory;
 import com.stock.market.price.lookup.CurrentPriceLookupResult;
 import com.stock.market.price.lookup.CurrentPriceLookupSource;
 import com.stock.portfolio.PortfolioSnapshot;
@@ -54,6 +55,25 @@ class HarnessToolOutputTest {
         assertThat(output.currentPriceSource()).isEqualTo(CurrentPriceLookupSource.PROVIDER);
         assertThat(output.portfolioSnapshot()).isNull();
         assertThat(output.marketSnapshot()).isNull();
+    }
+
+    @Test
+    void createsDailyPriceHistoryOutput() {
+        DailyPriceHistory history = new DailyPriceHistory(
+                "005930",
+                List.of()
+        );
+
+        HarnessToolOutput output = HarnessToolOutput.dailyPriceHistory(
+                history
+        );
+
+        assertThat(output.type())
+                .isEqualTo(HarnessToolType.GET_DAILY_PRICE_HISTORY);
+        assertThat(output.dailyPriceHistory()).isEqualTo(history);
+        assertThat(output.portfolioSnapshot()).isNull();
+        assertThat(output.marketSnapshot()).isNull();
+        assertThat(output.currentPriceSnapshot()).isNull();
     }
 
     private PortfolioSnapshot portfolioSnapshot() {

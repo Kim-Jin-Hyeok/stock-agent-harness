@@ -12,7 +12,8 @@ class HarnessToolTypeTest {
                 .containsExactly(
                         HarnessToolType.GET_PORTFOLIO,
                         HarnessToolType.GET_MARKET,
-                        HarnessToolType.GET_CURRENT_PRICE
+                        HarnessToolType.GET_CURRENT_PRICE,
+                        HarnessToolType.GET_DAILY_PRICE_HISTORY
                 );
     }
 }

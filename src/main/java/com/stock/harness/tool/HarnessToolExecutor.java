@@ -4,8 +4,10 @@ import com.stock.harness.execution.limit.HarnessProviderCallBudget;
 import com.stock.harness.execution.limit.HarnessProviderCallLimitExceededException;
 import com.stock.market.MarketService;
 import com.stock.market.price.CurrentPriceService;
+import com.stock.market.price.history.query.DailyPriceHistoryQueryService;
 import com.stock.market.price.provider.error.CurrentPriceProviderException;
 import com.stock.portfolio.PortfolioService;
+import com.stock.strategy.data.history.StrategyDailyPriceHistoryPolicy;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -18,6 +20,8 @@ public class HarnessToolExecutor {
     private final PortfolioService portfolioService;
     private final MarketService marketService;
     private final CurrentPriceService currentPriceService;
+    private final DailyPriceHistoryQueryService dailyPriceHistoryQueryService;
+    private final StrategyDailyPriceHistoryPolicy dailyPriceHistoryPolicy;
 
     public HarnessToolExecutionResult execute(
             InvestmentStrategyIdentity strategyIdentity,
@@ -47,6 +51,20 @@ public class HarnessToolExecutor {
                                 )
                         )
                 );
+                case GET_DAILY_PRICE_HISTORY ->
+                        HarnessToolExecutionResult.executed(
+                                request,
+                                HarnessToolOutput.dailyPriceHistory(
+                                        dailyPriceHistoryQueryService
+                                                .getLatestDailyPriceHistory(
+                                                        request.symbol(),
+                                                        dailyPriceHistoryPolicy
+                                                                .getLatestBarCount(
+                                                                        strategyIdentity
+                                                                )
+                                                )
+                                )
+                        );
             };
         } catch (HarnessProviderCallLimitExceededException e) {
             return HarnessToolExecutionResult.providerCallLimitExceeded(

@@ -81,6 +81,18 @@ public class HarnessToolResultValidator {
             );
         }
 
+        if (requestedType == HarnessToolType.GET_DAILY_PRICE_HISTORY
+                && !request.symbol().equals(output.dailyPriceHistory().symbol())) {
+            return HarnessToolResultValidationResult.invalid(
+                    requestedType,
+                    HarnessToolResultValidationReasonCode.OUTPUT_SYMBOL_MISMATCH,
+                    "Daily price history symbol does not match request. requested="
+                    + request.symbol()
+                    + ", actual="
+                    + output.dailyPriceHistory().symbol()
+            );
+        }
+
         if (requestedType == HarnessToolType.GET_CURRENT_PRICE
                 && output.currentPriceSnapshot().priceKrw() <= 0) {
             return HarnessToolResultValidationResult.invalid(
@@ -123,6 +135,8 @@ public class HarnessToolResultValidator {
             case GET_PORTFOLIO -> output.portfolioSnapshot() == null;
             case GET_MARKET -> output.marketSnapshot() == null;
             case GET_CURRENT_PRICE -> output.currentPriceSnapshot() == null;
+            case GET_DAILY_PRICE_HISTORY ->
+                    output.dailyPriceHistory() == null;
         };
     }
 }

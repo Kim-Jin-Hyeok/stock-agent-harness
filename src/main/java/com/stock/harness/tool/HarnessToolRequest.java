@@ -19,4 +19,11 @@ public record HarnessToolRequest(
     public static HarnessToolRequest currentPrice(String symbol) {
         return new HarnessToolRequest(HarnessToolType.GET_CURRENT_PRICE, symbol);
     }
+
+    public static HarnessToolRequest dailyPriceHistory(String symbol) {
+        return new HarnessToolRequest(
+                HarnessToolType.GET_DAILY_PRICE_HISTORY,
+                symbol
+        );
+    }
 }

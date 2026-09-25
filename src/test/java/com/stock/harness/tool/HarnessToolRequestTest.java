@@ -28,6 +28,17 @@ class HarnessToolRequestTest {
         assertThat(request.symbol()).isEqualTo("005930");
     }
 
+    @Test
+    void createsDailyPriceHistoryRequestWithSymbol() {
+        HarnessToolRequest request = HarnessToolRequest.dailyPriceHistory(
+                "005930"
+        );
+
+        assertThat(request.type())
+                .isEqualTo(HarnessToolType.GET_DAILY_PRICE_HISTORY);
+        assertThat(request.symbol()).isEqualTo("005930");
+    }
+
     private HarnessToolRequest getPortfolioRequest() {
         return new HarnessToolRequest(getPortfolioTool());
     }

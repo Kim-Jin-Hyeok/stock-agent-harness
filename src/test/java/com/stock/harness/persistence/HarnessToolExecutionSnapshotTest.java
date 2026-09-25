@@ -8,12 +8,15 @@ import com.stock.harness.tool.HarnessToolRequest;
 import com.stock.harness.tool.HarnessToolType;
 import com.stock.market.MarketSnapshot;
 import com.stock.market.price.CurrentPriceSnapshot;
+import com.stock.market.price.history.DailyPriceBar;
+import com.stock.market.price.history.DailyPriceHistory;
 import com.stock.market.price.lookup.CurrentPriceLookupResult;
 import com.stock.market.price.lookup.CurrentPriceLookupSource;
 import com.stock.portfolio.PortfolioSnapshot;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -85,6 +88,33 @@ class HarnessToolExecutionSnapshotTest {
     }
 
     @Test
+    void fromConvertsDailyPriceHistoryToolExecutionResult() {
+        DailyPriceHistory history = dailyPriceHistory();
+
+        HarnessToolExecutionSnapshot snapshot =
+                HarnessToolExecutionSnapshot.from(
+                        HarnessToolExecutionResult.executed(
+                                HarnessToolRequest.dailyPriceHistory("005930"),
+                                HarnessToolOutput.dailyPriceHistory(history)
+                        )
+                );
+
+        assertThat(snapshot.type())
+                .isEqualTo(HarnessToolType.GET_DAILY_PRICE_HISTORY);
+        assertThat(snapshot.request()).isEqualTo(
+                new HarnessToolRequestSnapshot(
+                        HarnessToolType.GET_DAILY_PRICE_HISTORY,
+                        "005930"
+                )
+        );
+        assertThat(snapshot.dailyPriceHistorySnapshot()).isEqualTo(
+                HarnessDailyPriceHistorySnapshot.from(history)
+        );
+        assertThat(snapshot.currentPriceSnapshot()).isNull();
+        assertThat(snapshot.currentPriceSource()).isNull();
+    }
+
+    @Test
     void fromHandlesExecutionResultWithoutOutput() {
         HarnessToolExecutionSnapshot snapshot = HarnessToolExecutionSnapshot.from(
                 HarnessToolExecutionResult.executionFailed(
@@ -117,6 +147,20 @@ class HarnessToolExecutionSnapshotTest {
                 "KR",
                 true,
                 "Korean market is open."
+        );
+    }
+
+    private DailyPriceHistory dailyPriceHistory() {
+        return new DailyPriceHistory(
+                "005930",
+                List.of(new DailyPriceBar(
+                        LocalDate.of(2026, 1, 2),
+                        69_000L,
+                        71_000L,
+                        68_000L,
+                        70_000L,
+                        1_000_000L
+                ))
         );
     }
 }

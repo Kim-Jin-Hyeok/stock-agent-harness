@@ -11,6 +11,7 @@ import com.stock.risk.RiskReasonCode;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -115,6 +116,21 @@ class HarnessRunSnapshotJsonConverterTest {
                 ),
                 new HarnessToolExecutionSnapshot(
                         HarnessToolExecutionStatus.EXECUTED,
+                        HarnessToolType.GET_DAILY_PRICE_HISTORY,
+                        HarnessToolExecutionReasonCode.TOOL_EXECUTED,
+                        "Harness tool execution completed.",
+                        null,
+                        null,
+                        null,
+                        new HarnessToolRequestSnapshot(
+                                HarnessToolType.GET_DAILY_PRICE_HISTORY,
+                                "005930"
+                        ),
+                        null,
+                        dailyPriceHistorySnapshot()
+                ),
+                new HarnessToolExecutionSnapshot(
+                        HarnessToolExecutionStatus.EXECUTED,
                         HarnessToolType.GET_CURRENT_PRICE,
                         HarnessToolExecutionReasonCode.TOOL_EXECUTED,
                         "Harness tool execution completed.",
@@ -138,8 +154,11 @@ class HarnessRunSnapshotJsonConverterTest {
                 .containsExactly(
                         HarnessToolType.GET_PORTFOLIO,
                         HarnessToolType.GET_MARKET,
+                        HarnessToolType.GET_DAILY_PRICE_HISTORY,
                         HarnessToolType.GET_CURRENT_PRICE
                 );
+        assertThat(restored.get(2).dailyPriceHistorySnapshot())
+                .isEqualTo(dailyPriceHistorySnapshot());
         assertThat(restored.getLast().request()).isEqualTo(
                 new HarnessToolRequestSnapshot(HarnessToolType.GET_CURRENT_PRICE, "005930")
         );
@@ -248,6 +267,20 @@ class HarnessRunSnapshotJsonConverterTest {
                 "KR",
                 true,
                 "Korean market is open."
+        );
+    }
+
+    private HarnessDailyPriceHistorySnapshot dailyPriceHistorySnapshot() {
+        return new HarnessDailyPriceHistorySnapshot(
+                "005930",
+                List.of(new HarnessDailyPriceBarSnapshot(
+                        LocalDate.of(2026, 1, 2),
+                        69_000L,
+                        71_000L,
+                        68_000L,
+                        70_000L,
+                        1_000_000L
+                ))
         );
     }
 }

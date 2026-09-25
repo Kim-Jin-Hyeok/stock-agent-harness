@@ -66,4 +66,30 @@ class HarnessToolRequestValidatorTest {
                 HarnessToolRequestValidationReasonCode.SYMBOL_MISSING
         );
     }
+
+    @Test
+    void allowsDailyPriceHistoryRequestWithSymbol() {
+        HarnessToolRequestValidationResult result = validator.validate(
+                HarnessToolRequest.dailyPriceHistory("005930")
+        );
+
+        assertThat(result.status())
+                .isEqualTo(HarnessToolRequestValidationStatus.VALID);
+        assertThat(result.reasonCode()).isEqualTo(
+                HarnessToolRequestValidationReasonCode.TOOL_REQUEST_VALID
+        );
+    }
+
+    @Test
+    void rejectsDailyPriceHistoryRequestWithoutSymbol() {
+        HarnessToolRequestValidationResult result = validator.validate(
+                HarnessToolRequest.dailyPriceHistory(" ")
+        );
+
+        assertThat(result.status())
+                .isEqualTo(HarnessToolRequestValidationStatus.INVALID);
+        assertThat(result.reasonCode()).isEqualTo(
+                HarnessToolRequestValidationReasonCode.SYMBOL_MISSING
+        );
+    }
 }

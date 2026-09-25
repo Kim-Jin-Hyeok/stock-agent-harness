@@ -33,6 +33,15 @@ public class HarnessToolRequestValidator {
             );
         }
 
+        if (request.type() == HarnessToolType.GET_DAILY_PRICE_HISTORY
+                && (request.symbol() == null || request.symbol().isBlank())) {
+            return HarnessToolRequestValidationResult.invalid(
+                    request.type(),
+                    HarnessToolRequestValidationReasonCode.SYMBOL_MISSING,
+                    "Symbol is required for daily price history request."
+            );
+        }
+
         return HarnessToolRequestValidationResult.valid(request.type());
     }
 }

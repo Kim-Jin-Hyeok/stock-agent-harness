@@ -8,6 +8,7 @@ import com.stock.harness.tool.HarnessToolRequest;
 import com.stock.harness.tool.HarnessToolType;
 import com.stock.market.MarketSnapshot;
 import com.stock.market.price.CurrentPriceSnapshot;
+import com.stock.market.price.history.DailyPriceHistory;
 import com.stock.market.price.lookup.CurrentPriceLookupResult;
 import com.stock.market.price.validation.CurrentPriceFreshnessPolicy;
 import com.stock.market.price.validation.CurrentPriceFreshnessProperties;
@@ -72,6 +73,68 @@ class HarnessToolResultValidatorTest {
         assertThat(result.reasonCode()).isEqualTo(
                 HarnessToolResultValidationReasonCode.TOOL_RESULT_VALID
         );
+    }
+
+    @Test
+    void allowsDailyPriceHistoryResultWithEmptyBars() {
+        HarnessToolResultValidationResult result = validator.validate(
+                HarnessToolRequest.dailyPriceHistory("005930"),
+                HarnessToolExecutionResult.executed(
+                        HarnessToolOutput.dailyPriceHistory(
+                                dailyPriceHistory("005930")
+                        )
+                )
+        );
+
+        assertThat(result.status())
+                .isEqualTo(HarnessToolResultValidationStatus.VALID);
+        assertThat(result.reasonCode()).isEqualTo(
+                HarnessToolResultValidationReasonCode.TOOL_RESULT_VALID
+        );
+    }
+
+    @Test
+    void rejectsMissingDailyPriceHistoryPayload() {
+        HarnessToolOutput output = new HarnessToolOutput(
+                HarnessToolType.GET_DAILY_PRICE_HISTORY,
+                null,
+                null
+        );
+
+        HarnessToolResultValidationResult result = validator.validate(
+                HarnessToolRequest.dailyPriceHistory("005930"),
+                executedResult(
+                        HarnessToolType.GET_DAILY_PRICE_HISTORY,
+                        output
+                )
+        );
+
+        assertThat(result.status())
+                .isEqualTo(HarnessToolResultValidationStatus.INVALID);
+        assertThat(result.reasonCode()).isEqualTo(
+                HarnessToolResultValidationReasonCode.OUTPUT_PAYLOAD_MISSING
+        );
+    }
+
+    @Test
+    void rejectsDailyPriceHistoryResultWithDifferentSymbol() {
+        HarnessToolResultValidationResult result = validator.validate(
+                HarnessToolRequest.dailyPriceHistory("005930"),
+                HarnessToolExecutionResult.executed(
+                        HarnessToolOutput.dailyPriceHistory(
+                                dailyPriceHistory("000660")
+                        )
+                )
+        );
+
+        assertThat(result.status())
+                .isEqualTo(HarnessToolResultValidationStatus.INVALID);
+        assertThat(result.reasonCode()).isEqualTo(
+                HarnessToolResultValidationReasonCode.OUTPUT_SYMBOL_MISMATCH
+        );
+        assertThat(result.reason())
+                .contains("requested=005930")
+                .contains("actual=000660");
     }
 
     @Test
@@ -362,5 +425,9 @@ class HarnessToolResultValidatorTest {
                 true,
                 "Korean market is open."
         );
+    }
+
+    private DailyPriceHistory dailyPriceHistory(String symbol) {
+        return new DailyPriceHistory(symbol, List.of());
     }
 }

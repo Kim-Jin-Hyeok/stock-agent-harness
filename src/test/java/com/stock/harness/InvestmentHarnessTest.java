@@ -32,6 +32,7 @@ import com.stock.market.price.CurrentPriceService;
 import com.stock.market.price.CurrentPriceSnapshot;
 import com.stock.market.price.cache.CurrentPriceCache;
 import com.stock.market.price.cache.CurrentPriceCacheProperties;
+import com.stock.market.price.history.query.DailyPriceHistoryQueryService;
 import com.stock.market.price.lookup.CurrentPriceLookupResult;
 import com.stock.market.price.lookup.CurrentPriceLookupSource;
 import com.stock.market.price.observation.CurrentPriceObservationService;
@@ -46,6 +47,7 @@ import com.stock.portfolio.PortfolioSnapshotStore;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskGuard;
 import com.stock.risk.RiskProperties;
+import com.stock.strategy.data.history.StrategyDailyPriceHistoryPolicy;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import com.stock.strategy.universe.StrategyStockUniverseRegistry;
@@ -139,10 +141,16 @@ class InvestmentHarnessTest {
     );
     private final InvestmentAgent investmentAgent = new InvestmentAgent();
     private final HarnessToolAuthorizer harnessToolAuthorizer = new HarnessToolAuthorizer();
+    private final DailyPriceHistoryQueryService dailyPriceHistoryQueryService =
+            mock(DailyPriceHistoryQueryService.class);
+    private final StrategyDailyPriceHistoryPolicy dailyPriceHistoryPolicy =
+            mock(StrategyDailyPriceHistoryPolicy.class);
     private final HarnessToolExecutor harnessToolExecutor = new HarnessToolExecutor(
             portfolioService,
             marketService,
-            currentPriceService
+            currentPriceService,
+            dailyPriceHistoryQueryService,
+            dailyPriceHistoryPolicy
     );
     private final HarnessToolResultValidator harnessToolResultValidator =
             new HarnessToolResultValidator(currentPriceFreshnessPolicy);
@@ -1422,7 +1430,9 @@ class InvestmentHarnessTest {
         HarnessToolExecutor providerLimitedExecutor = new HarnessToolExecutor(
                 portfolioService,
                 marketService,
-                failingCurrentPriceService
+                failingCurrentPriceService,
+                dailyPriceHistoryQueryService,
+                dailyPriceHistoryPolicy
         );
         InvestmentHarness providerLimitedHarness = new InvestmentHarness(
                 riskGuard,
