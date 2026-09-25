@@ -8,10 +8,13 @@ import com.stock.harness.tool.HarnessToolType;
 import com.stock.market.price.lookup.CurrentPriceLookupSource;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskReasonCode;
+import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisStatus;
+import com.stock.strategy.signal.movingaverage.MovingAverageTrend;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.math.BigDecimal;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -37,6 +40,28 @@ class HarnessRunSnapshotJsonConverterTest {
         assertThat(restored.expectedPriceKrw()).isEqualTo(70_000L);
         assertThat(restored.estimatedOrderAmountKrw()).isEqualTo(700_000L);
         assertThat(restored.reason()).isEqualTo("Buy Samsung Electronics.");
+        assertThat(restored.movingAverageEvidence())
+                .isEqualTo(movingAverageEvidenceSnapshot());
+    }
+
+    @Test
+    void restoresLegacyDecisionSnapshotWithoutMovingAverageEvidence() {
+        String json = """
+                {
+                  "action": "HOLD",
+                  "symbol": null,
+                  "quantity": null,
+                  "expectedPriceKrw": null,
+                  "estimatedOrderAmountKrw": 0,
+                  "reason": "No trade decision."
+                }
+                """;
+
+        HarnessDecisionSnapshot restored = converter.toDecisionSnapshot(json);
+
+        assertThat(restored.action()).isEqualTo(InvestmentAction.HOLD);
+        assertThat(restored.reason()).isEqualTo("No trade decision.");
+        assertThat(restored.movingAverageEvidence()).isNull();
     }
 
     @Test
@@ -216,7 +241,25 @@ class HarnessRunSnapshotJsonConverterTest {
                 10L,
                 70_000L,
                 700_000L,
-                "Buy Samsung Electronics."
+                "Buy Samsung Electronics.",
+                movingAverageEvidenceSnapshot()
+        );
+    }
+
+    private HarnessMovingAverageEvidenceSnapshot movingAverageEvidenceSnapshot() {
+        return new HarnessMovingAverageEvidenceSnapshot(
+                MovingAverageAnalysisStatus.ANALYZED,
+                "005930",
+                20,
+                60,
+                MovingAverageTrend.UPTREND,
+                5,
+                new BigDecimal("71000.00"),
+                20,
+                new BigDecimal("70000.00"),
+                LocalDate.of(2026, 1, 2),
+                72_000L,
+                CurrentPriceLookupSource.PROVIDER
         );
     }
 

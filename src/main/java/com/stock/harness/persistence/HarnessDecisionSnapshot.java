@@ -9,8 +9,28 @@ public record HarnessDecisionSnapshot(
         Long quantity,
         Long expectedPriceKrw,
         Long estimatedOrderAmountKrw,
-        String reason
+        String reason,
+        HarnessMovingAverageEvidenceSnapshot movingAverageEvidence
 ) {
+    public HarnessDecisionSnapshot(
+            InvestmentAction action,
+            String symbol,
+            Long quantity,
+            Long expectedPriceKrw,
+            Long estimatedOrderAmountKrw,
+            String reason
+    ) {
+        this(
+                action,
+                symbol,
+                quantity,
+                expectedPriceKrw,
+                estimatedOrderAmountKrw,
+                reason,
+                null
+        );
+    }
+
     public static HarnessDecisionSnapshot from(InvestmentDecision decision) {
         return new HarnessDecisionSnapshot(
                 decision.action(),
@@ -18,7 +38,12 @@ public record HarnessDecisionSnapshot(
                 decision.quantity(),
                 decision.expectedPriceKrw(),
                 decision.estimatedOrderAmountKrw(),
-                decision.reason()
+                decision.reason(),
+                decision.movingAverageEvidence() == null
+                        ? null
+                        : HarnessMovingAverageEvidenceSnapshot.from(
+                                decision.movingAverageEvidence()
+                        )
         );
     }
 }

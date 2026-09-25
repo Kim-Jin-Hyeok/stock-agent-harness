@@ -11,8 +11,10 @@ import com.stock.market.price.CurrentPriceSnapshot;
 import com.stock.market.price.history.DailyPriceBar;
 import com.stock.market.price.history.DailyPriceHistory;
 import com.stock.market.price.lookup.CurrentPriceLookupResult;
+import com.stock.market.price.lookup.CurrentPriceLookupSource;
 import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisService;
+import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisStatus;
 import com.stock.strategy.data.history.StrategyDailyPriceHistoryPolicy;
 import com.stock.strategy.data.history.config.ConfiguredStrategyDailyPriceHistoryLimit;
 import com.stock.strategy.data.history.config.StrategyDailyPriceHistoryProperties;
@@ -24,6 +26,7 @@ import com.stock.strategy.indicator.movingaverage.policy.StrategyMovingAveragePe
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import com.stock.strategy.signal.movingaverage.MovingAverageTrendEvaluator;
+import com.stock.strategy.signal.movingaverage.MovingAverageTrend;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -112,6 +115,18 @@ class InvestmentAgentTest {
                                 + "asOfTradingDate=2026-09-20, "
                                 + "currentPriceKrw=80000, source=PROVIDER"
                 );
+        assertThat(action.investmentDecision().movingAverageEvidence()
+                .analysis().status())
+                .isEqualTo(MovingAverageAnalysisStatus.ANALYZED);
+        assertThat(action.investmentDecision().movingAverageEvidence()
+                .analysis().trend())
+                .isEqualTo(MovingAverageTrend.UPTREND);
+        assertThat(action.investmentDecision().movingAverageEvidence()
+                .currentPriceKrw())
+                .isEqualTo(80_000L);
+        assertThat(action.investmentDecision().movingAverageEvidence()
+                .currentPriceSource())
+                .isEqualTo(CurrentPriceLookupSource.PROVIDER);
     }
 
     @Test
@@ -130,6 +145,13 @@ class InvestmentAgentTest {
                 "Moving average data is insufficient. symbol=005930, "
                         + "requiredBars=20, availableBars=19"
         );
+        assertThat(action.investmentDecision().movingAverageEvidence()
+                .analysis().status())
+                .isEqualTo(MovingAverageAnalysisStatus.INSUFFICIENT_DATA);
+        assertThat(action.investmentDecision().movingAverageEvidence()
+                .currentPriceKrw()).isNull();
+        assertThat(action.investmentDecision().movingAverageEvidence()
+                .currentPriceSource()).isNull();
     }
 
     @Test

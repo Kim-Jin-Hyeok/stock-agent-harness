@@ -2,11 +2,31 @@ package com.stock.harness.persistence;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
+import com.stock.agent.evidence.movingaverage.MovingAverageDecisionEvidence;
+import com.stock.market.price.lookup.CurrentPriceLookupSource;
+import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisResult;
+import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisStatus;
+import com.stock.strategy.indicator.movingaverage.MovingAverageIndicator;
+import com.stock.strategy.indicator.movingaverage.SimpleMovingAverage;
+import com.stock.strategy.profile.InvestmentHorizon;
+import com.stock.strategy.profile.InvestmentStrategyIdentity;
+import com.stock.strategy.signal.movingaverage.MovingAverageTrend;
 import org.junit.jupiter.api.Test;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class HarnessDecisionSnapshotTest {
+    private static final InvestmentStrategyIdentity STRATEGY_IDENTITY =
+            new InvestmentStrategyIdentity(
+                    "DAY_TRADING_V1",
+                    1,
+                    InvestmentHorizon.DAY_TRADING
+            );
+    private static final LocalDate AS_OF_DATE = LocalDate.of(2026, 9, 23);
+
     @Test
     void getBuyDecisionSnapshot() {
         HarnessDecisionSnapshot snapshot = HarnessDecisionSnapshot.from(buyDecision());
@@ -41,6 +61,48 @@ class HarnessDecisionSnapshotTest {
         assertThat(snapshot.expectedPriceKrw()).isNull();
         assertThat(snapshot.estimatedOrderAmountKrw()).isZero();
         assertThat(snapshot.reason()).isEqualTo("No trade decision.");
+        assertThat(snapshot.movingAverageEvidence()).isNull();
+    }
+
+    @Test
+    void mapsMovingAverageEvidence() {
+        MovingAverageAnalysisResult analysis =
+                MovingAverageAnalysisResult.analyzed(
+                        STRATEGY_IDENTITY,
+                        60,
+                        new MovingAverageIndicator(
+                                "005930",
+                                AS_OF_DATE,
+                                movingAverage(5, "71000.00"),
+                                movingAverage(20, "70000.00")
+                        ),
+                        MovingAverageTrend.UPTREND
+                );
+        InvestmentDecision decision = new InvestmentDecision(
+                InvestmentAction.HOLD,
+                null,
+                null,
+                null,
+                "Moving average analyzed.",
+                MovingAverageDecisionEvidence.analyzed(
+                        analysis,
+                        72_000L,
+                        CurrentPriceLookupSource.PROVIDER
+                )
+        );
+
+        HarnessDecisionSnapshot snapshot = HarnessDecisionSnapshot.from(
+                decision
+        );
+
+        assertThat(snapshot.movingAverageEvidence().status())
+                .isEqualTo(MovingAverageAnalysisStatus.ANALYZED);
+        assertThat(snapshot.movingAverageEvidence().trend())
+                .isEqualTo(MovingAverageTrend.UPTREND);
+        assertThat(snapshot.movingAverageEvidence().currentPriceKrw())
+                .isEqualTo(72_000L);
+        assertThat(snapshot.movingAverageEvidence().currentPriceSource())
+                .isEqualTo(CurrentPriceLookupSource.PROVIDER);
     }
 
     private InvestmentDecision buyDecision() {
@@ -70,6 +132,19 @@ class HarnessDecisionSnapshotTest {
                 null,
                 null,
                 "No trade decision."
+        );
+    }
+
+    private SimpleMovingAverage movingAverage(
+            int period,
+            String averagePriceKrw
+    ) {
+        return new SimpleMovingAverage(
+                "005930",
+                period,
+                new BigDecimal(averagePriceKrw),
+                AS_OF_DATE.minusDays(period - 1L),
+                AS_OF_DATE
         );
     }
 }

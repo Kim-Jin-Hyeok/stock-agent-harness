@@ -1,5 +1,6 @@
 package com.stock.agent;
 
+import com.stock.agent.evidence.movingaverage.MovingAverageDecisionEvidence;
 import com.stock.harness.HarnessRunContext;
 import com.stock.harness.tool.HarnessToolExecutionResult;
 import com.stock.harness.tool.HarnessToolExecutionStatus;
@@ -90,7 +91,12 @@ public class InvestmentAgent {
                         + ", currentPriceKrw="
                         + currentPrice.priceKrw()
                         + ", source="
-                        + currentPriceResult.output().currentPriceSource()
+                        + currentPriceResult.output().currentPriceSource(),
+                MovingAverageDecisionEvidence.analyzed(
+                        analysis,
+                        currentPrice.priceKrw(),
+                        currentPriceResult.output().currentPriceSource()
+                )
         );
     }
 
@@ -145,7 +151,8 @@ public class InvestmentAgent {
                         + ", requiredBars="
                         + analysis.requiredBarCount()
                         + ", availableBars="
-                        + analysis.availableBarCount()
+                        + analysis.availableBarCount(),
+                MovingAverageDecisionEvidence.insufficientData(analysis)
         );
     }
 

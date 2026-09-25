@@ -2,6 +2,7 @@ package com.stock.harness.api;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
+import com.stock.agent.evidence.movingaverage.MovingAverageDecisionEvidence;
 import com.stock.harness.HarnessRunDetail;
 import com.stock.harness.HarnessRunHistoryService;
 import com.stock.harness.HarnessRunResult;
@@ -36,6 +37,10 @@ import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskReasonCode;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
+import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisResult;
+import com.stock.strategy.indicator.movingaverage.MovingAverageIndicator;
+import com.stock.strategy.indicator.movingaverage.SimpleMovingAverage;
+import com.stock.strategy.signal.movingaverage.MovingAverageTrend;
 import com.stock.trade.TradeReasonCode;
 import com.stock.trade.TradeRecord;
 import com.stock.trade.TradeHistoryService;
@@ -49,7 +54,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -120,6 +127,15 @@ class HarnessControllerTest {
                         .value(CURRENT_PRICE_OBSERVED_AT.toString()))
                 .andExpect(jsonPath("$.toolResults[1].output.currentPriceSource")
                         .value("PROVIDER"))
+                .andExpect(jsonPath(
+                        "$.decision.movingAverageEvidence.analysis.status"
+                ).value("ANALYZED"))
+                .andExpect(jsonPath(
+                        "$.decision.movingAverageEvidence.analysis.trend"
+                ).value("UPTREND"))
+                .andExpect(jsonPath(
+                        "$.decision.movingAverageEvidence.currentPriceKrw"
+                ).value(72_000L))
                 .andExpect(jsonPath("$.tradeRecords[0].runId").value(runId))
                 .andExpect(jsonPath("$.tradeRecords[0].status").value("EXECUTED"));
 
@@ -187,6 +203,18 @@ class HarnessControllerTest {
                 .andExpect(jsonPath("$.candidateSymbols[0]").value("005930"))
                 .andExpect(jsonPath("$.candidateSymbols[1]").value("000660"))
                 .andExpect(jsonPath("$.decisionSnapshot.action").value("BUY"))
+                .andExpect(jsonPath(
+                        "$.decisionSnapshot.movingAverageEvidence.status"
+                ).value("ANALYZED"))
+                .andExpect(jsonPath(
+                        "$.decisionSnapshot.movingAverageEvidence.trend"
+                ).value("UPTREND"))
+                .andExpect(jsonPath(
+                        "$.decisionSnapshot.movingAverageEvidence.shortPeriod"
+                ).value(5))
+                .andExpect(jsonPath(
+                        "$.decisionSnapshot.movingAverageEvidence.currentPriceSource"
+                ).value("PROVIDER"))
                 .andExpect(jsonPath("$.riskCheckSnapshot.status").value("APPROVED"))
                 .andExpect(jsonPath("$.portfolioSnapshot.cashAmountKrw").value(9_300_000L))
                 .andExpect(jsonPath("$.marketSnapshot.market").value("KR"))
@@ -408,7 +436,39 @@ class HarnessControllerTest {
                 "005930",
                 10L,
                 70_000L,
-                "Buy Samsung Electronics."
+                "Buy Samsung Electronics.",
+                MovingAverageDecisionEvidence.analyzed(
+                        movingAverageAnalysisResult(),
+                        72_000L,
+                        CurrentPriceLookupSource.PROVIDER
+                )
+        );
+    }
+
+    private MovingAverageAnalysisResult movingAverageAnalysisResult() {
+        LocalDate asOfTradingDate = LocalDate.of(2026, 1, 2);
+        return MovingAverageAnalysisResult.analyzed(
+                STRATEGY_IDENTITY,
+                60,
+                new MovingAverageIndicator(
+                        "005930",
+                        asOfTradingDate,
+                        new SimpleMovingAverage(
+                                "005930",
+                                5,
+                                new BigDecimal("71000.00"),
+                                asOfTradingDate.minusDays(4),
+                                asOfTradingDate
+                        ),
+                        new SimpleMovingAverage(
+                                "005930",
+                                20,
+                                new BigDecimal("70000.00"),
+                                asOfTradingDate.minusDays(19),
+                                asOfTradingDate
+                        )
+                ),
+                MovingAverageTrend.UPTREND
         );
     }
 
