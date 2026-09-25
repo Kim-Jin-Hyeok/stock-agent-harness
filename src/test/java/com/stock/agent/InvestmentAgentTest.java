@@ -8,6 +8,8 @@ import com.stock.harness.tool.HarnessToolOutput;
 import com.stock.harness.tool.HarnessToolRequest;
 import com.stock.market.MarketSnapshot;
 import com.stock.market.price.CurrentPriceSnapshot;
+import com.stock.market.price.history.DailyPriceBar;
+import com.stock.market.price.history.DailyPriceHistory;
 import com.stock.market.price.lookup.CurrentPriceLookupResult;
 import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.strategy.profile.InvestmentHorizon;
@@ -15,6 +17,7 @@ import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -25,10 +28,26 @@ class InvestmentAgentTest {
     private final InvestmentAgent agent = new InvestmentAgent();
 
     @Test
-    void nextRequestsCurrentPriceForFirstCandidate() {
+    void nextRequestsDailyPriceHistoryForFirstCandidate() {
         HarnessRunContext context = runContext(
                 List.of("005930", "000660"),
                 List.of()
+        );
+
+        AgentNextAction action = agent.next(context);
+
+        assertThat(action.type()).isEqualTo(AgentNextActionType.REQUEST_TOOL);
+        assertThat(action.toolRequest()).isEqualTo(
+                HarnessToolRequest.dailyPriceHistory("005930")
+        );
+        assertThat(action.investmentDecision()).isNull();
+    }
+
+    @Test
+    void nextRequestsCurrentPriceAfterDailyPriceHistoryIsReceived() {
+        HarnessRunContext context = runContext(
+                List.of("005930"),
+                List.of(dailyPriceHistoryResult("005930", List.of(dailyBar())))
         );
 
         AgentNextAction action = agent.next(context);
@@ -41,10 +60,16 @@ class InvestmentAgentTest {
     }
 
     @Test
-    void nextReturnsHoldAfterCurrentPriceIsReceived() {
+    void nextReturnsHoldAfterDailyPriceHistoryAndCurrentPriceAreReceived() {
         HarnessRunContext context = runContext(
                 List.of("005930"),
-                List.of(currentPriceResult("005930", 70_000L))
+                List.of(
+                        dailyPriceHistoryResult(
+                                "005930",
+                                List.of(dailyBar())
+                        ),
+                        currentPriceResult("005930", 70_000L)
+                )
         );
 
         AgentNextAction action = agent.next(context);
@@ -58,16 +83,59 @@ class InvestmentAgentTest {
         assertThat(action.investmentDecision().expectedPriceKrw()).isNull();
         assertThat(action.investmentDecision().reason())
                 .isEqualTo(
-                        "Current price received. symbol=005930, "
-                                + "priceKrw=70000, source=PROVIDER"
+                        "Market data received. symbol=005930, "
+                                + "dailyBars=1, latestTradingDate=2026-09-23, "
+                                + "latestClosePriceKrw=69000, "
+                                + "currentPriceKrw=70000, source=PROVIDER"
                 );
+    }
+
+    @Test
+    void nextReturnsHoldWithoutCurrentPriceWhenDailyPriceHistoryIsEmpty() {
+        HarnessRunContext context = runContext(
+                List.of("005930"),
+                List.of(dailyPriceHistoryResult("005930", List.of()))
+        );
+
+        AgentNextAction action = agent.next(context);
+
+        assertThat(action.type()).isEqualTo(AgentNextActionType.FINAL_DECISION);
+        assertThat(action.investmentDecision().action())
+                .isEqualTo(InvestmentAction.HOLD);
+        assertThat(action.investmentDecision().reason()).isEqualTo(
+                "Daily price history is empty. symbol=005930"
+        );
+    }
+
+    @Test
+    void nextRequestsCandidateHistoryWhenAnotherSymbolResultExists() {
+        HarnessRunContext context = runContext(
+                List.of("005930"),
+                List.of(dailyPriceHistoryResult(
+                        "000660",
+                        List.of(dailyBar())
+                ))
+        );
+
+        AgentNextAction action = agent.next(context);
+
+        assertThat(action.type()).isEqualTo(AgentNextActionType.REQUEST_TOOL);
+        assertThat(action.toolRequest()).isEqualTo(
+                HarnessToolRequest.dailyPriceHistory("005930")
+        );
     }
 
     @Test
     void nextRequestsCandidatePriceWhenAnotherSymbolResultExists() {
         HarnessRunContext context = runContext(
                 List.of("005930"),
-                List.of(currentPriceResult("000660", 120_000L))
+                List.of(
+                        dailyPriceHistoryResult(
+                                "005930",
+                                List.of(dailyBar())
+                        ),
+                        currentPriceResult("000660", 120_000L)
+                )
         );
 
         AgentNextAction action = agent.next(context);
@@ -109,6 +177,18 @@ class InvestmentAgentTest {
         );
     }
 
+    private HarnessToolExecutionResult dailyPriceHistoryResult(
+            String symbol,
+            List<DailyPriceBar> bars
+    ) {
+        return HarnessToolExecutionResult.executed(
+                HarnessToolRequest.dailyPriceHistory(symbol),
+                HarnessToolOutput.dailyPriceHistory(
+                        new DailyPriceHistory(symbol, bars)
+                )
+        );
+    }
+
     private HarnessToolExecutionResult currentPriceResult(
             String symbol,
             long priceKrw
@@ -123,6 +203,17 @@ class InvestmentAgentTest {
                 HarnessToolOutput.currentPrice(
                         CurrentPriceLookupResult.provider(snapshot)
                 )
+        );
+    }
+
+    private DailyPriceBar dailyBar() {
+        return new DailyPriceBar(
+                LocalDate.of(2026, 9, 23),
+                67_000L,
+                71_000L,
+                66_000L,
+                69_000L,
+                1_000_000L
         );
     }
 

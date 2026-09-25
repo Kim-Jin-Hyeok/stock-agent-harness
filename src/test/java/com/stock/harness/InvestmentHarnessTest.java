@@ -32,6 +32,8 @@ import com.stock.market.price.CurrentPriceService;
 import com.stock.market.price.CurrentPriceSnapshot;
 import com.stock.market.price.cache.CurrentPriceCache;
 import com.stock.market.price.cache.CurrentPriceCacheProperties;
+import com.stock.market.price.history.DailyPriceBar;
+import com.stock.market.price.history.DailyPriceHistory;
 import com.stock.market.price.history.query.DailyPriceHistoryQueryService;
 import com.stock.market.price.lookup.CurrentPriceLookupResult;
 import com.stock.market.price.lookup.CurrentPriceLookupSource;
@@ -64,6 +66,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Set;
@@ -174,6 +177,12 @@ class InvestmentHarnessTest {
     @BeforeEach
     void setUpRetryWaiter() {
         when(harnessRetryWaiter.waitBeforeRetry()).thenReturn(Duration.ofMillis(500));
+        when(dailyPriceHistoryPolicy.getLatestBarCount(STRATEGY_IDENTITY))
+                .thenReturn(60);
+        when(dailyPriceHistoryQueryService.getLatestDailyPriceHistory(
+                "005930",
+                60
+        )).thenReturn(dailyPriceHistory());
     }
 
     private final InvestmentHarness investmentHarness = new InvestmentHarness(
@@ -208,10 +217,15 @@ class InvestmentHarnessTest {
         assertThat(result.tradeResult().status()).isEqualTo(TradeStatus.SKIPPED);
         assertThat(result.toolResults())
                 .extracting(HarnessToolExecutionResult::type)
-                .containsExactly(HarnessToolType.GET_CURRENT_PRICE);
+                .containsExactly(
+                        HarnessToolType.GET_DAILY_PRICE_HISTORY,
+                        HarnessToolType.GET_CURRENT_PRICE
+                );
         assertThat(result.toolResults().getFirst().request())
+                .isEqualTo(HarnessToolRequest.dailyPriceHistory("005930"));
+        assertThat(result.toolResults().getLast().request())
                 .isEqualTo(HarnessToolRequest.currentPrice("005930"));
-        assertThat(result.steps().size()).isEqualTo(17);
+        assertThat(result.steps().size()).isEqualTo(26);
 
         List<HarnessStepType> stepTypes = result.steps().stream()
                 .map(HarnessStepResult::type)
@@ -220,6 +234,15 @@ class InvestmentHarnessTest {
         assertThat(stepTypes).containsExactly(
                 HarnessStepType.LOAD_PORTFOLIO,
                 HarnessStepType.LOAD_MARKET,
+                HarnessStepType.CHECK_STEP_LIMIT,
+                HarnessStepType.RUN_INVESTMENT_AGENT,
+                HarnessStepType.VALIDATE_AGENT_ACTION,
+                HarnessStepType.VALIDATE_TOOL_REQUEST,
+                HarnessStepType.AUTHORIZE_TOOL_REQUEST,
+                HarnessStepType.CHECK_DUPLICATE_TOOL_REQUEST,
+                HarnessStepType.CHECK_TOOL_CALL_LIMIT,
+                HarnessStepType.EXECUTE_TOOL_REQUEST,
+                HarnessStepType.VALIDATE_TOOL_RESULT,
                 HarnessStepType.CHECK_STEP_LIMIT,
                 HarnessStepType.RUN_INVESTMENT_AGENT,
                 HarnessStepType.VALIDATE_AGENT_ACTION,
@@ -252,7 +275,7 @@ class InvestmentHarnessTest {
 
         assertThat(agentStep.type()).isEqualTo(HarnessStepType.RUN_INVESTMENT_AGENT);
         assertThat(agentStep.message())
-                .isEqualTo("Requested tool. type=GET_CURRENT_PRICE");
+                .isEqualTo("Requested tool. type=GET_DAILY_PRICE_HISTORY");
 
         HarnessStepResult validateActionStep = result.steps().get(4);
 
@@ -260,17 +283,27 @@ class InvestmentHarnessTest {
         assertThat(validateActionStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
         assertThat(validateActionStep.message()).isEqualTo("Harness agent action is valid.");
 
-        HarnessStepResult finalAgentStep = result.steps().get(12);
+        HarnessStepResult currentPriceAgentStep = result.steps().get(12);
+
+        assertThat(currentPriceAgentStep.type())
+                .isEqualTo(HarnessStepType.RUN_INVESTMENT_AGENT);
+        assertThat(currentPriceAgentStep.message())
+                .isEqualTo("Requested tool. type=GET_CURRENT_PRICE");
+
+        HarnessStepResult finalAgentStep = result.steps().get(21);
 
         assertThat(finalAgentStep.type())
                 .isEqualTo(HarnessStepType.RUN_INVESTMENT_AGENT);
         assertThat(finalAgentStep.message())
                 .isEqualTo(
-                        "Current price received. symbol=005930, "
-                                + "priceKrw=100000, source=PROVIDER"
+                        "Market data received. symbol=005930, "
+                                + "dailyBars=1, "
+                                + "latestTradingDate=2026-09-23, "
+                                + "latestClosePriceKrw=99000, "
+                                + "currentPriceKrw=100000, source=PROVIDER"
                 );
 
-        HarnessStepResult validateDecisionStep = result.steps().get(14);
+        HarnessStepResult validateDecisionStep = result.steps().get(23);
 
         assertThat(validateDecisionStep.type()).isEqualTo(HarnessStepType.VALIDATE_DECISION);
         assertThat(validateDecisionStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
@@ -279,7 +312,7 @@ class InvestmentHarnessTest {
         assertThat(validateDecisionStep.finishedAt()).isNotNull();
         assertThat(validateDecisionStep.startedAt()).isBeforeOrEqualTo(validateDecisionStep.finishedAt());
 
-        HarnessStepResult executeTradeStep = result.steps().get(15);
+        HarnessStepResult executeTradeStep = result.steps().get(24);
 
         assertThat(executeTradeStep.type()).isEqualTo(HarnessStepType.EXECUTE_TRADE);
         assertThat(executeTradeStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
@@ -288,7 +321,7 @@ class InvestmentHarnessTest {
         assertThat(executeTradeStep.finishedAt()).isNotNull();
         assertThat(executeTradeStep.startedAt()).isBeforeOrEqualTo(executeTradeStep.finishedAt());
 
-        HarnessStepResult finalPortfolioStep = result.steps().get(16);
+        HarnessStepResult finalPortfolioStep = result.steps().get(25);
 
         assertThat(finalPortfolioStep.type()).isEqualTo(HarnessStepType.LOAD_FINAL_PORTFOLIO);
         assertThat(finalPortfolioStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
@@ -307,6 +340,29 @@ class InvestmentHarnessTest {
                 ),
                 CurrentPriceLookupSource.PROVIDER
         );
+        verify(dailyPriceHistoryPolicy).getLatestBarCount(STRATEGY_IDENTITY);
+        verify(dailyPriceHistoryQueryService)
+                .getLatestDailyPriceHistory("005930", 60);
+    }
+
+    @Test
+    void runHoldsWithoutCurrentPriceWhenDailyPriceHistoryIsEmpty() {
+        when(dailyPriceHistoryQueryService.getLatestDailyPriceHistory(
+                "005930",
+                60
+        )).thenReturn(new DailyPriceHistory("005930", List.of()));
+
+        HarnessRunResult result = investmentHarness.run(STRATEGY_IDENTITY);
+
+        assertThat(result.status()).isEqualTo(HarnessRunStatus.COMPLETED);
+        assertThat(result.toolResults())
+                .extracting(HarnessToolExecutionResult::type)
+                .containsExactly(HarnessToolType.GET_DAILY_PRICE_HISTORY);
+        assertThat(result.decision().action()).isEqualTo(InvestmentAction.HOLD);
+        assertThat(result.decision().reason()).isEqualTo(
+                "Daily price history is empty. symbol=005930"
+        );
+        verifyNoInteractions(currentPriceObservationService);
     }
 
     @Test
@@ -1619,6 +1675,20 @@ class InvestmentHarnessTest {
                         HarnessToolRequest.portfolio(),
                         HarnessToolRequest.portfolio()
                 );
+    }
+
+    private DailyPriceHistory dailyPriceHistory() {
+        return new DailyPriceHistory(
+                "005930",
+                List.of(new DailyPriceBar(
+                        LocalDate.of(2026, 9, 23),
+                        98_000L,
+                        101_000L,
+                        97_000L,
+                        99_000L,
+                        1_000_000L
+                ))
+        );
     }
 
     private static class BuyingInvestmentAgent extends InvestmentAgent {
