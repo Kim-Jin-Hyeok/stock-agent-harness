@@ -118,6 +118,23 @@ strategy:
         strategy-version: 1
         horizon: LONG_TERM
         latest-bar-count: 250
+  moving-average:
+    periods:
+      - strategy-id: DAY_TRADING_V1
+        strategy-version: 1
+        horizon: DAY_TRADING
+        short-period: 5
+        long-period: 20
+      - strategy-id: SWING_V1
+        strategy-version: 1
+        horizon: SWING
+        short-period: 20
+        long-period: 60
+      - strategy-id: LONG_TERM_V1
+        strategy-version: 1
+        horizon: LONG_TERM
+        short-period: 50
+        long-period: 200
 
 trade:
   execution:
