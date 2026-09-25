@@ -1,9 +1,11 @@
 package com.stock.strategy.signal.movingaverage;
 
 import com.stock.strategy.indicator.movingaverage.MovingAverageIndicator;
+import org.springframework.stereotype.Component;
 
 import java.util.Objects;
 
+@Component
 public class MovingAverageTrendEvaluator {
 
     public MovingAverageTrend evaluate(MovingAverageIndicator indicator) {

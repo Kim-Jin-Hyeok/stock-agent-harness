@@ -1,10 +1,12 @@
 package com.stock.strategy.indicator.movingaverage;
 
 import com.stock.market.price.history.DailyPriceHistory;
+import org.springframework.stereotype.Component;
 
 import java.util.Objects;
 import java.util.Optional;
 
+@Component
 public class MovingAverageIndicatorCalculator {
     private final SimpleMovingAverageCalculator simpleMovingAverageCalculator;
 

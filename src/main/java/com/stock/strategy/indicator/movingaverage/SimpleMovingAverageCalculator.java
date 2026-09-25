@@ -2,6 +2,7 @@ package com.stock.strategy.indicator.movingaverage;
 
 import com.stock.market.price.history.DailyPriceBar;
 import com.stock.market.price.history.DailyPriceHistory;
+import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -9,6 +10,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+@Component
 public class SimpleMovingAverageCalculator {
     private static final int PRICE_SCALE = 2;
 
