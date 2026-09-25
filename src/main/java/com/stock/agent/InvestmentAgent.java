@@ -6,8 +6,11 @@ import com.stock.harness.tool.HarnessToolExecutionStatus;
 import com.stock.harness.tool.HarnessToolRequest;
 import com.stock.harness.tool.HarnessToolType;
 import com.stock.market.price.CurrentPriceSnapshot;
-import com.stock.market.price.history.DailyPriceBar;
 import com.stock.market.price.history.DailyPriceHistory;
+import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisResult;
+import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisService;
+import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisStatus;
+import com.stock.strategy.indicator.movingaverage.MovingAverageIndicator;
 import org.springframework.stereotype.Component;
 
 import java.util.Objects;
@@ -15,6 +18,16 @@ import java.util.Optional;
 
 @Component
 public class InvestmentAgent {
+    private final MovingAverageAnalysisService movingAverageAnalysisService;
+
+    public InvestmentAgent(
+            MovingAverageAnalysisService movingAverageAnalysisService
+    ) {
+        this.movingAverageAnalysisService = Objects.requireNonNull(
+                movingAverageAnalysisService,
+                "movingAverageAnalysisService must not be null."
+        );
+    }
 
     public InvestmentDecision decide(HarnessRunContext context) {
         String candidateSymbol = firstCandidateSymbol(context);
@@ -26,17 +39,25 @@ public class InvestmentAgent {
                         ));
         DailyPriceHistory dailyPriceHistory =
                 dailyPriceHistoryResult.output().dailyPriceHistory();
-
-        if (dailyPriceHistory.bars().isEmpty()) {
-            return new InvestmentDecision(
-                    InvestmentAction.HOLD,
-                    null,
-                    null,
-                    null,
-                    "Daily price history is empty. symbol="
-                            + candidateSymbol
-            );
+        MovingAverageAnalysisResult analysis =
+                movingAverageAnalysisService.analyze(
+                        context.strategyIdentity(),
+                        dailyPriceHistory
+                );
+        if (analysis.status()
+                == MovingAverageAnalysisStatus.INSUFFICIENT_DATA) {
+            return insufficientDataDecision(analysis);
         }
+
+        return analyzedDecision(context, candidateSymbol, analysis);
+    }
+
+    private InvestmentDecision analyzedDecision(
+            HarnessRunContext context,
+            String candidateSymbol,
+            MovingAverageAnalysisResult analysis
+    ) {
+        MovingAverageIndicator indicator = analysis.indicator();
 
         HarnessToolExecutionResult currentPriceResult =
                 findCurrentPriceResult(context, candidateSymbol)
@@ -46,21 +67,26 @@ public class InvestmentAgent {
                         ));
         CurrentPriceSnapshot currentPrice =
                 currentPriceResult.output().currentPriceSnapshot();
-        DailyPriceBar latestBar = dailyPriceHistory.bars().getLast();
 
         return new InvestmentDecision(
                 InvestmentAction.HOLD,
                 null,
                 null,
                 null,
-                "Market data received. symbol="
+                "Moving average analyzed. symbol="
                         + currentPrice.symbol()
-                        + ", dailyBars="
-                        + dailyPriceHistory.bars().size()
-                        + ", latestTradingDate="
-                        + latestBar.tradingDate()
-                        + ", latestClosePriceKrw="
-                        + latestBar.closePriceKrw()
+                        + ", trend="
+                        + analysis.trend()
+                        + ", shortPeriod="
+                        + indicator.shortMovingAverage().period()
+                        + ", shortAveragePriceKrw="
+                        + indicator.shortMovingAverage().averagePriceKrw()
+                        + ", longPeriod="
+                        + indicator.longMovingAverage().period()
+                        + ", longAveragePriceKrw="
+                        + indicator.longMovingAverage().averagePriceKrw()
+                        + ", asOfTradingDate="
+                        + indicator.asOfTradingDate()
                         + ", currentPriceKrw="
                         + currentPrice.priceKrw()
                         + ", source="
@@ -81,8 +107,16 @@ public class InvestmentAgent {
         DailyPriceHistory dailyPriceHistory = dailyPriceHistoryResult.get()
                 .output()
                 .dailyPriceHistory();
-        if (dailyPriceHistory.bars().isEmpty()) {
-            return AgentNextAction.finalDecision(decide(context));
+        MovingAverageAnalysisResult analysis =
+                movingAverageAnalysisService.analyze(
+                        context.strategyIdentity(),
+                        dailyPriceHistory
+                );
+        if (analysis.status()
+                == MovingAverageAnalysisStatus.INSUFFICIENT_DATA) {
+            return AgentNextAction.finalDecision(
+                    insufficientDataDecision(analysis)
+            );
         }
 
         if (findCurrentPriceResult(context, candidateSymbol).isEmpty()) {
@@ -91,7 +125,28 @@ public class InvestmentAgent {
             );
         }
 
-        return AgentNextAction.finalDecision(decide(context));
+        return AgentNextAction.finalDecision(analyzedDecision(
+                context,
+                candidateSymbol,
+                analysis
+        ));
+    }
+
+    private InvestmentDecision insufficientDataDecision(
+            MovingAverageAnalysisResult analysis
+    ) {
+        return new InvestmentDecision(
+                InvestmentAction.HOLD,
+                null,
+                null,
+                null,
+                "Moving average data is insufficient. symbol="
+                        + analysis.symbol()
+                        + ", requiredBars="
+                        + analysis.requiredBarCount()
+                        + ", availableBars="
+                        + analysis.availableBarCount()
+        );
     }
 
     private String firstCandidateSymbol(HarnessRunContext context) {

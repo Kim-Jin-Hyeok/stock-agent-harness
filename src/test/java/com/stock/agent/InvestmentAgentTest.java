@@ -12,20 +12,41 @@ import com.stock.market.price.history.DailyPriceBar;
 import com.stock.market.price.history.DailyPriceHistory;
 import com.stock.market.price.lookup.CurrentPriceLookupResult;
 import com.stock.portfolio.PortfolioSnapshot;
+import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisService;
+import com.stock.strategy.data.history.StrategyDailyPriceHistoryPolicy;
+import com.stock.strategy.data.history.config.ConfiguredStrategyDailyPriceHistoryLimit;
+import com.stock.strategy.data.history.config.StrategyDailyPriceHistoryProperties;
+import com.stock.strategy.indicator.movingaverage.MovingAverageIndicatorCalculator;
+import com.stock.strategy.indicator.movingaverage.SimpleMovingAverageCalculator;
+import com.stock.strategy.indicator.movingaverage.config.ConfiguredStrategyMovingAveragePeriods;
+import com.stock.strategy.indicator.movingaverage.config.StrategyMovingAverageProperties;
+import com.stock.strategy.indicator.movingaverage.policy.StrategyMovingAveragePeriodPolicy;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
+import com.stock.strategy.signal.movingaverage.MovingAverageTrendEvaluator;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
 class InvestmentAgentTest {
+    private static final InvestmentStrategyIdentity STRATEGY_IDENTITY =
+            new InvestmentStrategyIdentity(
+                    "DAY_TRADING_V1",
+                    1,
+                    InvestmentHorizon.DAY_TRADING
+            );
+    private static final LocalDate FIRST_TRADING_DATE =
+            LocalDate.of(2026, 9, 1);
 
-    private final InvestmentAgent agent = new InvestmentAgent();
+    private final InvestmentAgent agent = new InvestmentAgent(
+            movingAverageAnalysisService()
+    );
 
     @Test
     void nextRequestsDailyPriceHistoryForFirstCandidate() {
@@ -47,7 +68,7 @@ class InvestmentAgentTest {
     void nextRequestsCurrentPriceAfterDailyPriceHistoryIsReceived() {
         HarnessRunContext context = runContext(
                 List.of("005930"),
-                List.of(dailyPriceHistoryResult("005930", List.of(dailyBar())))
+                List.of(dailyPriceHistoryResult("005930", dailyBars(20)))
         );
 
         AgentNextAction action = agent.next(context);
@@ -66,9 +87,9 @@ class InvestmentAgentTest {
                 List.of(
                         dailyPriceHistoryResult(
                                 "005930",
-                                List.of(dailyBar())
+                                dailyBars(20)
                         ),
-                        currentPriceResult("005930", 70_000L)
+                        currentPriceResult("005930", 80_000L)
                 )
         );
 
@@ -83,18 +104,21 @@ class InvestmentAgentTest {
         assertThat(action.investmentDecision().expectedPriceKrw()).isNull();
         assertThat(action.investmentDecision().reason())
                 .isEqualTo(
-                        "Market data received. symbol=005930, "
-                                + "dailyBars=1, latestTradingDate=2026-09-23, "
-                                + "latestClosePriceKrw=69000, "
-                                + "currentPriceKrw=70000, source=PROVIDER"
+                        "Moving average analyzed. symbol=005930, "
+                                + "trend=UPTREND, shortPeriod=5, "
+                                + "shortAveragePriceKrw=77000.00, "
+                                + "longPeriod=20, "
+                                + "longAveragePriceKrw=69500.00, "
+                                + "asOfTradingDate=2026-09-20, "
+                                + "currentPriceKrw=80000, source=PROVIDER"
                 );
     }
 
     @Test
-    void nextReturnsHoldWithoutCurrentPriceWhenDailyPriceHistoryIsEmpty() {
+    void nextReturnsHoldWithoutCurrentPriceWhenHistoryIsInsufficient() {
         HarnessRunContext context = runContext(
                 List.of("005930"),
-                List.of(dailyPriceHistoryResult("005930", List.of()))
+                List.of(dailyPriceHistoryResult("005930", dailyBars(19)))
         );
 
         AgentNextAction action = agent.next(context);
@@ -103,7 +127,8 @@ class InvestmentAgentTest {
         assertThat(action.investmentDecision().action())
                 .isEqualTo(InvestmentAction.HOLD);
         assertThat(action.investmentDecision().reason()).isEqualTo(
-                "Daily price history is empty. symbol=005930"
+                "Moving average data is insufficient. symbol=005930, "
+                        + "requiredBars=20, availableBars=19"
         );
     }
 
@@ -113,7 +138,7 @@ class InvestmentAgentTest {
                 List.of("005930"),
                 List.of(dailyPriceHistoryResult(
                         "000660",
-                        List.of(dailyBar())
+                        dailyBars(20)
                 ))
         );
 
@@ -132,7 +157,7 @@ class InvestmentAgentTest {
                 List.of(
                         dailyPriceHistoryResult(
                                 "005930",
-                                List.of(dailyBar())
+                                dailyBars(20)
                         ),
                         currentPriceResult("000660", 120_000L)
                 )
@@ -163,11 +188,7 @@ class InvestmentAgentTest {
     ) {
         return new HarnessRunContext(
                 "run-1",
-                new InvestmentStrategyIdentity(
-                        "DAY_TRADING_V1",
-                        1,
-                        InvestmentHorizon.DAY_TRADING
-                ),
+                STRATEGY_IDENTITY,
                 new HarnessRunLimits(10, 5),
                 HarnessAllowedTools.readOnly(),
                 portfolioSnapshot(),
@@ -206,14 +227,60 @@ class InvestmentAgentTest {
         );
     }
 
-    private DailyPriceBar dailyBar() {
+    private List<DailyPriceBar> dailyBars(int size) {
+        return IntStream.range(0, size)
+                .mapToObj(index -> dailyBar(
+                        FIRST_TRADING_DATE.plusDays(index),
+                        60_000L + index * 1_000L
+                ))
+                .toList();
+    }
+
+    private DailyPriceBar dailyBar(
+            LocalDate tradingDate,
+            long closePriceKrw
+    ) {
         return new DailyPriceBar(
-                LocalDate.of(2026, 9, 23),
-                67_000L,
-                71_000L,
-                66_000L,
-                69_000L,
+                tradingDate,
+                closePriceKrw,
+                closePriceKrw + 1_000L,
+                closePriceKrw - 1_000L,
+                closePriceKrw,
                 1_000_000L
+        );
+    }
+
+    private MovingAverageAnalysisService movingAverageAnalysisService() {
+        StrategyDailyPriceHistoryPolicy historyPolicy =
+                new StrategyDailyPriceHistoryPolicy(
+                        new StrategyDailyPriceHistoryProperties(List.of(
+                                new ConfiguredStrategyDailyPriceHistoryLimit(
+                                        STRATEGY_IDENTITY.strategyId(),
+                                        STRATEGY_IDENTITY.strategyVersion(),
+                                        STRATEGY_IDENTITY.horizon(),
+                                        60
+                                )
+                        ))
+                );
+        StrategyMovingAveragePeriodPolicy periodPolicy =
+                new StrategyMovingAveragePeriodPolicy(
+                        new StrategyMovingAverageProperties(List.of(
+                                new ConfiguredStrategyMovingAveragePeriods(
+                                        STRATEGY_IDENTITY.strategyId(),
+                                        STRATEGY_IDENTITY.strategyVersion(),
+                                        STRATEGY_IDENTITY.horizon(),
+                                        5,
+                                        20
+                                )
+                        )),
+                        historyPolicy
+                );
+        SimpleMovingAverageCalculator simpleCalculator =
+                new SimpleMovingAverageCalculator();
+        return new MovingAverageAnalysisService(
+                periodPolicy,
+                new MovingAverageIndicatorCalculator(simpleCalculator),
+                new MovingAverageTrendEvaluator()
         );
     }
 

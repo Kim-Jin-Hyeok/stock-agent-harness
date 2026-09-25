@@ -49,9 +49,18 @@ import com.stock.portfolio.PortfolioSnapshotStore;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskGuard;
 import com.stock.risk.RiskProperties;
+import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisService;
 import com.stock.strategy.data.history.StrategyDailyPriceHistoryPolicy;
+import com.stock.strategy.data.history.config.ConfiguredStrategyDailyPriceHistoryLimit;
+import com.stock.strategy.data.history.config.StrategyDailyPriceHistoryProperties;
+import com.stock.strategy.indicator.movingaverage.MovingAverageIndicatorCalculator;
+import com.stock.strategy.indicator.movingaverage.SimpleMovingAverageCalculator;
+import com.stock.strategy.indicator.movingaverage.config.ConfiguredStrategyMovingAveragePeriods;
+import com.stock.strategy.indicator.movingaverage.config.StrategyMovingAverageProperties;
+import com.stock.strategy.indicator.movingaverage.policy.StrategyMovingAveragePeriodPolicy;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
+import com.stock.strategy.signal.movingaverage.MovingAverageTrendEvaluator;
 import com.stock.strategy.universe.StrategyStockUniverseRegistry;
 import com.stock.strategy.universe.config.ConfiguredStrategyStockUniverse;
 import com.stock.strategy.universe.config.StrategyStockUniverseProperties;
@@ -70,6 +79,7 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -142,7 +152,9 @@ class InvestmentHarnessTest {
             harnessRunRepository,
             harnessStepRepository
     );
-    private final InvestmentAgent investmentAgent = new InvestmentAgent();
+    private final InvestmentAgent investmentAgent = new InvestmentAgent(
+            movingAverageAnalysisService()
+    );
     private final HarnessToolAuthorizer harnessToolAuthorizer = new HarnessToolAuthorizer();
     private final DailyPriceHistoryQueryService dailyPriceHistoryQueryService =
             mock(DailyPriceHistoryQueryService.class);
@@ -296,10 +308,12 @@ class InvestmentHarnessTest {
                 .isEqualTo(HarnessStepType.RUN_INVESTMENT_AGENT);
         assertThat(finalAgentStep.message())
                 .isEqualTo(
-                        "Market data received. symbol=005930, "
-                                + "dailyBars=1, "
-                                + "latestTradingDate=2026-09-23, "
-                                + "latestClosePriceKrw=99000, "
+                        "Moving average analyzed. symbol=005930, "
+                                + "trend=UPTREND, shortPeriod=5, "
+                                + "shortAveragePriceKrw=97000.00, "
+                                + "longPeriod=20, "
+                                + "longAveragePriceKrw=89500.00, "
+                                + "asOfTradingDate=2026-09-23, "
                                 + "currentPriceKrw=100000, source=PROVIDER"
                 );
 
@@ -360,7 +374,8 @@ class InvestmentHarnessTest {
                 .containsExactly(HarnessToolType.GET_DAILY_PRICE_HISTORY);
         assertThat(result.decision().action()).isEqualTo(InvestmentAction.HOLD);
         assertThat(result.decision().reason()).isEqualTo(
-                "Daily price history is empty. symbol=005930"
+                "Moving average data is insufficient. symbol=005930, "
+                        + "requiredBars=20, availableBars=0"
         );
         verifyNoInteractions(currentPriceObservationService);
     }
@@ -1678,20 +1693,63 @@ class InvestmentHarnessTest {
     }
 
     private DailyPriceHistory dailyPriceHistory() {
-        return new DailyPriceHistory(
-                "005930",
-                List.of(new DailyPriceBar(
-                        LocalDate.of(2026, 9, 23),
-                        98_000L,
-                        101_000L,
-                        97_000L,
-                        99_000L,
-                        1_000_000L
-                ))
+        List<DailyPriceBar> bars = IntStream.range(0, 20)
+                .mapToObj(index -> {
+                    long closePriceKrw = 80_000L + index * 1_000L;
+                    return new DailyPriceBar(
+                            LocalDate.of(2026, 9, 4).plusDays(index),
+                            closePriceKrw,
+                            closePriceKrw + 2_000L,
+                            closePriceKrw - 1_000L,
+                            closePriceKrw,
+                            1_000_000L
+                    );
+                })
+                .toList();
+        return new DailyPriceHistory("005930", bars);
+    }
+
+    private static MovingAverageAnalysisService movingAverageAnalysisService() {
+        StrategyDailyPriceHistoryPolicy historyPolicy =
+                new StrategyDailyPriceHistoryPolicy(
+                        new StrategyDailyPriceHistoryProperties(List.of(
+                                new ConfiguredStrategyDailyPriceHistoryLimit(
+                                        STRATEGY_IDENTITY.strategyId(),
+                                        STRATEGY_IDENTITY.strategyVersion(),
+                                        STRATEGY_IDENTITY.horizon(),
+                                        60
+                                )
+                        ))
+                );
+        StrategyMovingAveragePeriodPolicy periodPolicy =
+                new StrategyMovingAveragePeriodPolicy(
+                        new StrategyMovingAverageProperties(List.of(
+                                new ConfiguredStrategyMovingAveragePeriods(
+                                        STRATEGY_IDENTITY.strategyId(),
+                                        STRATEGY_IDENTITY.strategyVersion(),
+                                        STRATEGY_IDENTITY.horizon(),
+                                        5,
+                                        20
+                                )
+                        )),
+                        historyPolicy
+                );
+        SimpleMovingAverageCalculator simpleCalculator =
+                new SimpleMovingAverageCalculator();
+        return new MovingAverageAnalysisService(
+                periodPolicy,
+                new MovingAverageIndicatorCalculator(simpleCalculator),
+                new MovingAverageTrendEvaluator()
         );
     }
 
-    private static class BuyingInvestmentAgent extends InvestmentAgent {
+    private abstract static class StubInvestmentAgent extends InvestmentAgent {
+        private StubInvestmentAgent() {
+            super(mock(MovingAverageAnalysisService.class));
+        }
+    }
+
+    private static class BuyingInvestmentAgent extends StubInvestmentAgent {
         @Override
         public AgentNextAction next(HarnessRunContext context) {
             return AgentNextAction.finalDecision(decide(context));
@@ -1709,7 +1767,8 @@ class InvestmentHarnessTest {
         }
     }
 
-    private static class OverLimitBuyingInvestmentAgent extends InvestmentAgent {
+    private static class OverLimitBuyingInvestmentAgent
+            extends StubInvestmentAgent {
         @Override
         public AgentNextAction next(HarnessRunContext context) {
             return AgentNextAction.finalDecision(decide(context));
@@ -1727,7 +1786,7 @@ class InvestmentHarnessTest {
         }
     }
 
-    private static class SellingInvestmentAgent extends InvestmentAgent {
+    private static class SellingInvestmentAgent extends StubInvestmentAgent {
         @Override
         public AgentNextAction next(HarnessRunContext context) {
             return AgentNextAction.finalDecision(decide(context));
@@ -1745,7 +1804,7 @@ class InvestmentHarnessTest {
         }
     }
 
-    private static class FailingInvestmentAgent extends InvestmentAgent {
+    private static class FailingInvestmentAgent extends StubInvestmentAgent {
         @Override
         public AgentNextAction next(HarnessRunContext context) {
             return AgentNextAction.finalDecision(decide(context));
@@ -1757,7 +1816,8 @@ class InvestmentHarnessTest {
         }
     }
 
-    private static class ToolRequestingInvestmentAgent extends InvestmentAgent {
+    private static class ToolRequestingInvestmentAgent
+            extends StubInvestmentAgent {
         @Override
         public AgentNextAction next(HarnessRunContext context) {
             return AgentNextAction.requestTool(
@@ -1766,7 +1826,8 @@ class InvestmentHarnessTest {
         }
     }
 
-    private static class ToolResultUsingInvestmentAgent extends InvestmentAgent {
+    private static class ToolResultUsingInvestmentAgent
+            extends StubInvestmentAgent {
         @Override
         public AgentNextAction next(HarnessRunContext context) {
             if (context.toolResults().isEmpty()) {
@@ -1792,7 +1853,8 @@ class InvestmentHarnessTest {
         }
     }
 
-    private static class MultipleToolResultUsingInvestmentAgent extends InvestmentAgent {
+    private static class MultipleToolResultUsingInvestmentAgent
+            extends StubInvestmentAgent {
         @Override
         public AgentNextAction next(HarnessRunContext context) {
             if (context.toolResults().isEmpty()) {
@@ -1823,7 +1885,8 @@ class InvestmentHarnessTest {
         }
     }
 
-    private static class CurrentPriceUsingInvestmentAgent extends InvestmentAgent {
+    private static class CurrentPriceUsingInvestmentAgent
+            extends StubInvestmentAgent {
         @Override
         public AgentNextAction next(HarnessRunContext context) {
             if (context.toolResults().isEmpty()) {
