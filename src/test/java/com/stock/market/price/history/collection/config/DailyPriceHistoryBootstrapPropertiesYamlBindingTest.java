@@ -34,7 +34,5 @@ class DailyPriceHistoryBootstrapPropertiesYamlBindingTest {
                         ));
 
         assertThat(properties.enabled()).isFalse();
-        assertThat(properties.symbols()).containsExactly("005930");
-        assertThat(properties.initialLookbackYears()).isEqualTo(3);
     }
 }

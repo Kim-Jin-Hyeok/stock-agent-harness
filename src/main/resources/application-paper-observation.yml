@@ -19,6 +19,13 @@ broker:
     account-number: ${KIS_PAPER_ACCOUNT_NUMBER:}
     account-product-code: ${KIS_PAPER_ACCOUNT_PRODUCT_CODE:}
 
+market:
+  price:
+    history:
+      collection:
+        scheduler:
+          enabled: true
+
 trade:
   execution:
     mode: VIRTUAL

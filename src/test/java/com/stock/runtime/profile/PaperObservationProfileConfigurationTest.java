@@ -28,6 +28,10 @@ class PaperObservationProfileConfigurationTest {
                 .isEqualTo("https://openapivts.koreainvestment.com:29443");
         assertThat(environment.getProperty("harness.scheduler.enabled", Boolean.class))
                 .isTrue();
+        assertThat(environment.getProperty(
+                "market.price.history.collection.scheduler.enabled",
+                Boolean.class
+        )).isTrue();
         assertThat(environment.getProperty("trade.execution.mode"))
                 .isEqualTo("VIRTUAL");
         assertThat(environment.getProperty(

@@ -4,6 +4,7 @@ import com.stock.market.price.history.DailyPriceHistoryRequest;
 import com.stock.market.price.history.collection.DailyPriceHistoryCollectionResult;
 import com.stock.market.price.history.collection.DailyPriceHistoryCollectionService;
 import com.stock.market.price.history.collection.config.DailyPriceHistoryBootstrapProperties;
+import com.stock.market.price.history.collection.config.DailyPriceHistoryCollectionProperties;
 import com.stock.market.price.history.collection.policy.DailyPriceCollectionDatePolicy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
@@ -16,12 +17,14 @@ import java.util.Objects;
 public class DailyPriceHistoryBootstrapRunner implements ApplicationRunner {
     private final DailyPriceHistoryCollectionService collectionService;
     private final DailyPriceCollectionDatePolicy collectionDatePolicy;
-    private final DailyPriceHistoryBootstrapProperties properties;
+    private final DailyPriceHistoryBootstrapProperties bootstrapProperties;
+    private final DailyPriceHistoryCollectionProperties collectionProperties;
 
     public DailyPriceHistoryBootstrapRunner(
             DailyPriceHistoryCollectionService collectionService,
             DailyPriceCollectionDatePolicy collectionDatePolicy,
-            DailyPriceHistoryBootstrapProperties properties
+            DailyPriceHistoryBootstrapProperties bootstrapProperties,
+            DailyPriceHistoryCollectionProperties collectionProperties
     ) {
         this.collectionService = Objects.requireNonNull(
                 collectionService,
@@ -31,15 +34,19 @@ public class DailyPriceHistoryBootstrapRunner implements ApplicationRunner {
                 collectionDatePolicy,
                 "collectionDatePolicy must not be null."
         );
-        this.properties = Objects.requireNonNull(
-                properties,
-                "properties must not be null."
+        this.bootstrapProperties = Objects.requireNonNull(
+                bootstrapProperties,
+                "bootstrapProperties must not be null."
+        );
+        this.collectionProperties = Objects.requireNonNull(
+                collectionProperties,
+                "collectionProperties must not be null."
         );
     }
 
     @Override
     public void run(ApplicationArguments arguments) {
-        if (!properties.enabled()) {
+        if (!bootstrapProperties.enabled()) {
             log.debug("Daily price history bootstrap is disabled.");
             return;
         }
@@ -47,10 +54,10 @@ public class DailyPriceHistoryBootstrapRunner implements ApplicationRunner {
         LocalDate toDate = collectionDatePolicy
                 .getLatestCompletedTradingDate();
         LocalDate fromDate = toDate.minusYears(
-                properties.initialLookbackYears()
+                collectionProperties.initialLookbackYears()
         );
 
-        for (String symbol : properties.symbols()) {
+        for (String symbol : collectionProperties.symbols()) {
             collect(symbol, fromDate, toDate);
         }
     }

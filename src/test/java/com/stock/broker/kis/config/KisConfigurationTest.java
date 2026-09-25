@@ -27,8 +27,11 @@ import com.stock.broker.order.scheduler.BrokerOrderReconciliationScheduler;
 import com.stock.broker.order.scheduler.config.BrokerOrderReconciliationSchedulerProperties;
 import com.stock.market.price.history.collection.DailyPriceHistoryCollectionService;
 import com.stock.market.price.history.collection.config.DailyPriceHistoryBootstrapProperties;
+import com.stock.market.price.history.collection.config.DailyPriceHistoryCollectionProperties;
 import com.stock.market.price.history.collection.policy.DailyPriceCollectionDatePolicy;
 import com.stock.market.price.history.collection.runner.DailyPriceHistoryBootstrapRunner;
+import com.stock.market.price.history.collection.scheduler.DailyPriceHistoryCollectionScheduler;
+import com.stock.market.price.history.collection.scheduler.config.DailyPriceHistoryCollectionSchedulerProperties;
 import com.stock.market.price.history.persistence.DailyPriceBarRepository;
 import com.stock.market.price.history.provider.DailyPriceHistoryProvider;
 import com.stock.market.price.history.provider.kis.KisDailyPriceHistoryClient;
@@ -47,6 +50,7 @@ import org.springframework.web.client.RestClient;
 import java.net.URI;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.LocalTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -118,6 +122,9 @@ class KisConfigurationTest {
                     );
                     assertThat(context).doesNotHaveBean(
                             DailyPriceHistoryBootstrapRunner.class
+                    );
+                    assertThat(context).doesNotHaveBean(
+                            DailyPriceHistoryCollectionScheduler.class
                     );
                     assertThat(context).hasSingleBean(
                             CurrentPriceProvider.class
@@ -214,14 +221,39 @@ class KisConfigurationTest {
                 )
                 .withBean(
                         DailyPriceHistoryBootstrapProperties.class,
-                        () -> new DailyPriceHistoryBootstrapProperties(
-                                true,
-                                List.of("005930"),
-                                3
-                        )
+                        () -> new DailyPriceHistoryBootstrapProperties(true)
+                )
+                .withBean(
+                        DailyPriceHistoryCollectionProperties.class,
+                        this::collectionProperties
                 )
                 .run(context -> assertThat(context).hasSingleBean(
                         DailyPriceHistoryBootstrapRunner.class
+                ));
+    }
+
+    @Test
+    void createsDailyPriceHistoryCollectionSchedulerWhenEnabled() {
+        contextRunner
+                .withPropertyValues(
+                        "broker.kis.enabled=true",
+                        "market.price.history.collection.scheduler.enabled=true"
+                )
+                .withBean(KisProperties.class, this::enabledProperties)
+                .withBean(
+                        DailyPriceCollectionDatePolicy.class,
+                        () -> mock(DailyPriceCollectionDatePolicy.class)
+                )
+                .withBean(
+                        DailyPriceHistoryCollectionProperties.class,
+                        this::collectionProperties
+                )
+                .withBean(
+                        DailyPriceHistoryCollectionSchedulerProperties.class,
+                        () -> schedulerProperties(true)
+                )
+                .run(context -> assertThat(context).hasSingleBean(
+                        DailyPriceHistoryCollectionScheduler.class
                 ));
     }
 
@@ -344,6 +376,23 @@ class KisConfigurationTest {
                 10,
                 Duration.ofSeconds(1),
                 KisDailyPriceHistoryMarket.INTEGRATED
+        );
+    }
+
+    private DailyPriceHistoryCollectionProperties collectionProperties() {
+        return new DailyPriceHistoryCollectionProperties(
+                LocalTime.of(20, 10),
+                List.of("005930"),
+                3
+        );
+    }
+
+    private DailyPriceHistoryCollectionSchedulerProperties
+    schedulerProperties(boolean enabled) {
+        return new DailyPriceHistoryCollectionSchedulerProperties(
+                enabled,
+                "0 15 20 * * MON-FRI",
+                "Asia/Seoul"
         );
     }
 }

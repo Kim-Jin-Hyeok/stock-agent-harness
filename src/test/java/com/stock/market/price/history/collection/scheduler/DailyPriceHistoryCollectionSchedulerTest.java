@@ -1,29 +1,27 @@
-package com.stock.market.price.history.collection.runner;
+package com.stock.market.price.history.collection.scheduler;
 
 import com.stock.market.price.history.DailyPriceHistoryRequest;
 import com.stock.market.price.history.collection.DailyPriceHistoryCollectionResult;
 import com.stock.market.price.history.collection.DailyPriceHistoryCollectionService;
-import com.stock.market.price.history.collection.config.DailyPriceHistoryBootstrapProperties;
 import com.stock.market.price.history.collection.config.DailyPriceHistoryCollectionProperties;
 import com.stock.market.price.history.collection.policy.DailyPriceCollectionDatePolicy;
+import com.stock.market.price.history.collection.scheduler.config.DailyPriceHistoryCollectionSchedulerProperties;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
-import org.springframework.boot.ApplicationArguments;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-class DailyPriceHistoryBootstrapRunnerTest {
+class DailyPriceHistoryCollectionSchedulerTest {
     private static final LocalDate TO_DATE = LocalDate.of(2026, 9, 23);
     private static final LocalDate FROM_DATE = LocalDate.of(2023, 9, 23);
 
@@ -35,14 +33,14 @@ class DailyPriceHistoryBootstrapRunnerTest {
         DailyPriceCollectionDatePolicy collectionDatePolicy = mock(
                 DailyPriceCollectionDatePolicy.class
         );
-        DailyPriceHistoryBootstrapRunner runner = runner(
+        DailyPriceHistoryCollectionScheduler scheduler = scheduler(
                 collectionService,
                 collectionDatePolicy,
                 false,
                 List.of("005930")
         );
 
-        runner.run(mock(ApplicationArguments.class));
+        scheduler.run();
 
         verifyNoInteractions(collectionService, collectionDatePolicy);
     }
@@ -63,7 +61,7 @@ class DailyPriceHistoryBootstrapRunnerTest {
                     return DailyPriceHistoryCollectionResult
                             .alreadyUpToDate(request);
                 });
-        DailyPriceHistoryBootstrapRunner runner = runner(
+        DailyPriceHistoryCollectionScheduler scheduler = scheduler(
                 collectionService,
                 collectionDatePolicy,
                 true,
@@ -72,15 +70,16 @@ class DailyPriceHistoryBootstrapRunnerTest {
         DailyPriceHistoryRequest firstRequest = request("005930");
         DailyPriceHistoryRequest secondRequest = request("000660");
 
-        runner.run(mock(ApplicationArguments.class));
+        scheduler.run();
 
         InOrder inOrder = inOrder(collectionService);
         inOrder.verify(collectionService).collect(firstRequest);
         inOrder.verify(collectionService).collect(secondRequest);
+        verify(collectionDatePolicy).getLatestCompletedTradingDate();
     }
 
     @Test
-    void stopsWhenCollectionFails() {
+    void continuesWithNextSymbolWhenCollectionFails() {
         DailyPriceHistoryCollectionService collectionService = mock(
                 DailyPriceHistoryCollectionService.class
         );
@@ -93,36 +92,40 @@ class DailyPriceHistoryBootstrapRunnerTest {
                 .thenReturn(TO_DATE);
         when(collectionService.collect(firstRequest))
                 .thenThrow(new IllegalStateException("KIS collection failed."));
-        DailyPriceHistoryBootstrapRunner runner = runner(
+        when(collectionService.collect(secondRequest))
+                .thenReturn(DailyPriceHistoryCollectionResult
+                        .alreadyUpToDate(secondRequest));
+        DailyPriceHistoryCollectionScheduler scheduler = scheduler(
                 collectionService,
                 collectionDatePolicy,
                 true,
                 List.of("005930", "000660")
         );
 
-        assertThatThrownBy(() ->
-                runner.run(mock(ApplicationArguments.class)))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("KIS collection failed.");
+        assertThatNoException().isThrownBy(scheduler::run);
 
         verify(collectionService).collect(firstRequest);
-        verify(collectionService, never()).collect(secondRequest);
+        verify(collectionService).collect(secondRequest);
     }
 
-    private DailyPriceHistoryBootstrapRunner runner(
+    private DailyPriceHistoryCollectionScheduler scheduler(
             DailyPriceHistoryCollectionService collectionService,
             DailyPriceCollectionDatePolicy collectionDatePolicy,
             boolean enabled,
             List<String> symbols
     ) {
-        return new DailyPriceHistoryBootstrapRunner(
+        return new DailyPriceHistoryCollectionScheduler(
                 collectionService,
                 collectionDatePolicy,
-                new DailyPriceHistoryBootstrapProperties(enabled),
                 new DailyPriceHistoryCollectionProperties(
                         LocalTime.of(20, 10),
                         symbols,
                         3
+                ),
+                new DailyPriceHistoryCollectionSchedulerProperties(
+                        enabled,
+                        "0 15 20 * * MON-FRI",
+                        "Asia/Seoul"
                 )
         );
     }

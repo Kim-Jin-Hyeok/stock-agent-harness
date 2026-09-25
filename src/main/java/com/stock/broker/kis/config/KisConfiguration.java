@@ -25,8 +25,11 @@ import com.stock.broker.order.scheduler.BrokerOrderReconciliationScheduler;
 import com.stock.broker.order.scheduler.config.BrokerOrderReconciliationSchedulerProperties;
 import com.stock.market.price.history.collection.DailyPriceHistoryCollectionService;
 import com.stock.market.price.history.collection.config.DailyPriceHistoryBootstrapProperties;
+import com.stock.market.price.history.collection.config.DailyPriceHistoryCollectionProperties;
 import com.stock.market.price.history.collection.policy.DailyPriceCollectionDatePolicy;
 import com.stock.market.price.history.collection.runner.DailyPriceHistoryBootstrapRunner;
+import com.stock.market.price.history.collection.scheduler.DailyPriceHistoryCollectionScheduler;
+import com.stock.market.price.history.collection.scheduler.config.DailyPriceHistoryCollectionSchedulerProperties;
 import com.stock.market.price.history.persistence.DailyPriceBarRepository;
 import com.stock.market.price.history.provider.DailyPriceHistoryProvider;
 import com.stock.market.price.history.provider.kis.KisDailyPriceHistoryClient;
@@ -164,12 +167,35 @@ public class KisConfiguration {
     public DailyPriceHistoryBootstrapRunner dailyPriceHistoryBootstrapRunner(
             DailyPriceHistoryCollectionService collectionService,
             DailyPriceCollectionDatePolicy collectionDatePolicy,
-            DailyPriceHistoryBootstrapProperties properties
+            DailyPriceHistoryBootstrapProperties bootstrapProperties,
+            DailyPriceHistoryCollectionProperties collectionProperties
     ) {
         return new DailyPriceHistoryBootstrapRunner(
                 collectionService,
                 collectionDatePolicy,
-                properties
+                bootstrapProperties,
+                collectionProperties
+        );
+    }
+
+    @Bean
+    @ConditionalOnProperty(
+            prefix = "market.price.history.collection.scheduler",
+            name = "enabled",
+            havingValue = "true"
+    )
+    public DailyPriceHistoryCollectionScheduler
+    dailyPriceHistoryCollectionScheduler(
+            DailyPriceHistoryCollectionService collectionService,
+            DailyPriceCollectionDatePolicy collectionDatePolicy,
+            DailyPriceHistoryCollectionProperties collectionProperties,
+            DailyPriceHistoryCollectionSchedulerProperties schedulerProperties
+    ) {
+        return new DailyPriceHistoryCollectionScheduler(
+                collectionService,
+                collectionDatePolicy,
+                collectionProperties,
+                schedulerProperties
         );
     }
 

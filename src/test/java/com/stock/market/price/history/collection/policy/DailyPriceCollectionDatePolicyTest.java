@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -70,7 +71,9 @@ class DailyPriceCollectionDatePolicyTest {
                 new MarketTradingDayPolicy(calendarProperties);
         DailyPriceHistoryCollectionProperties collectionProperties =
                 new DailyPriceHistoryCollectionProperties(
-                        LocalTime.of(20, 10)
+                        LocalTime.of(20, 10),
+                        List.of("005930"),
+                        3
                 );
         Clock clock = Clock.fixed(
                 Instant.parse(instant),

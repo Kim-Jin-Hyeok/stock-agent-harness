@@ -65,10 +65,14 @@ market:
     history:
       collection:
         daily-bar-available-at: "20:10"
+        symbols: ["005930"]
+        initial-lookback-years: 3
         bootstrap:
           enabled: false
-          symbols: ["005930"]
-          initial-lookback-years: 3
+        scheduler:
+          enabled: false
+          cron: "0 15 20 * * MON-FRI"
+          zone-id: Asia/Seoul
 
 portfolio:
   initialization:
