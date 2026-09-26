@@ -5,6 +5,12 @@ import com.stock.agent.AgentNextActionType;
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentAgent;
 import com.stock.agent.InvestmentDecision;
+import com.stock.agent.decision.movingaverage.MovingAverageActionPolicy;
+import com.stock.agent.decision.movingaverage.MovingAverageOrderDecisionContextFactory;
+import com.stock.agent.decision.movingaverage.provider.MovingAverageOrderDecisionProvider;
+import com.stock.agent.decision.movingaverage.provider.rulebased.MaxCapacityMovingAverageOrderDecisionProvider;
+import com.stock.agent.decision.movingaverage.resolution.MovingAverageOrderDecisionResolver;
+import com.stock.agent.decision.movingaverage.validation.MovingAverageOrderProposalValidator;
 import com.stock.harness.agent.validation.HarnessAgentActionValidationReasonCode;
 import com.stock.harness.agent.validation.HarnessAgentActionValidator;
 import com.stock.harness.execution.retry.HarnessRetryWaiter;
@@ -157,7 +163,15 @@ class InvestmentHarnessTest {
             harnessStepRepository
     );
     private final InvestmentAgent investmentAgent = new InvestmentAgent(
-            movingAverageAnalysisService()
+            movingAverageAnalysisService(),
+            new MovingAverageOrderDecisionContextFactory(
+                    new MovingAverageActionPolicy(),
+                    new OrderQuantityCapacityCalculator(riskProperties)
+            ),
+            new MaxCapacityMovingAverageOrderDecisionProvider(),
+            new MovingAverageOrderDecisionResolver(
+                    new MovingAverageOrderProposalValidator()
+            )
     );
     private final HarnessToolAuthorizer harnessToolAuthorizer = new HarnessToolAuthorizer();
     private final DailyPriceHistoryQueryService dailyPriceHistoryQueryService =
@@ -312,13 +326,8 @@ class InvestmentHarnessTest {
                 .isEqualTo(HarnessStepType.RUN_INVESTMENT_AGENT);
         assertThat(finalAgentStep.message())
                 .isEqualTo(
-                        "Moving average analyzed. symbol=005930, "
-                                + "trend=UPTREND, shortPeriod=5, "
-                                + "shortAveragePriceKrw=98000.00, "
-                                + "longPeriod=20, "
-                                + "longAveragePriceKrw=90500.00, "
-                                + "asOfTradingDate=2026-09-24, "
-                                + "currentPriceKrw=100000, source=PROVIDER"
+                        "Order skipped because signal action is HOLD. "
+                                + "symbol=005930"
                 );
 
         HarnessStepResult validateDecisionStep = result.steps().get(23);
@@ -1750,7 +1759,12 @@ class InvestmentHarnessTest {
 
     private abstract static class StubInvestmentAgent extends InvestmentAgent {
         private StubInvestmentAgent() {
-            super(mock(MovingAverageAnalysisService.class));
+            super(
+                    mock(MovingAverageAnalysisService.class),
+                    mock(MovingAverageOrderDecisionContextFactory.class),
+                    mock(MovingAverageOrderDecisionProvider.class),
+                    mock(MovingAverageOrderDecisionResolver.class)
+            );
         }
     }
 

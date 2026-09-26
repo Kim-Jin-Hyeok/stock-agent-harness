@@ -1,5 +1,11 @@
 package com.stock.agent;
 
+import com.stock.agent.decision.movingaverage.MovingAverageOrderDecisionContext;
+import com.stock.agent.decision.movingaverage.MovingAverageOrderDecisionContextFactory;
+import com.stock.agent.decision.movingaverage.provider.MovingAverageOrderDecisionProvider;
+import com.stock.agent.decision.movingaverage.resolution.MovingAverageOrderDecisionResolution;
+import com.stock.agent.decision.movingaverage.resolution.MovingAverageOrderDecisionResolver;
+import com.stock.agent.decision.order.proposal.OrderQuantityProposal;
 import com.stock.agent.evidence.movingaverage.MovingAverageDecisionEvidence;
 import com.stock.harness.HarnessRunContext;
 import com.stock.harness.tool.HarnessToolExecutionResult;
@@ -8,10 +14,10 @@ import com.stock.harness.tool.HarnessToolRequest;
 import com.stock.harness.tool.HarnessToolType;
 import com.stock.market.price.CurrentPriceSnapshot;
 import com.stock.market.price.history.DailyPriceHistory;
+import com.stock.market.price.lookup.CurrentPriceLookupResult;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisResult;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisService;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisStatus;
-import com.stock.strategy.indicator.movingaverage.MovingAverageIndicator;
 import org.springframework.stereotype.Component;
 
 import java.util.Objects;
@@ -20,13 +26,31 @@ import java.util.Optional;
 @Component
 public class InvestmentAgent {
     private final MovingAverageAnalysisService movingAverageAnalysisService;
+    private final MovingAverageOrderDecisionContextFactory decisionContextFactory;
+    private final MovingAverageOrderDecisionProvider decisionProvider;
+    private final MovingAverageOrderDecisionResolver decisionResolver;
 
     public InvestmentAgent(
-            MovingAverageAnalysisService movingAverageAnalysisService
+            MovingAverageAnalysisService movingAverageAnalysisService,
+            MovingAverageOrderDecisionContextFactory decisionContextFactory,
+            MovingAverageOrderDecisionProvider decisionProvider,
+            MovingAverageOrderDecisionResolver decisionResolver
     ) {
         this.movingAverageAnalysisService = Objects.requireNonNull(
                 movingAverageAnalysisService,
                 "movingAverageAnalysisService must not be null."
+        );
+        this.decisionContextFactory = Objects.requireNonNull(
+                decisionContextFactory,
+                "decisionContextFactory must not be null."
+        );
+        this.decisionProvider = Objects.requireNonNull(
+                decisionProvider,
+                "decisionProvider must not be null."
+        );
+        this.decisionResolver = Objects.requireNonNull(
+                decisionResolver,
+                "decisionResolver must not be null."
         );
     }
 
@@ -58,8 +82,6 @@ public class InvestmentAgent {
             String candidateSymbol,
             MovingAverageAnalysisResult analysis
     ) {
-        MovingAverageIndicator indicator = analysis.indicator();
-
         HarnessToolExecutionResult currentPriceResult =
                 findCurrentPriceResult(context, candidateSymbol)
                         .orElseThrow(() -> new IllegalStateException(
@@ -68,36 +90,33 @@ public class InvestmentAgent {
                         ));
         CurrentPriceSnapshot currentPrice =
                 currentPriceResult.output().currentPriceSnapshot();
-
-        return new InvestmentDecision(
-                InvestmentAction.HOLD,
-                null,
-                null,
-                null,
-                "Moving average analyzed. symbol="
-                        + currentPrice.symbol()
-                        + ", trend="
-                        + analysis.trend()
-                        + ", shortPeriod="
-                        + indicator.shortMovingAverage().period()
-                        + ", shortAveragePriceKrw="
-                        + indicator.shortMovingAverage().averagePriceKrw()
-                        + ", longPeriod="
-                        + indicator.longMovingAverage().period()
-                        + ", longAveragePriceKrw="
-                        + indicator.longMovingAverage().averagePriceKrw()
-                        + ", asOfTradingDate="
-                        + indicator.asOfTradingDate()
-                        + ", currentPriceKrw="
-                        + currentPrice.priceKrw()
-                        + ", source="
-                        + currentPriceResult.output().currentPriceSource(),
-                MovingAverageDecisionEvidence.analyzed(
-                        analysis,
-                        currentPrice.priceKrw(),
+        CurrentPriceLookupResult currentPriceLookupResult =
+                new CurrentPriceLookupResult(
+                        currentPrice,
                         currentPriceResult.output().currentPriceSource()
-                )
+                );
+        MovingAverageOrderDecisionContext decisionContext =
+                decisionContextFactory.create(
+                        context.strategyIdentity(),
+                        context.portfolioSnapshot(),
+                        analysis,
+                        currentPriceLookupResult
+                );
+        OrderQuantityProposal proposal = decisionProvider.propose(
+                decisionContext
         );
+        MovingAverageOrderDecisionResolution resolution =
+                decisionResolver.resolve(decisionContext, proposal);
+        if (!resolution.isResolved()) {
+            throw new IllegalStateException(
+                    "Moving average order proposal was rejected. reasonCode="
+                            + resolution.validationResult().reasonCode()
+                            + ", reason="
+                            + resolution.validationResult().reason()
+            );
+        }
+
+        return resolution.decision();
     }
 
     public AgentNextAction next(HarnessRunContext context) {

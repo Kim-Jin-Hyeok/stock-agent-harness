@@ -1,5 +1,12 @@
 package com.stock.agent;
 
+import com.stock.agent.decision.movingaverage.MovingAverageActionPolicy;
+import com.stock.agent.decision.movingaverage.MovingAverageOrderDecisionContextFactory;
+import com.stock.agent.decision.movingaverage.provider.MovingAverageOrderDecisionProvider;
+import com.stock.agent.decision.movingaverage.provider.rulebased.MaxCapacityMovingAverageOrderDecisionProvider;
+import com.stock.agent.decision.movingaverage.resolution.MovingAverageOrderDecisionResolver;
+import com.stock.agent.decision.movingaverage.validation.MovingAverageOrderProposalValidator;
+import com.stock.agent.decision.order.proposal.OrderQuantityProposal;
 import com.stock.harness.HarnessRunContext;
 import com.stock.harness.HarnessRunLimits;
 import com.stock.harness.tool.HarnessAllowedTools;
@@ -13,6 +20,8 @@ import com.stock.market.price.history.DailyPriceHistory;
 import com.stock.market.price.lookup.CurrentPriceLookupResult;
 import com.stock.market.price.lookup.CurrentPriceLookupSource;
 import com.stock.portfolio.PortfolioSnapshot;
+import com.stock.risk.RiskProperties;
+import com.stock.risk.capacity.OrderQuantityCapacityCalculator;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisService;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisStatus;
 import com.stock.strategy.data.history.StrategyDailyPriceHistoryPolicy;
@@ -25,6 +34,7 @@ import com.stock.strategy.indicator.movingaverage.config.StrategyMovingAveragePr
 import com.stock.strategy.indicator.movingaverage.policy.StrategyMovingAveragePeriodPolicy;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
+import com.stock.strategy.signal.movingaverage.MovingAverageCrossoverSignal;
 import com.stock.strategy.signal.movingaverage.MovingAverageCrossoverSignalEvaluator;
 import com.stock.strategy.signal.movingaverage.MovingAverageTrend;
 import com.stock.strategy.signal.movingaverage.MovingAverageTrendEvaluator;
@@ -48,8 +58,8 @@ class InvestmentAgentTest {
     private static final LocalDate FIRST_TRADING_DATE =
             LocalDate.of(2026, 9, 1);
 
-    private final InvestmentAgent agent = new InvestmentAgent(
-            movingAverageAnalysisService()
+    private final InvestmentAgent agent = investmentAgent(
+            new MaxCapacityMovingAverageOrderDecisionProvider()
     );
 
     @Test
@@ -108,13 +118,8 @@ class InvestmentAgentTest {
         assertThat(action.investmentDecision().expectedPriceKrw()).isNull();
         assertThat(action.investmentDecision().reason())
                 .isEqualTo(
-                        "Moving average analyzed. symbol=005930, "
-                                + "trend=UPTREND, shortPeriod=5, "
-                                + "shortAveragePriceKrw=78000.00, "
-                                + "longPeriod=20, "
-                                + "longAveragePriceKrw=70500.00, "
-                                + "asOfTradingDate=2026-09-21, "
-                                + "currentPriceKrw=80000, source=PROVIDER"
+                        "Order skipped because signal action is HOLD. "
+                                + "symbol=005930"
                 );
         assertThat(action.investmentDecision().movingAverageEvidence()
                 .analysis().status())
@@ -128,6 +133,68 @@ class InvestmentAgentTest {
         assertThat(action.investmentDecision().movingAverageEvidence()
                 .currentPriceSource())
                 .isEqualTo(CurrentPriceLookupSource.PROVIDER);
+    }
+
+    @Test
+    void nextReturnsBuyForGoldenCrossWithoutPosition() {
+        HarnessRunContext context = runContext(
+                List.of("005930"),
+                List.of(
+                        dailyPriceHistoryResult(
+                                "005930",
+                                goldenCrossBars()
+                        ),
+                        currentPriceResult("005930", 80_000L)
+                )
+        );
+
+        AgentNextAction action = agent.next(context);
+
+        assertThat(action.type()).isEqualTo(AgentNextActionType.FINAL_DECISION);
+        assertThat(action.investmentDecision().action())
+                .isEqualTo(InvestmentAction.BUY);
+        assertThat(action.investmentDecision().symbol()).isEqualTo("005930");
+        assertThat(action.investmentDecision().quantity()).isEqualTo(1L);
+        assertThat(action.investmentDecision().expectedPriceKrw())
+                .isEqualTo(80_000L);
+        assertThat(action.investmentDecision().reason())
+                .contains("Use maximum allowed quantity")
+                .contains("action=BUY")
+                .contains("quantity=1");
+        assertThat(action.investmentDecision().movingAverageEvidence()
+                .analysis().crossoverSignal())
+                .isEqualTo(MovingAverageCrossoverSignal.GOLDEN_CROSS);
+    }
+
+    @Test
+    void nextRejectsProviderProposalExceedingAllowedCapacity() {
+        MovingAverageOrderDecisionProvider invalidProvider = context ->
+                OrderQuantityProposal.execute(
+                        context.quantityCapacity().maxAllowedQuantity() + 1,
+                        "Exceed the allowed capacity."
+                );
+        InvestmentAgent invalidAgent = investmentAgent(invalidProvider);
+        HarnessRunContext context = runContext(
+                List.of("005930"),
+                List.of(
+                        dailyPriceHistoryResult(
+                                "005930",
+                                goldenCrossBars()
+                        ),
+                        currentPriceResult("005930", 80_000L)
+                )
+        );
+
+        assertThatIllegalStateException()
+                .isThrownBy(() -> invalidAgent.next(context))
+                .withMessage(
+                        "Moving average order proposal was rejected. "
+                                + "reasonCode="
+                                + "QUANTITY_EXCEEDS_ALLOWED_CAPACITY, "
+                                + "reason=Proposed quantity exceeds allowed "
+                                + "capacity. proposedQuantity=2, "
+                                + "maxAllowedQuantity=1"
+                );
     }
 
     @Test
@@ -259,6 +326,15 @@ class InvestmentAgentTest {
                 .toList();
     }
 
+    private List<DailyPriceBar> goldenCrossBars() {
+        return IntStream.range(0, 21)
+                .mapToObj(index -> dailyBar(
+                        FIRST_TRADING_DATE.plusDays(index),
+                        index == 20 ? 80_000L : 70_000L
+                ))
+                .toList();
+    }
+
     private DailyPriceBar dailyBar(
             LocalDate tradingDate,
             long closePriceKrw
@@ -305,6 +381,26 @@ class InvestmentAgentTest {
                 new MovingAverageIndicatorCalculator(simpleCalculator),
                 new MovingAverageTrendEvaluator(),
                 new MovingAverageCrossoverSignalEvaluator()
+        );
+    }
+
+    private InvestmentAgent investmentAgent(
+            MovingAverageOrderDecisionProvider decisionProvider
+    ) {
+        OrderQuantityCapacityCalculator capacityCalculator =
+                new OrderQuantityCapacityCalculator(
+                        new RiskProperties(0.1, 0.3)
+                );
+        return new InvestmentAgent(
+                movingAverageAnalysisService(),
+                new MovingAverageOrderDecisionContextFactory(
+                        new MovingAverageActionPolicy(),
+                        capacityCalculator
+                ),
+                decisionProvider,
+                new MovingAverageOrderDecisionResolver(
+                        new MovingAverageOrderProposalValidator()
+                )
         );
     }
 
