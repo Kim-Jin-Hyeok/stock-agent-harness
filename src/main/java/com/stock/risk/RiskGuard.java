@@ -4,6 +4,8 @@ import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
 import com.stock.market.MarketSnapshot;
 import com.stock.portfolio.PortfolioSnapshot;
+import com.stock.risk.capacity.OrderQuantityCapacity;
+import com.stock.risk.capacity.OrderQuantityCapacityCalculator;
 import org.springframework.stereotype.Component;
 
 import java.util.Objects;
@@ -11,10 +13,13 @@ import java.util.Optional;
 
 @Component
 public class RiskGuard {
-    private final RiskProperties riskProperties;
+    private final OrderQuantityCapacityCalculator capacityCalculator;
 
-    public RiskGuard(RiskProperties riskProperties) {
-        this.riskProperties = riskProperties;
+    public RiskGuard(OrderQuantityCapacityCalculator capacityCalculator) {
+        this.capacityCalculator = Objects.requireNonNull(
+                capacityCalculator,
+                "capacityCalculator must not be null."
+        );
     }
 
     public RiskCheckResult validate(
@@ -63,49 +68,43 @@ public class RiskGuard {
     }
 
     private RiskCheckResult validateBuy(InvestmentDecision decision, PortfolioSnapshot portfolioSnapshot) {
-        if (decision.estimatedOrderAmountKrw() > portfolioSnapshot.cashAmountKrw()) {
+        OrderQuantityCapacity capacity = capacityCalculator.calculate(
+                decision.action(),
+                decision.symbol(),
+                decision.expectedPriceKrw(),
+                portfolioSnapshot
+        );
+
+        if (decision.quantity() > capacity.maxAffordableQuantity()) {
             return denied(
                     decision,
                     RiskReasonCode.INSUFFICIENT_CASH,
-                    "Order amount exceeds available cash."
+                    "Order amount exceeds available cash. decisionQuantity="
+                            + decision.quantity()
+                            + ", maxAffordableQuantity="
+                            + capacity.maxAffordableQuantity()
             );
         }
 
-        long maxOrderAmountKrw = (long) (
-                portfolioSnapshot.totalAssetAmountKrw() * riskProperties.maxOrderRatio()
-        );
-
-        if (decision.estimatedOrderAmountKrw() > maxOrderAmountKrw) {
+        if (decision.quantity() > capacity.maxOrderRatioQuantity()) {
             return denied(
                     decision,
                     RiskReasonCode.MAX_ORDER_RATIO_EXCEEDED,
-                    "Order amount exceeds max order ratio. estimatedOrderAmountKrw="
-                            + decision.estimatedOrderAmountKrw()
-                            + ", maxOrderAmountKrw="
-                            + maxOrderAmountKrw
-                            + ", maxOrderRatio="
-                            + riskProperties.maxOrderRatio()
+                    "Order amount exceeds max order ratio. decisionQuantity="
+                            + decision.quantity()
+                            + ", maxOrderRatioQuantity="
+                            + capacity.maxOrderRatioQuantity()
             );
         }
 
-        long currentPositionMarketValueKrw =
-                portfolioSnapshot.positionMarketValueKrw(decision.symbol());
-        long expectedPositionAmountKrw =
-                currentPositionMarketValueKrw + decision.estimatedOrderAmountKrw();
-        long maxPositionAmountKrw = (long) (
-                portfolioSnapshot.totalAssetAmountKrw() * riskProperties.maxPositionRatio()
-        );
-
-        if (expectedPositionAmountKrw > maxPositionAmountKrw) {
+        if (decision.quantity() > capacity.maxPositionRatioQuantity()) {
             return denied(
                     decision,
                     RiskReasonCode.MAX_POSITION_RATIO_EXCEEDED,
-                    "Order amount exceeds max position ratio. estimatedOrderAmountKrw="
-                            + decision.estimatedOrderAmountKrw()
-                            + ", maxPositionAmountKrw="
-                            + maxPositionAmountKrw
-                            + ", maxPositionRatio="
-                            + riskProperties.maxPositionRatio()
+                    "Order amount exceeds max position ratio. decisionQuantity="
+                            + decision.quantity()
+                            + ", maxPositionRatioQuantity="
+                            + capacity.maxPositionRatioQuantity()
             );
         }
 
@@ -117,7 +116,14 @@ public class RiskGuard {
     }
 
     private RiskCheckResult validateSell(InvestmentDecision decision, PortfolioSnapshot portfolioSnapshot) {
-        if (portfolioSnapshot.positionQuantity(decision.symbol()) == 0) {
+        OrderQuantityCapacity capacity = capacityCalculator.calculate(
+                decision.action(),
+                decision.symbol(),
+                decision.expectedPriceKrw(),
+                portfolioSnapshot
+        );
+
+        if (!capacity.canOrder()) {
             return denied(
                     decision,
                     RiskReasonCode.POSITION_NOT_FOUND,
@@ -125,14 +131,14 @@ public class RiskGuard {
             );
         }
 
-        if (decision.quantity() > portfolioSnapshot.positionQuantity(decision.symbol())) {
+        if (decision.quantity() > capacity.maxAllowedQuantity()) {
             return denied(
                     decision,
                     RiskReasonCode.SELL_QUANTITY_EXCEEDS_POSITION,
                     "Sell quantity exceeds position. decisionQuantity="
                             + decision.quantity()
                             + ", positionQuantity="
-                            + portfolioSnapshot.positionQuantity(decision.symbol())
+                            + capacity.currentPositionQuantity()
             );
         }
 

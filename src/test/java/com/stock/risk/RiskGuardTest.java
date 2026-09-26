@@ -5,6 +5,7 @@ import com.stock.agent.InvestmentDecision;
 import com.stock.market.MarketSnapshot;
 import com.stock.portfolio.PortfolioPosition;
 import com.stock.portfolio.PortfolioSnapshot;
+import com.stock.risk.capacity.OrderQuantityCapacityCalculator;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -17,7 +18,9 @@ class RiskGuardTest {
             0.3
     );
 
-    private final RiskGuard riskGuard = new RiskGuard(riskProperties);
+    private final RiskGuard riskGuard = new RiskGuard(
+            new OrderQuantityCapacityCalculator(riskProperties)
+    );
 
     private final MarketSnapshot openMarketSnapshot = new MarketSnapshot(
             "KR",

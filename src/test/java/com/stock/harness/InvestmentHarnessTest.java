@@ -49,6 +49,7 @@ import com.stock.portfolio.PortfolioSnapshotStore;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskGuard;
 import com.stock.risk.RiskProperties;
+import com.stock.risk.capacity.OrderQuantityCapacityCalculator;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisService;
 import com.stock.strategy.data.history.StrategyDailyPriceHistoryPolicy;
 import com.stock.strategy.data.history.config.ConfiguredStrategyDailyPriceHistoryLimit;
@@ -116,7 +117,9 @@ class InvestmentHarnessTest {
     private final HarnessRunSnapshotJsonConverter harnessRunSnapshotJsonConverter =
             mock(HarnessRunSnapshotJsonConverter.class);
     private final HarnessStepRepository harnessStepRepository = mock(HarnessStepRepository.class);
-    private final RiskGuard riskGuard = new RiskGuard(riskProperties);
+    private final RiskGuard riskGuard = new RiskGuard(
+            new OrderQuantityCapacityCalculator(riskProperties)
+    );
     private final PortfolioSnapshotStore store = create();
     private final PortfolioService portfolioService = new PortfolioService(store);
     private final TradeHistoryService tradeHistoryService = new TradeHistoryService(mock(TradeRecordRepository.class));
