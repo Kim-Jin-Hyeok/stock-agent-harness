@@ -67,6 +67,7 @@ import com.stock.strategy.indicator.movingaverage.config.StrategyMovingAveragePr
 import com.stock.strategy.indicator.movingaverage.policy.StrategyMovingAveragePeriodPolicy;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
+import com.stock.strategy.signal.movingaverage.MovingAverageCrossoverSignal;
 import com.stock.strategy.signal.movingaverage.MovingAverageCrossoverSignalEvaluator;
 import com.stock.strategy.signal.movingaverage.MovingAverageTrendEvaluator;
 import com.stock.strategy.universe.StrategyStockUniverseRegistry;
@@ -370,6 +371,80 @@ class InvestmentHarnessTest {
         verify(dailyPriceHistoryPolicy).getLatestBarCount(STRATEGY_IDENTITY);
         verify(dailyPriceHistoryQueryService)
                 .getLatestDailyPriceHistory("005930", 60);
+    }
+
+    @Test
+    void runExecutesBuyFromGoldenCrossUsingActualInvestmentAgent() {
+        when(dailyPriceHistoryQueryService.getLatestDailyPriceHistory(
+                "005930",
+                60
+        )).thenReturn(goldenCrossDailyPriceHistory());
+
+        HarnessRunResult result = investmentHarness.run(STRATEGY_IDENTITY);
+
+        assertThat(result.status()).isEqualTo(HarnessRunStatus.COMPLETED);
+        assertThat(result.decision().action()).isEqualTo(InvestmentAction.BUY);
+        assertThat(result.decision().symbol()).isEqualTo("005930");
+        assertThat(result.decision().quantity()).isEqualTo(10L);
+        assertThat(result.decision().expectedPriceKrw())
+                .isEqualTo(100_000L);
+        assertThat(result.decision().movingAverageEvidence()
+                .analysis().crossoverSignal())
+                .isEqualTo(MovingAverageCrossoverSignal.GOLDEN_CROSS);
+        assertThat(result.riskCheckResult().status())
+                .isEqualTo(RiskCheckStatus.APPROVED);
+        assertThat(result.tradeResult().status())
+                .isEqualTo(TradeStatus.EXECUTED);
+        assertThat(result.portfolioSnapshot().cashAmountKrw())
+                .isEqualTo(9_000_000L);
+        assertThat(result.portfolioSnapshot().totalAssetAmountKrw())
+                .isEqualTo(10_000_000L);
+        assertThat(result.portfolioSnapshot().positions())
+                .singleElement()
+                .satisfies(position -> {
+                    assertThat(position.symbol()).isEqualTo("005930");
+                    assertThat(position.quantity()).isEqualTo(10L);
+                    assertThat(position.averagePriceKrw())
+                            .isEqualTo(100_000L);
+                    assertThat(position.marketValueKrw())
+                            .isEqualTo(1_000_000L);
+                });
+    }
+
+    @Test
+    void runExecutesSellFromDeadCrossUsingActualInvestmentAgent() {
+        portfolioService.applyBuy(
+                STRATEGY_IDENTITY,
+                "005930",
+                5L,
+                100_000L
+        );
+        when(dailyPriceHistoryQueryService.getLatestDailyPriceHistory(
+                "005930",
+                60
+        )).thenReturn(deadCrossDailyPriceHistory());
+
+        HarnessRunResult result = investmentHarness.run(STRATEGY_IDENTITY);
+
+        assertThat(result.status()).isEqualTo(HarnessRunStatus.COMPLETED);
+        assertThat(result.decision().action())
+                .isEqualTo(InvestmentAction.SELL);
+        assertThat(result.decision().symbol()).isEqualTo("005930");
+        assertThat(result.decision().quantity()).isEqualTo(5L);
+        assertThat(result.decision().expectedPriceKrw())
+                .isEqualTo(100_000L);
+        assertThat(result.decision().movingAverageEvidence()
+                .analysis().crossoverSignal())
+                .isEqualTo(MovingAverageCrossoverSignal.DEAD_CROSS);
+        assertThat(result.riskCheckResult().status())
+                .isEqualTo(RiskCheckStatus.APPROVED);
+        assertThat(result.tradeResult().status())
+                .isEqualTo(TradeStatus.EXECUTED);
+        assertThat(result.portfolioSnapshot().cashAmountKrw())
+                .isEqualTo(10_000_000L);
+        assertThat(result.portfolioSnapshot().totalAssetAmountKrw())
+                .isEqualTo(10_000_000L);
+        assertThat(result.portfolioSnapshot().positions()).isEmpty();
     }
 
     @Test
@@ -1709,6 +1784,35 @@ class InvestmentHarnessTest {
         List<DailyPriceBar> bars = IntStream.range(0, 21)
                 .mapToObj(index -> {
                     long closePriceKrw = 80_000L + index * 1_000L;
+                    return new DailyPriceBar(
+                            LocalDate.of(2026, 9, 4).plusDays(index),
+                            closePriceKrw,
+                            closePriceKrw + 2_000L,
+                            closePriceKrw - 1_000L,
+                            closePriceKrw,
+                            1_000_000L
+                    );
+                })
+                .toList();
+        return new DailyPriceHistory("005930", bars);
+    }
+
+    private DailyPriceHistory goldenCrossDailyPriceHistory() {
+        return crossoverDailyPriceHistory(110_000L);
+    }
+
+    private DailyPriceHistory deadCrossDailyPriceHistory() {
+        return crossoverDailyPriceHistory(90_000L);
+    }
+
+    private DailyPriceHistory crossoverDailyPriceHistory(
+            long lastClosePriceKrw
+    ) {
+        List<DailyPriceBar> bars = IntStream.range(0, 21)
+                .mapToObj(index -> {
+                    long closePriceKrw = index == 20
+                            ? lastClosePriceKrw
+                            : 100_000L;
                     return new DailyPriceBar(
                             LocalDate.of(2026, 9, 4).plusDays(index),
                             closePriceKrw,
