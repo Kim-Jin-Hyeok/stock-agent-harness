@@ -1,6 +1,10 @@
 package com.stock.agent.evidence.movingaverage;
 
+import com.stock.agent.InvestmentAction;
+import com.stock.agent.decision.order.proposal.OrderQuantityProposal;
+import com.stock.agent.evidence.movingaverage.order.MovingAverageOrderDecisionEvidence;
 import com.stock.market.price.lookup.CurrentPriceLookupSource;
+import com.stock.risk.capacity.OrderQuantityCapacity;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisResult;
 import com.stock.strategy.indicator.movingaverage.MovingAverageIndicator;
 import com.stock.strategy.indicator.movingaverage.SimpleMovingAverage;
@@ -33,13 +37,16 @@ class MovingAverageDecisionEvidenceTest {
                 MovingAverageDecisionEvidence.analyzed(
                         analysis,
                         72_000L,
-                        CurrentPriceLookupSource.PROVIDER
+                        CurrentPriceLookupSource.PROVIDER,
+                        orderDecisionEvidence()
                 );
 
         assertThat(evidence.analysis()).isEqualTo(analysis);
         assertThat(evidence.currentPriceKrw()).isEqualTo(72_000L);
         assertThat(evidence.currentPriceSource())
                 .isEqualTo(CurrentPriceLookupSource.PROVIDER);
+        assertThat(evidence.orderDecisionEvidence())
+                .isEqualTo(orderDecisionEvidence());
     }
 
     @Test
@@ -58,6 +65,7 @@ class MovingAverageDecisionEvidenceTest {
         assertThat(evidence.analysis()).isEqualTo(analysis);
         assertThat(evidence.currentPriceKrw()).isNull();
         assertThat(evidence.currentPriceSource()).isNull();
+        assertThat(evidence.orderDecisionEvidence()).isNull();
     }
 
     @Test
@@ -65,7 +73,8 @@ class MovingAverageDecisionEvidenceTest {
         assertThatThrownBy(() -> new MovingAverageDecisionEvidence(
                 analyzedResult(),
                 0L,
-                CurrentPriceLookupSource.PROVIDER
+                CurrentPriceLookupSource.PROVIDER,
+                orderDecisionEvidence()
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
@@ -87,13 +96,49 @@ class MovingAverageDecisionEvidenceTest {
         assertThatThrownBy(() -> new MovingAverageDecisionEvidence(
                 analysis,
                 72_000L,
-                CurrentPriceLookupSource.CACHE
+                CurrentPriceLookupSource.CACHE,
+                null
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
-                        "Insufficient data evidence must not contain "
-                                + "current price."
+                        "Insufficient data evidence must not contain decision "
+                                + "details."
                 );
+    }
+
+    @Test
+    void rejectsAnalyzedEvidenceWithoutOrderDecisionEvidence() {
+        assertThatThrownBy(() -> new MovingAverageDecisionEvidence(
+                analyzedResult(),
+                72_000L,
+                CurrentPriceLookupSource.PROVIDER,
+                null
+        ))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage(
+                        "Analyzed evidence requires orderDecisionEvidence."
+                );
+    }
+
+    private MovingAverageOrderDecisionEvidence orderDecisionEvidence() {
+        return new MovingAverageOrderDecisionEvidence(
+                InvestmentAction.BUY,
+                new OrderQuantityCapacity(
+                        InvestmentAction.BUY,
+                        "005930",
+                        72_000L,
+                        0L,
+                        13L,
+                        1L,
+                        4L,
+                        1L,
+                        new BigDecimal("0.007200")
+                ),
+                OrderQuantityProposal.execute(
+                        1L,
+                        "Execute within the allowed capacity."
+                )
+        );
     }
 
     private MovingAverageAnalysisResult analyzedResult() {

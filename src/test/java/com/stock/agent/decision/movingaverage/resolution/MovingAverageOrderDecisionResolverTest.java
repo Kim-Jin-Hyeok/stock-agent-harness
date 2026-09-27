@@ -89,6 +89,21 @@ class MovingAverageOrderDecisionResolverTest {
                         .movingAverageEvidence()
                         .currentPriceSource()
         ).isEqualTo(CurrentPriceLookupSource.PROVIDER);
+        assertThat(
+                resolution.decision()
+                        .movingAverageEvidence()
+                        .orderDecisionEvidence()
+                        .quantityCapacity()
+        ).isEqualTo(context.quantityCapacity());
+        assertThat(
+                resolution.decision()
+                        .movingAverageEvidence()
+                        .orderDecisionEvidence()
+                        .proposal()
+        ).isEqualTo(OrderQuantityProposal.execute(
+                5L,
+                "Use half of the allowed capacity."
+        ));
     }
 
     @Test
@@ -125,6 +140,13 @@ class MovingAverageOrderDecisionResolverTest {
         assertThat(resolution.decision().quantity()).isNull();
         assertThat(resolution.decision().expectedPriceKrw()).isNull();
         assertThat(resolution.decision().movingAverageEvidence()).isNotNull();
+        assertThat(
+                resolution.decision()
+                        .movingAverageEvidence()
+                        .orderDecisionEvidence()
+                        .proposal()
+                        .intent()
+        ).isEqualTo(OrderDecisionIntent.HOLD);
     }
 
     @Test

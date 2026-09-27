@@ -9,6 +9,7 @@ import com.stock.agent.decision.movingaverage.validation.MovingAverageOrderPropo
 import com.stock.agent.decision.order.proposal.OrderDecisionIntent;
 import com.stock.agent.decision.order.proposal.OrderQuantityProposal;
 import com.stock.agent.evidence.movingaverage.MovingAverageDecisionEvidence;
+import com.stock.agent.evidence.movingaverage.order.MovingAverageOrderDecisionEvidence;
 import org.springframework.stereotype.Component;
 
 import java.util.Objects;
@@ -61,7 +62,7 @@ public class MovingAverageOrderDecisionResolver {
                 null,
                 null,
                 proposal.reason(),
-                evidence(context)
+                evidence(context, proposal)
         );
     }
 
@@ -75,17 +76,23 @@ public class MovingAverageOrderDecisionResolver {
                 proposal.quantity(),
                 context.currentPriceSnapshot().priceKrw(),
                 proposal.reason(),
-                evidence(context)
+                evidence(context, proposal)
         );
     }
 
     private MovingAverageDecisionEvidence evidence(
-            MovingAverageOrderDecisionContext context
+            MovingAverageOrderDecisionContext context,
+            OrderQuantityProposal proposal
     ) {
         return MovingAverageDecisionEvidence.analyzed(
                 context.analysisResult(),
                 context.currentPriceSnapshot().priceKrw(),
-                context.currentPriceSource()
+                context.currentPriceSource(),
+                new MovingAverageOrderDecisionEvidence(
+                        context.signalAction(),
+                        context.quantityCapacity(),
+                        proposal
+                )
         );
     }
 }

@@ -1,7 +1,12 @@
 package com.stock.harness.persistence;
 
+import com.stock.agent.InvestmentAction;
+import com.stock.agent.decision.order.proposal.OrderDecisionIntent;
+import com.stock.agent.decision.order.proposal.OrderQuantityProposal;
 import com.stock.agent.evidence.movingaverage.MovingAverageDecisionEvidence;
+import com.stock.agent.evidence.movingaverage.order.MovingAverageOrderDecisionEvidence;
 import com.stock.market.price.lookup.CurrentPriceLookupSource;
+import com.stock.risk.capacity.OrderQuantityCapacity;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisResult;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisStatus;
 import com.stock.strategy.indicator.movingaverage.MovingAverageIndicator;
@@ -34,7 +39,8 @@ class HarnessMovingAverageEvidenceSnapshotTest {
                         MovingAverageDecisionEvidence.analyzed(
                                 analyzedResult(),
                                 72_000L,
-                                CurrentPriceLookupSource.PROVIDER
+                                CurrentPriceLookupSource.PROVIDER,
+                                orderDecisionEvidence()
                         )
                 );
 
@@ -63,6 +69,14 @@ class HarnessMovingAverageEvidenceSnapshotTest {
         assertThat(snapshot.currentPriceKrw()).isEqualTo(72_000L);
         assertThat(snapshot.currentPriceSource())
                 .isEqualTo(CurrentPriceLookupSource.PROVIDER);
+        assertThat(snapshot.orderDecisionEvidence().signalAction())
+                .isEqualTo(InvestmentAction.BUY);
+        assertThat(snapshot.orderDecisionEvidence().maxAllowedQuantity())
+                .isEqualTo(1L);
+        assertThat(snapshot.orderDecisionEvidence().proposalIntent())
+                .isEqualTo(OrderDecisionIntent.EXECUTE_ORDER);
+        assertThat(snapshot.orderDecisionEvidence().proposedQuantity())
+                .isEqualTo(1L);
     }
 
     @Test
@@ -96,6 +110,7 @@ class HarnessMovingAverageEvidenceSnapshotTest {
         assertThat(snapshot.longPeriod()).isNull();
         assertThat(snapshot.currentPriceKrw()).isNull();
         assertThat(snapshot.currentPriceSource()).isNull();
+        assertThat(snapshot.orderDecisionEvidence()).isNull();
     }
 
     @Test
@@ -124,6 +139,27 @@ class HarnessMovingAverageEvidenceSnapshotTest {
                         "Crossover snapshot fields must be all present "
                                 + "or all null."
                 );
+    }
+
+    private MovingAverageOrderDecisionEvidence orderDecisionEvidence() {
+        return new MovingAverageOrderDecisionEvidence(
+                InvestmentAction.BUY,
+                new OrderQuantityCapacity(
+                        InvestmentAction.BUY,
+                        "005930",
+                        72_000L,
+                        0L,
+                        13L,
+                        1L,
+                        4L,
+                        1L,
+                        new BigDecimal("0.007200")
+                ),
+                OrderQuantityProposal.execute(
+                        1L,
+                        "Execute within the allowed capacity."
+                )
+        );
     }
 
     private MovingAverageAnalysisResult analyzedResult() {

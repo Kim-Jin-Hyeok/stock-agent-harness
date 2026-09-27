@@ -29,7 +29,8 @@ public record HarnessMovingAverageEvidenceSnapshot(
         BigDecimal previousShortAveragePriceKrw,
         BigDecimal previousLongAveragePriceKrw,
         LocalDate previousAsOfTradingDate,
-        MovingAverageCrossoverSignal crossoverSignal
+        MovingAverageCrossoverSignal crossoverSignal,
+        HarnessMovingAverageOrderDecisionEvidenceSnapshot orderDecisionEvidence
 ) {
     public HarnessMovingAverageEvidenceSnapshot(
             MovingAverageAnalysisStatus status,
@@ -62,6 +63,48 @@ public record HarnessMovingAverageEvidenceSnapshot(
                 null,
                 null,
                 null,
+                null,
+                null
+        );
+    }
+
+    public HarnessMovingAverageEvidenceSnapshot(
+            MovingAverageAnalysisStatus status,
+            String symbol,
+            int requiredBarCount,
+            int availableBarCount,
+            MovingAverageTrend trend,
+            Integer shortPeriod,
+            BigDecimal shortAveragePriceKrw,
+            Integer longPeriod,
+            BigDecimal longAveragePriceKrw,
+            LocalDate asOfTradingDate,
+            Long currentPriceKrw,
+            CurrentPriceLookupSource currentPriceSource,
+            MovingAverageTrend previousTrend,
+            BigDecimal previousShortAveragePriceKrw,
+            BigDecimal previousLongAveragePriceKrw,
+            LocalDate previousAsOfTradingDate,
+            MovingAverageCrossoverSignal crossoverSignal
+    ) {
+        this(
+                status,
+                symbol,
+                requiredBarCount,
+                availableBarCount,
+                trend,
+                shortPeriod,
+                shortAveragePriceKrw,
+                longPeriod,
+                longAveragePriceKrw,
+                asOfTradingDate,
+                currentPriceKrw,
+                currentPriceSource,
+                previousTrend,
+                previousShortAveragePriceKrw,
+                previousLongAveragePriceKrw,
+                previousAsOfTradingDate,
+                crossoverSignal,
                 null
         );
     }
@@ -116,7 +159,8 @@ public record HarnessMovingAverageEvidenceSnapshot(
                     previousShortAveragePriceKrw,
                     previousLongAveragePriceKrw,
                     previousAsOfTradingDate,
-                    crossoverSignal
+                    crossoverSignal,
+                    orderDecisionEvidence
             );
         }
     }
@@ -164,7 +208,10 @@ public record HarnessMovingAverageEvidenceSnapshot(
                 previousIndicator.shortMovingAverage().averagePriceKrw(),
                 previousIndicator.longMovingAverage().averagePriceKrw(),
                 previousIndicator.asOfTradingDate(),
-                analysis.crossoverSignal()
+                analysis.crossoverSignal(),
+                HarnessMovingAverageOrderDecisionEvidenceSnapshot.from(
+                        evidence.orderDecisionEvidence()
+                )
         );
     }
 
@@ -255,7 +302,9 @@ public record HarnessMovingAverageEvidenceSnapshot(
             BigDecimal previousShortAveragePriceKrw,
             BigDecimal previousLongAveragePriceKrw,
             LocalDate previousAsOfTradingDate,
-            MovingAverageCrossoverSignal crossoverSignal
+            MovingAverageCrossoverSignal crossoverSignal,
+            HarnessMovingAverageOrderDecisionEvidenceSnapshot
+                    orderDecisionEvidence
     ) {
         if (availableBarCount >= requiredBarCount) {
             throw new IllegalArgumentException(
@@ -275,7 +324,8 @@ public record HarnessMovingAverageEvidenceSnapshot(
                 || previousShortAveragePriceKrw != null
                 || previousLongAveragePriceKrw != null
                 || previousAsOfTradingDate != null
-                || crossoverSignal != null) {
+                || crossoverSignal != null
+                || orderDecisionEvidence != null) {
             throw new IllegalArgumentException(
                     "Insufficient data snapshot must not contain analysis."
             );

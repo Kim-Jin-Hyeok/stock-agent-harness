@@ -1,5 +1,6 @@
 package com.stock.agent.evidence.movingaverage;
 
+import com.stock.agent.evidence.movingaverage.order.MovingAverageOrderDecisionEvidence;
 import com.stock.market.price.lookup.CurrentPriceLookupSource;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisResult;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisStatus;
@@ -9,7 +10,8 @@ import java.util.Objects;
 public record MovingAverageDecisionEvidence(
         MovingAverageAnalysisResult analysis,
         Long currentPriceKrw,
-        CurrentPriceLookupSource currentPriceSource
+        CurrentPriceLookupSource currentPriceSource,
+        MovingAverageOrderDecisionEvidence orderDecisionEvidence
 ) {
     public MovingAverageDecisionEvidence {
         Objects.requireNonNull(analysis, "analysis must not be null.");
@@ -23,9 +25,16 @@ public record MovingAverageDecisionEvidence(
                     currentPriceSource,
                     "Analyzed evidence requires currentPriceSource."
             );
-        } else if (currentPriceKrw != null || currentPriceSource != null) {
+            Objects.requireNonNull(
+                    orderDecisionEvidence,
+                    "Analyzed evidence requires orderDecisionEvidence."
+            );
+        } else if (currentPriceKrw != null
+                || currentPriceSource != null
+                || orderDecisionEvidence != null) {
             throw new IllegalArgumentException(
-                    "Insufficient data evidence must not contain current price."
+                    "Insufficient data evidence must not contain decision "
+                            + "details."
             );
         }
     }
@@ -33,12 +42,14 @@ public record MovingAverageDecisionEvidence(
     public static MovingAverageDecisionEvidence analyzed(
             MovingAverageAnalysisResult analysis,
             long currentPriceKrw,
-            CurrentPriceLookupSource currentPriceSource
+            CurrentPriceLookupSource currentPriceSource,
+            MovingAverageOrderDecisionEvidence orderDecisionEvidence
     ) {
         return new MovingAverageDecisionEvidence(
                 analysis,
                 currentPriceKrw,
-                currentPriceSource
+                currentPriceSource,
+                orderDecisionEvidence
         );
     }
 
@@ -47,6 +58,7 @@ public record MovingAverageDecisionEvidence(
     ) {
         return new MovingAverageDecisionEvidence(
                 analysis,
+                null,
                 null,
                 null
         );

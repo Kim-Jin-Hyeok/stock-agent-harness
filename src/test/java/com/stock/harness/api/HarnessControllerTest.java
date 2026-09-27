@@ -2,7 +2,9 @@ package com.stock.harness.api;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
+import com.stock.agent.decision.order.proposal.OrderQuantityProposal;
 import com.stock.agent.evidence.movingaverage.MovingAverageDecisionEvidence;
+import com.stock.agent.evidence.movingaverage.order.MovingAverageOrderDecisionEvidence;
 import com.stock.harness.HarnessRunDetail;
 import com.stock.harness.HarnessRunHistoryService;
 import com.stock.harness.HarnessRunResult;
@@ -35,6 +37,7 @@ import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.risk.RiskCheckResult;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskReasonCode;
+import com.stock.risk.capacity.OrderQuantityCapacity;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisResult;
@@ -137,6 +140,15 @@ class HarnessControllerTest {
                 .andExpect(jsonPath(
                         "$.decision.movingAverageEvidence.currentPriceKrw"
                 ).value(72_000L))
+                .andExpect(jsonPath(
+                        "$.decision.movingAverageEvidence.orderDecisionEvidence.signalAction"
+                ).value("BUY"))
+                .andExpect(jsonPath(
+                        "$.decision.movingAverageEvidence.orderDecisionEvidence.quantityCapacity.maxAllowedQuantity"
+                ).value(10L))
+                .andExpect(jsonPath(
+                        "$.decision.movingAverageEvidence.orderDecisionEvidence.proposal.intent"
+                ).value("EXECUTE_ORDER"))
                 .andExpect(jsonPath("$.tradeRecords[0].runId").value(runId))
                 .andExpect(jsonPath("$.tradeRecords[0].status").value("EXECUTED"));
 
@@ -225,6 +237,18 @@ class HarnessControllerTest {
                 .andExpect(jsonPath(
                         "$.decisionSnapshot.movingAverageEvidence.currentPriceSource"
                 ).value("PROVIDER"))
+                .andExpect(jsonPath(
+                        "$.decisionSnapshot.movingAverageEvidence.orderDecisionEvidence.signalAction"
+                ).value("BUY"))
+                .andExpect(jsonPath(
+                        "$.decisionSnapshot.movingAverageEvidence.orderDecisionEvidence.maxAllowedQuantity"
+                ).value(10L))
+                .andExpect(jsonPath(
+                        "$.decisionSnapshot.movingAverageEvidence.orderDecisionEvidence.proposalIntent"
+                ).value("EXECUTE_ORDER"))
+                .andExpect(jsonPath(
+                        "$.decisionSnapshot.movingAverageEvidence.orderDecisionEvidence.proposedQuantity"
+                ).value(10L))
                 .andExpect(jsonPath("$.riskCheckSnapshot.status").value("APPROVED"))
                 .andExpect(jsonPath("$.portfolioSnapshot.cashAmountKrw").value(9_300_000L))
                 .andExpect(jsonPath("$.marketSnapshot.market").value("KR"))
@@ -450,7 +474,30 @@ class HarnessControllerTest {
                 MovingAverageDecisionEvidence.analyzed(
                         movingAverageAnalysisResult(),
                         72_000L,
-                        CurrentPriceLookupSource.PROVIDER
+                        CurrentPriceLookupSource.PROVIDER,
+                        movingAverageOrderDecisionEvidence()
+                )
+        );
+    }
+
+    private MovingAverageOrderDecisionEvidence
+            movingAverageOrderDecisionEvidence() {
+        return new MovingAverageOrderDecisionEvidence(
+                InvestmentAction.BUY,
+                new OrderQuantityCapacity(
+                        InvestmentAction.BUY,
+                        "005930",
+                        72_000L,
+                        0L,
+                        138L,
+                        10L,
+                        41L,
+                        10L,
+                        new BigDecimal("0.007200")
+                ),
+                OrderQuantityProposal.execute(
+                        10L,
+                        "Buy Samsung Electronics."
                 )
         );
     }

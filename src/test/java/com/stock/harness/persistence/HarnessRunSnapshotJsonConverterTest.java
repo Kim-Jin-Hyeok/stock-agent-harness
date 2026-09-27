@@ -2,6 +2,7 @@ package com.stock.harness.persistence;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.agent.InvestmentAction;
+import com.stock.agent.decision.order.proposal.OrderDecisionIntent;
 import com.stock.harness.tool.HarnessToolExecutionReasonCode;
 import com.stock.harness.tool.HarnessToolExecutionStatus;
 import com.stock.harness.tool.HarnessToolType;
@@ -101,6 +102,7 @@ class HarnessRunSnapshotJsonConverterTest {
         assertThat(evidence.previousLongAveragePriceKrw()).isNull();
         assertThat(evidence.previousAsOfTradingDate()).isNull();
         assertThat(evidence.crossoverSignal()).isNull();
+        assertThat(evidence.orderDecisionEvidence()).isNull();
     }
 
     @Test
@@ -303,7 +305,24 @@ class HarnessRunSnapshotJsonConverterTest {
                 new BigDecimal("70000.00"),
                 new BigDecimal("70000.00"),
                 LocalDate.of(2026, 1, 1),
-                MovingAverageCrossoverSignal.GOLDEN_CROSS
+                MovingAverageCrossoverSignal.GOLDEN_CROSS,
+                movingAverageOrderDecisionEvidenceSnapshot()
+        );
+    }
+
+    private HarnessMovingAverageOrderDecisionEvidenceSnapshot
+            movingAverageOrderDecisionEvidenceSnapshot() {
+        return new HarnessMovingAverageOrderDecisionEvidenceSnapshot(
+                InvestmentAction.BUY,
+                0L,
+                138L,
+                13L,
+                41L,
+                13L,
+                new BigDecimal("0.007200"),
+                OrderDecisionIntent.EXECUTE_ORDER,
+                10L,
+                "Buy Samsung Electronics."
         );
     }
 

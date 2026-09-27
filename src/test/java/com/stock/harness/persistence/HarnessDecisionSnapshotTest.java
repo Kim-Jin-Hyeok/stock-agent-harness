@@ -2,8 +2,12 @@ package com.stock.harness.persistence;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
+import com.stock.agent.decision.order.proposal.OrderDecisionIntent;
+import com.stock.agent.decision.order.proposal.OrderQuantityProposal;
 import com.stock.agent.evidence.movingaverage.MovingAverageDecisionEvidence;
+import com.stock.agent.evidence.movingaverage.order.MovingAverageOrderDecisionEvidence;
 import com.stock.market.price.lookup.CurrentPriceLookupSource;
+import com.stock.risk.capacity.OrderQuantityCapacity;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisResult;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisStatus;
 import com.stock.strategy.indicator.movingaverage.MovingAverageIndicator;
@@ -94,7 +98,8 @@ class HarnessDecisionSnapshotTest {
                 MovingAverageDecisionEvidence.analyzed(
                         analysis,
                         72_000L,
-                        CurrentPriceLookupSource.PROVIDER
+                        CurrentPriceLookupSource.PROVIDER,
+                        orderDecisionEvidence()
                 )
         );
 
@@ -114,6 +119,16 @@ class HarnessDecisionSnapshotTest {
                 .isEqualTo(72_000L);
         assertThat(snapshot.movingAverageEvidence().currentPriceSource())
                 .isEqualTo(CurrentPriceLookupSource.PROVIDER);
+        assertThat(
+                snapshot.movingAverageEvidence()
+                        .orderDecisionEvidence()
+                        .proposalIntent()
+        ).isEqualTo(OrderDecisionIntent.HOLD);
+        assertThat(
+                snapshot.movingAverageEvidence()
+                        .orderDecisionEvidence()
+                        .maxAllowedQuantity()
+        ).isEqualTo(1L);
     }
 
     private InvestmentDecision buyDecision() {
@@ -143,6 +158,26 @@ class HarnessDecisionSnapshotTest {
                 null,
                 null,
                 "No trade decision."
+        );
+    }
+
+    private MovingAverageOrderDecisionEvidence orderDecisionEvidence() {
+        return new MovingAverageOrderDecisionEvidence(
+                InvestmentAction.BUY,
+                new OrderQuantityCapacity(
+                        InvestmentAction.BUY,
+                        "005930",
+                        72_000L,
+                        0L,
+                        13L,
+                        1L,
+                        4L,
+                        1L,
+                        new BigDecimal("0.007200")
+                ),
+                OrderQuantityProposal.hold(
+                        "Wait for additional confirmation."
+                )
         );
     }
 
