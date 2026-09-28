@@ -13,6 +13,7 @@ import com.stock.agent.decision.movingaverage.provider.config.MovingAverageOrder
 import com.stock.agent.decision.movingaverage.provider.config.MovingAverageOrderDecisionProperties;
 import com.stock.agent.decision.movingaverage.provider.config.MovingAverageOrderDecisionProviderType;
 import com.stock.agent.provider.ai.openai.client.OpenAiResponsesClient;
+import com.stock.agent.provider.ai.openai.config.OpenAiProviderConfiguration;
 import com.stock.agent.provider.ai.openai.config.OpenAiProviderProperties;
 import com.stock.agent.provider.ai.openai.config.OpenAiReasoningEffort;
 import org.junit.jupiter.api.Test;
@@ -26,18 +27,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 class OpenAiMovingAverageOrderDecisionConfigurationTest {
+    private static final String OPENAI_ENABLED_PROPERTY =
+            "agent.provider.ai.openai.enabled=true";
     private static final String AI_PROVIDER_PROPERTY =
             "agent.decision.moving-average.provider-type=AI";
     private static final String RULE_BASED_PROVIDER_PROPERTY =
             "agent.decision.moving-average.provider-type=RULE_BASED";
 
     @Test
-    void doesNotCreateOpenAiBeansForRuleBasedProvider() {
+    void doesNotCreateMovingAverageExecutorForRuleBasedProvider() {
         contextRunner("test-api-key")
                 .withPropertyValues(RULE_BASED_PROVIDER_PROPERTY)
                 .run(context -> {
-                    assertThat(context).doesNotHaveBean(RestClient.class);
-                    assertThat(context).doesNotHaveBean(
+                    assertThat(context).hasSingleBean(RestClient.class);
+                    assertThat(context).hasSingleBean(
                             OpenAiResponsesClient.class
                     );
                     assertThat(context).doesNotHaveBean(
@@ -116,8 +119,10 @@ class OpenAiMovingAverageOrderDecisionConfigurationTest {
     private ApplicationContextRunner contextRunner(String apiKey) {
         return new ApplicationContextRunner()
                 .withUserConfiguration(
+                        OpenAiProviderConfiguration.class,
                         OpenAiMovingAverageOrderDecisionConfiguration.class
                 )
+                .withPropertyValues(OPENAI_ENABLED_PROPERTY)
                 .withBean(
                         OpenAiProviderProperties.class,
                         () -> properties(apiKey)

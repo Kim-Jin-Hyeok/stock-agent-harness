@@ -35,6 +35,10 @@ class OpenAiProviderPropertiesYamlBindingTest {
 
         assertThat(properties.baseUrl())
                 .isEqualTo(URI.create("https://api.openai.com"));
+        assertThat(environment.getProperty(
+                "agent.provider.ai.openai.enabled",
+                Boolean.class
+        )).isFalse();
         assertThat(properties.apiKey()).isEmpty();
         assertThat(properties.model()).isEqualTo("gpt-6-luna");
         assertThat(properties.reasoningEffort())
