@@ -7,10 +7,13 @@ import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record OpenAiResponsesResponse(
+        String id,
+        String model,
         String status,
         @JsonProperty("incomplete_details")
         IncompleteDetails incompleteDetails,
-        List<OutputItem> output
+        List<OutputItem> output,
+        Usage usage
 ) {
     public OpenAiResponsesResponse {
         output = output == null ? List.of() : List.copyOf(output);
@@ -18,6 +21,35 @@ public record OpenAiResponsesResponse(
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record IncompleteDetails(String reason) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Usage(
+            @JsonProperty("input_tokens")
+            Long inputTokens,
+            @JsonProperty("input_tokens_details")
+            InputTokensDetails inputTokensDetails,
+            @JsonProperty("output_tokens")
+            Long outputTokens,
+            @JsonProperty("output_tokens_details")
+            OutputTokensDetails outputTokensDetails,
+            @JsonProperty("total_tokens")
+            Long totalTokens
+    ) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record InputTokensDetails(
+            @JsonProperty("cached_tokens")
+            Long cachedTokens
+    ) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record OutputTokensDetails(
+            @JsonProperty("reasoning_tokens")
+            Long reasoningTokens
+    ) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

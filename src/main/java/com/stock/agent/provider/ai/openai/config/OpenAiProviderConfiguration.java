@@ -9,6 +9,7 @@ import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 import java.net.http.HttpClient;
+import java.time.Clock;
 
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(
@@ -42,7 +43,8 @@ public class OpenAiProviderConfiguration {
     ) {
         return new OpenAiResponsesClient(
                 restClient,
-                properties.apiKey()
+                properties.apiKey(),
+                Clock.systemUTC()
         );
     }
 }

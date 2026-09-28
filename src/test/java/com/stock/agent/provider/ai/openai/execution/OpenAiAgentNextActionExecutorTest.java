@@ -186,9 +186,12 @@ class OpenAiAgentNextActionExecutorTest {
 
     private OpenAiResponsesResponse response() {
         return new OpenAiResponsesResponse(
+                "resp_123",
+                "gpt-6-luna",
                 "completed",
                 null,
-                List.of()
+                List.of(),
+                null
         );
     }
 }
