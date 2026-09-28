@@ -81,9 +81,11 @@ import com.stock.trade.TradeExecutor;
 import com.stock.trade.TradeHistoryService;
 import com.stock.trade.TradeStatus;
 import com.stock.trade.execution.virtual.VirtualTradeExecutionHandler;
+import com.stock.trade.persistence.TradeRecordEntity;
 import com.stock.trade.persistence.TradeRecordRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -1156,6 +1158,105 @@ class InvestmentHarnessTest {
                         HarnessStepType.CHECK_STEP_LIMIT,
                         HarnessStepType.RUN_INVESTMENT_AGENT
                 );
+    }
+
+    @Test
+    void runExecutesVirtualBuyWhenAiDecidesBuyAfterCurrentPriceToolResult() {
+        List<AgentNextActionAiPrompt> prompts = new ArrayList<>();
+        AiAgentNextActionProvider aiProvider = new AiAgentNextActionProvider(
+                new AgentNextActionAiRequestFactory(),
+                new AgentNextActionAiPromptFactory(),
+                prompt -> {
+                    prompts.add(prompt);
+                    if (prompt.request().toolResults().isEmpty()) {
+                        return AgentNextAction.requestTool(
+                                HarnessToolRequest.currentPrice("005930")
+                        );
+                    }
+                    return AgentNextAction.finalDecision(
+                            new InvestmentDecision(
+                                    InvestmentAction.BUY,
+                                    "005930",
+                                    1L,
+                                    100_000L,
+                                    "AI approved one share after price lookup."
+                            )
+                    );
+                }
+        );
+        TradeRecordRepository tradeRecordRepository = mock(
+                TradeRecordRepository.class
+        );
+        TradeExecutor aiTradeExecutor = new TradeExecutor(
+                new VirtualTradeExecutionHandler(portfolioService),
+                new TradeHistoryService(tradeRecordRepository)
+        );
+        InvestmentHarness aiHarness = new InvestmentHarness(
+                riskGuard,
+                aiTradeExecutor,
+                portfolioService,
+                marketService,
+                harnessRunHistoryService,
+                aiProvider,
+                new HarnessProperties(2, 1),
+                harnessToolAuthorizer,
+                harnessToolExecutor,
+                harnessToolResultValidator,
+                harnessAgentActionValidator,
+                harnessToolRequestValidator,
+                harnessRetryWaiter,
+                strategyStockUniverseRegistry,
+                currentPriceObservationService
+        );
+
+        HarnessRunResult result = aiHarness.run(STRATEGY_IDENTITY);
+
+        assertThat(result.status()).isEqualTo(HarnessRunStatus.COMPLETED);
+        assertThat(result.toolResults())
+                .singleElement()
+                .satisfies(toolResult -> {
+                    assertThat(toolResult.status())
+                            .isEqualTo(HarnessToolExecutionStatus.EXECUTED);
+                    assertThat(toolResult.type())
+                            .isEqualTo(HarnessToolType.GET_CURRENT_PRICE);
+                    assertThat(toolResult.output().currentPriceSnapshot())
+                            .isEqualTo(new CurrentPriceSnapshot(
+                                    "005930",
+                                    100_000L,
+                                    CURRENT_PRICE_OBSERVED_AT
+                            ));
+                });
+        assertThat(prompts).hasSize(2);
+        assertThat(prompts.getLast().request().toolResults())
+                .isEqualTo(result.toolResults());
+        assertThat(result.decision().action()).isEqualTo(InvestmentAction.BUY);
+        assertThat(result.decision().symbol()).isEqualTo("005930");
+        assertThat(result.decision().quantity()).isEqualTo(1L);
+        assertThat(result.decision().expectedPriceKrw()).isEqualTo(100_000L);
+        assertThat(result.riskCheckResult().status())
+                .isEqualTo(RiskCheckStatus.APPROVED);
+        assertThat(result.tradeResult().status())
+                .isEqualTo(TradeStatus.EXECUTED);
+        assertThat(result.portfolioSnapshot().cashAmountKrw())
+                .isEqualTo(9_900_000L);
+        assertThat(result.portfolioSnapshot().positions())
+                .singleElement()
+                .satisfies(position -> {
+                    assertThat(position.symbol()).isEqualTo("005930");
+                    assertThat(position.quantity()).isEqualTo(1L);
+                    assertThat(position.averagePriceKrw()).isEqualTo(100_000L);
+                    assertThat(position.marketValueKrw()).isEqualTo(100_000L);
+                });
+
+        ArgumentCaptor<TradeRecordEntity> recordCaptor =
+                ArgumentCaptor.forClass(TradeRecordEntity.class);
+        verify(tradeRecordRepository).save(recordCaptor.capture());
+        assertThat(recordCaptor.getValue().getRunId())
+                .isEqualTo(result.runId());
+        assertThat(recordCaptor.getValue().getAction())
+                .isEqualTo(InvestmentAction.BUY);
+        assertThat(recordCaptor.getValue().getStatus())
+                .isEqualTo(TradeStatus.EXECUTED);
     }
 
     @Test
