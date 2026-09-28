@@ -7,11 +7,9 @@ import com.stock.agent.decision.movingaverage.provider.identity.MovingAverageOrd
 import com.stock.agent.decision.movingaverage.provider.result.MovingAverageOrderDecisionProviderResult;
 import com.stock.agent.decision.order.proposal.OrderQuantityProposal;
 import com.stock.risk.capacity.OrderQuantityCapacity;
-import org.springframework.stereotype.Component;
 
 import java.util.Objects;
 
-@Component
 public class MaxCapacityMovingAverageOrderDecisionProvider
         implements MovingAverageOrderDecisionProvider {
     private static final MovingAverageOrderDecisionProviderIdentity IDENTITY =

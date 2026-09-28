@@ -136,6 +136,11 @@ strategy:
         short-period: 50
         long-period: 200
 
+agent:
+  decision:
+    moving-average:
+      provider-type: RULE_BASED
+
 trade:
   execution:
     mode: ${TRADE_EXECUTION_MODE:VIRTUAL}
