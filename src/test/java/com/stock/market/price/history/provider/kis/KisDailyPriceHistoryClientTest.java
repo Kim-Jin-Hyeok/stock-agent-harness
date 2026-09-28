@@ -4,45 +4,69 @@ import com.stock.market.price.history.DailyPriceHistoryRequest;
 import com.stock.market.price.history.provider.kis.dto.KisDailyPriceHistoryResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.springframework.http.HttpMethod.GET;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+@ExtendWith(OutputCaptureExtension.class)
 class KisDailyPriceHistoryClientTest {
     private static final String BASE_URL =
             "https://openapivts.koreainvestment.com:29443";
     private static final String APP_KEY = "test-app-key";
     private static final String APP_SECRET = "test-app-secret";
     private static final String ACCESS_TOKEN = "test-access-token";
+    private static final Instant REQUEST_STARTED_AT =
+            Instant.parse("2026-09-28T11:15:00Z");
+    private static final Instant REQUEST_FINISHED_AT =
+            Instant.parse("2026-09-28T11:15:01.250Z");
 
     private MockRestServiceServer server;
     private KisDailyPriceHistoryClient client;
+    private Clock clock;
 
     @BeforeEach
     void setUp() {
         RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
         server = MockRestServiceServer.bindTo(builder).build();
+        clock = mock(Clock.class);
+        when(clock.instant()).thenReturn(
+                REQUEST_STARTED_AT,
+                REQUEST_FINISHED_AT
+        );
         client = new KisDailyPriceHistoryClient(
                 builder.build(),
                 APP_KEY,
                 APP_SECRET,
-                KisDailyPriceHistoryMarket.INTEGRATED
+                KisDailyPriceHistoryMarket.INTEGRATED,
+                clock
         );
     }
 
     @Test
-    void sendsDailyPriceHistoryRequestAndDeserializesResponse() {
+    void sendsDailyPriceHistoryRequestAndDeserializesResponse(
+            CapturedOutput output
+    ) {
         server.expect(requestTo(
                         BASE_URL
                                 + "/uapi/domestic-stock/v1/quotations/"
@@ -94,6 +118,38 @@ class KisDailyPriceHistoryClientTest {
         assertThat(response.output()).hasSize(1);
         assertThat(response.output().getFirst().tradingDate())
                 .isEqualTo("20260923");
+        assertThat(output.getAll())
+                .contains(
+                        "KIS daily price history request completed. "
+                                + "status=SUCCESS, symbol=005930, "
+                                + "fromDate=2026-09-01, "
+                                + "toDate=2026-09-23, durationMs=1250, "
+                                + "messageCode=MCA00000, outputCount=1"
+                )
+                .doesNotContain(APP_KEY)
+                .doesNotContain(APP_SECRET)
+                .doesNotContain(ACCESS_TOKEN);
+        server.verify();
+    }
+
+    @Test
+    void logsFailedRequestDurationWithoutCredentials(CapturedOutput output) {
+        server.expect(method(GET)).andRespond(withServerError());
+
+        assertThatThrownBy(() ->
+                client.getDailyPriceHistoryPage(request(), ACCESS_TOKEN)
+        ).isInstanceOf(RestClientResponseException.class);
+
+        assertThat(output.getAll())
+                .contains(
+                        "KIS daily price history request failed. "
+                                + "symbol=005930, fromDate=2026-09-01, "
+                                + "toDate=2026-09-23, durationMs=1250"
+                )
+                .contains("failureType=InternalServerError")
+                .doesNotContain(APP_KEY)
+                .doesNotContain(APP_SECRET)
+                .doesNotContain(ACCESS_TOKEN);
         server.verify();
     }
 

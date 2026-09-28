@@ -113,13 +113,15 @@ public class KisConfiguration {
     @Bean
     public KisDailyPriceHistoryClient kisDailyPriceHistoryClient(
             RestClient kisRestClient,
-            KisProperties properties
+            KisProperties properties,
+            Clock clock
     ) {
         return new KisDailyPriceHistoryClient(
                 kisRestClient,
                 properties.appKey(),
                 properties.appSecret(),
-                properties.dailyPriceHistoryMarket()
+                properties.dailyPriceHistoryMarket(),
+                clock
         );
     }
 

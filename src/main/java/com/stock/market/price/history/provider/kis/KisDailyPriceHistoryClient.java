@@ -2,14 +2,19 @@ package com.stock.market.price.history.provider.kis;
 
 import com.stock.market.price.history.DailyPriceHistoryRequest;
 import com.stock.market.price.history.provider.kis.dto.KisDailyPriceHistoryResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 
+@Slf4j
 public class KisDailyPriceHistoryClient {
     private static final String DAILY_PRICE_HISTORY_PATH =
             "/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice";
@@ -22,12 +27,14 @@ public class KisDailyPriceHistoryClient {
     private final String appKey;
     private final String appSecret;
     private final KisDailyPriceHistoryMarket market;
+    private final Clock clock;
 
     public KisDailyPriceHistoryClient(
             RestClient restClient,
             String appKey,
             String appSecret,
-            KisDailyPriceHistoryMarket market
+            KisDailyPriceHistoryMarket market,
+            Clock clock
     ) {
         this.restClient = Objects.requireNonNull(
                 restClient,
@@ -39,6 +46,10 @@ public class KisDailyPriceHistoryClient {
                 market,
                 "market must not be null."
         );
+        this.clock = Objects.requireNonNull(
+                clock,
+                "clock must not be null."
+        );
     }
 
     public KisDailyPriceHistoryResponse getDailyPriceHistoryPage(
@@ -48,32 +59,91 @@ public class KisDailyPriceHistoryClient {
         Objects.requireNonNull(request, "request must not be null.");
         String validatedAccessToken = requireText(accessToken, "accessToken");
 
-        return restClient.get()
-                .uri(uriBuilder -> uriBuilder
-                        .path(DAILY_PRICE_HISTORY_PATH)
-                        .queryParam(
-                                "FID_COND_MRKT_DIV_CODE",
-                                market.code()
-                        )
-                        .queryParam("FID_INPUT_ISCD", request.symbol())
-                        .queryParam(
-                                "FID_INPUT_DATE_1",
-                                formatDate(request.fromDate())
-                        )
-                        .queryParam(
-                                "FID_INPUT_DATE_2",
-                                formatDate(request.toDate())
-                        )
-                        .queryParam("FID_PERIOD_DIV_CODE", DAILY_PERIOD_CODE)
-                        .queryParam("FID_ORG_ADJ_PRC", ADJUSTED_PRICE_CODE)
-                        .build())
-                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                .header("authorization", "Bearer " + validatedAccessToken)
-                .header("appkey", appKey)
-                .header("appsecret", appSecret)
-                .header("tr_id", DAILY_PRICE_HISTORY_TRANSACTION_ID)
-                .retrieve()
-                .body(KisDailyPriceHistoryResponse.class);
+        Instant startedAt = clock.instant();
+        try {
+            KisDailyPriceHistoryResponse response = restClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path(DAILY_PRICE_HISTORY_PATH)
+                            .queryParam(
+                                    "FID_COND_MRKT_DIV_CODE",
+                                    market.code()
+                            )
+                            .queryParam("FID_INPUT_ISCD", request.symbol())
+                            .queryParam(
+                                    "FID_INPUT_DATE_1",
+                                    formatDate(request.fromDate())
+                            )
+                            .queryParam(
+                                    "FID_INPUT_DATE_2",
+                                    formatDate(request.toDate())
+                            )
+                            .queryParam(
+                                    "FID_PERIOD_DIV_CODE",
+                                    DAILY_PERIOD_CODE
+                            )
+                            .queryParam(
+                                    "FID_ORG_ADJ_PRC",
+                                    ADJUSTED_PRICE_CODE
+                            )
+                            .build())
+                    .header(
+                            HttpHeaders.CONTENT_TYPE,
+                            MediaType.APPLICATION_JSON_VALUE
+                    )
+                    .header(
+                            "authorization",
+                            "Bearer " + validatedAccessToken
+                    )
+                    .header("appkey", appKey)
+                    .header("appsecret", appSecret)
+                    .header("tr_id", DAILY_PRICE_HISTORY_TRANSACTION_ID)
+                    .retrieve()
+                    .body(KisDailyPriceHistoryResponse.class);
+            logResponse(request, startedAt, response);
+            return response;
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "KIS daily price history request failed. "
+                            + "symbol={}, fromDate={}, toDate={}, "
+                            + "durationMs={}, failureType={}",
+                    request.symbol(),
+                    request.fromDate(),
+                    request.toDate(),
+                    elapsedMillis(startedAt),
+                    exception.getClass().getSimpleName()
+            );
+            throw exception;
+        }
+    }
+
+    private void logResponse(
+            DailyPriceHistoryRequest request,
+            Instant startedAt,
+            KisDailyPriceHistoryResponse response
+    ) {
+        boolean successful = response != null && response.isSuccessful();
+        String messageCode = response == null
+                ? null
+                : response.messageCode();
+        int outputCount = response == null || response.output() == null
+                ? 0
+                : response.output().size();
+        log.info(
+                "KIS daily price history request completed. "
+                        + "status={}, symbol={}, fromDate={}, toDate={}, "
+                        + "durationMs={}, messageCode={}, outputCount={}",
+                successful ? "SUCCESS" : "FAILED",
+                request.symbol(),
+                request.fromDate(),
+                request.toDate(),
+                elapsedMillis(startedAt),
+                messageCode,
+                outputCount
+        );
+    }
+
+    private long elapsedMillis(Instant startedAt) {
+        return Duration.between(startedAt, clock.instant()).toMillis();
     }
 
     private String formatDate(LocalDate date) {
