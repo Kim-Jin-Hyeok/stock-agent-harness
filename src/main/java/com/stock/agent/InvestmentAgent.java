@@ -7,6 +7,7 @@ import com.stock.agent.decision.movingaverage.provider.result.MovingAverageOrder
 import com.stock.agent.decision.movingaverage.resolution.MovingAverageOrderDecisionResolution;
 import com.stock.agent.decision.movingaverage.resolution.MovingAverageOrderDecisionResolver;
 import com.stock.agent.evidence.movingaverage.MovingAverageDecisionEvidence;
+import com.stock.agent.provider.AgentNextActionProvider;
 import com.stock.harness.HarnessRunContext;
 import com.stock.harness.tool.HarnessToolExecutionResult;
 import com.stock.harness.tool.HarnessToolExecutionStatus;
@@ -24,7 +25,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 @Component
-public class InvestmentAgent {
+public class InvestmentAgent implements AgentNextActionProvider {
     private final MovingAverageAnalysisService movingAverageAnalysisService;
     private final MovingAverageOrderDecisionContextFactory decisionContextFactory;
     private final MovingAverageOrderDecisionProvider decisionProvider;
@@ -120,6 +121,7 @@ public class InvestmentAgent {
         return resolution.decision();
     }
 
+    @Override
     public AgentNextAction next(HarnessRunContext context) {
         String candidateSymbol = firstCandidateSymbol(context);
         Optional<HarnessToolExecutionResult> dailyPriceHistoryResult =

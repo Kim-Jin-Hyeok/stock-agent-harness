@@ -2,8 +2,8 @@ package com.stock.harness;
 
 import com.stock.agent.AgentNextAction;
 import com.stock.agent.AgentNextActionType;
-import com.stock.agent.InvestmentAgent;
 import com.stock.agent.InvestmentDecision;
+import com.stock.agent.provider.AgentNextActionProvider;
 import com.stock.harness.agent.validation.HarnessAgentActionValidationResult;
 import com.stock.harness.agent.validation.HarnessAgentActionValidationStatus;
 import com.stock.harness.agent.validation.HarnessAgentActionValidator;
@@ -53,7 +53,7 @@ public class InvestmentHarness {
     private final PortfolioService portfolioService;
     private final MarketService marketService;
     private final HarnessRunHistoryService harnessRunHistoryService;
-    private final InvestmentAgent investmentAgent;
+    private final AgentNextActionProvider agentNextActionProvider;
     private final HarnessProperties harnessProperties;
     private final HarnessToolAuthorizer harnessToolAuthorizer;
     private final HarnessToolExecutor harnessToolExecutor;
@@ -564,7 +564,7 @@ public class InvestmentHarness {
 
         return stepRecorder.record(
                 HarnessStepType.RUN_INVESTMENT_AGENT,
-                () -> investmentAgent.next(context),
+                () -> agentNextActionProvider.next(context),
                 this::agentNextActionMessage
         );
     }
