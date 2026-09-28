@@ -4,17 +4,23 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.agent.decision.movingaverage.provider.ai.openai.response.OpenAiMovingAverageOrderDecisionResponse;
 import com.stock.agent.decision.order.proposal.OrderDecisionIntent;
+import com.stock.agent.provider.ai.openai.client.response.OpenAiResponsesOutputTextExtractor;
 import com.stock.agent.provider.ai.openai.client.response.OpenAiResponsesResponse;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class OpenAiResponsesResponseInterpreterTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final OpenAiResponsesResponseInterpreter interpreter =
-            new OpenAiResponsesResponseInterpreter(objectMapper);
+            new OpenAiResponsesResponseInterpreter(
+                    objectMapper,
+                    new OpenAiResponsesOutputTextExtractor()
+            );
 
     @Test
     void interpretsCompletedStructuredOutput() throws Exception {
@@ -54,106 +60,6 @@ class OpenAiResponsesResponseInterpreterTest {
     }
 
     @Test
-    void rejectsIncompleteResponse() throws Exception {
-        OpenAiResponsesResponse response = response("""
-                {
-                  "status": "incomplete",
-                  "incomplete_details": {
-                    "reason": "max_output_tokens"
-                  },
-                  "output": []
-                }
-                """);
-
-        assertThatIllegalStateException()
-                .isThrownBy(() -> interpreter.interpret(response))
-                .withMessage(
-                        "OpenAI response was incomplete. "
-                                + "reason=max_output_tokens"
-                );
-    }
-
-    @Test
-    void rejectsRefusalInsteadOfTreatingItAsHold() throws Exception {
-        OpenAiResponsesResponse response = response("""
-                {
-                  "status": "completed",
-                  "output": [
-                    {
-                      "type": "message",
-                      "content": [
-                        {
-                          "type": "refusal",
-                          "refusal": "Unable to provide this decision."
-                        }
-                      ]
-                    }
-                  ]
-                }
-                """);
-
-        assertThatIllegalStateException()
-                .isThrownBy(() -> interpreter.interpret(response))
-                .withMessage(
-                        "OpenAI response was refused. reason="
-                                + "Unable to provide this decision."
-                );
-    }
-
-    @Test
-    void rejectsCompletedResponseWithoutOutputText() throws Exception {
-        OpenAiResponsesResponse response = response("""
-                {
-                  "status": "completed",
-                  "output": [
-                    {
-                      "type": "message",
-                      "content": []
-                    }
-                  ]
-                }
-                """);
-
-        assertThatIllegalStateException()
-                .isThrownBy(() -> interpreter.interpret(response))
-                .withMessage(
-                        "OpenAI response must contain exactly one "
-                                + "output_text. count=0"
-                );
-    }
-
-    @Test
-    void rejectsMultipleOutputTexts() throws Exception {
-        OpenAiResponsesResponse response = response("""
-                {
-                  "status": "completed",
-                  "output": [
-                    {
-                      "type": "message",
-                      "content": [
-                        {
-                          "type": "output_text",
-                          "text": "{}"
-                        },
-                        {
-                          "type": "output_text",
-                          "text": "{}"
-                        }
-                      ]
-                    }
-                  ]
-                }
-                """);
-
-        assertThatIllegalStateException()
-                .isThrownBy(() -> interpreter.interpret(response))
-                .withMessage(
-                        "OpenAI response must contain exactly one "
-                                + "output_text. count=2"
-                );
-    }
-
-    @Test
     void rejectsMalformedOutputText() throws Exception {
         OpenAiResponsesResponse response = response("""
                 {
@@ -181,26 +87,41 @@ class OpenAiResponsesResponseInterpreterTest {
     }
 
     @Test
-    void rejectsUnknownStatus() throws Exception {
-        OpenAiResponsesResponse response = response("""
-                {
-                  "status": "queued",
-                  "output": []
-                }
-                """);
+    void propagatesOutputExtractionFailure() {
+        OpenAiResponsesOutputTextExtractor outputTextExtractor =
+                mock(OpenAiResponsesOutputTextExtractor.class);
+        OpenAiResponsesResponse response = mock(OpenAiResponsesResponse.class);
+        OpenAiResponsesResponseInterpreter responseInterpreter =
+                new OpenAiResponsesResponseInterpreter(
+                        objectMapper,
+                        outputTextExtractor
+                );
+        when(outputTextExtractor.extract(response))
+                .thenThrow(new IllegalStateException("extraction failed"));
 
         assertThatIllegalStateException()
-                .isThrownBy(() -> interpreter.interpret(response))
-                .withMessage(
-                        "OpenAI response was not completed. status=queued"
-                );
+                .isThrownBy(() -> responseInterpreter.interpret(response))
+                .withMessage("extraction failed");
     }
 
     @Test
-    void rejectsNullResponse() {
+    void rejectsNullObjectMapper() {
         assertThatNullPointerException()
-                .isThrownBy(() -> interpreter.interpret(null))
-                .withMessage("response must not be null.");
+                .isThrownBy(() -> new OpenAiResponsesResponseInterpreter(
+                        null,
+                        new OpenAiResponsesOutputTextExtractor()
+                ))
+                .withMessage("objectMapper must not be null.");
+    }
+
+    @Test
+    void rejectsNullOutputTextExtractor() {
+        assertThatNullPointerException()
+                .isThrownBy(() -> new OpenAiResponsesResponseInterpreter(
+                        objectMapper,
+                        null
+                ))
+                .withMessage("outputTextExtractor must not be null.");
     }
 
     private OpenAiResponsesResponse response(String json) throws Exception {
