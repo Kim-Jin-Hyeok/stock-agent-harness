@@ -1,10 +1,16 @@
 package com.stock.agent.decision.movingaverage.provider.ai.openai.config;
 
+import java.util.Locale;
+
 public enum OpenAiReasoningEffort {
     NONE,
     LOW,
     MEDIUM,
     HIGH,
     XHIGH,
-    MAX
+    MAX;
+
+    public String apiValue() {
+        return name().toLowerCase(Locale.ROOT);
+    }
 }
