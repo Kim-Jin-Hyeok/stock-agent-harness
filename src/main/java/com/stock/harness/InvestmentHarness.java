@@ -27,11 +27,11 @@ import com.stock.market.price.observation.CurrentPriceObservationService;
 import com.stock.portfolio.PortfolioService;
 import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.risk.RiskCheckResult;
-import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskGuard;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import com.stock.strategy.universe.StrategyStockUniverseRegistry;
 import com.stock.trade.TradeExecutor;
+import com.stock.trade.TradeReasonCode;
 import com.stock.trade.TradeResult;
 import com.stock.trade.TradeStatus;
 import lombok.RequiredArgsConstructor;
@@ -134,9 +134,6 @@ public class InvestmentHarness {
                             context.portfolioSnapshot(),
                             context.marketSnapshot()
                     ),
-                    result -> result.status() == RiskCheckStatus.APPROVED
-                            ? HarnessStepStatus.COMPLETED
-                            : HarnessStepStatus.FAILED,
                     RiskCheckResult::reason
             );
 
@@ -148,9 +145,14 @@ public class InvestmentHarness {
                             decision,
                             riskCheckResult
                     ),
-                    result -> result.status() == TradeStatus.REJECTED
-                            ? HarnessStepStatus.FAILED
-                            : HarnessStepStatus.COMPLETED,
+                    result -> {
+                        if (result.reasonCode() == TradeReasonCode.RISK_DENIED) {
+                            return HarnessStepStatus.SKIPPED;
+                        }
+                        return result.status() == TradeStatus.REJECTED
+                                ? HarnessStepStatus.FAILED
+                                : HarnessStepStatus.COMPLETED;
+                    },
                     TradeResult::reason
             );
 

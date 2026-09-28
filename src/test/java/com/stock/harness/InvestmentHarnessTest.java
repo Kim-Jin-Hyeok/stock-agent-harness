@@ -59,6 +59,7 @@ import com.stock.portfolio.PortfolioSnapshotStore;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskGuard;
 import com.stock.risk.RiskProperties;
+import com.stock.risk.RiskReasonCode;
 import com.stock.risk.capacity.OrderQuantityCapacityCalculator;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisService;
 import com.stock.strategy.data.history.StrategyDailyPriceHistoryPolicy;
@@ -79,7 +80,9 @@ import com.stock.strategy.universe.config.ConfiguredStrategyStockUniverse;
 import com.stock.strategy.universe.config.StrategyStockUniverseProperties;
 import com.stock.trade.TradeExecutor;
 import com.stock.trade.TradeHistoryService;
+import com.stock.trade.TradeReasonCode;
 import com.stock.trade.TradeStatus;
+import com.stock.trade.execution.TradeExecutionHandler;
 import com.stock.trade.execution.virtual.VirtualTradeExecutionHandler;
 import com.stock.trade.persistence.TradeRecordEntity;
 import com.stock.trade.persistence.TradeRecordRepository;
@@ -770,7 +773,7 @@ class InvestmentHarnessTest {
     }
 
     @Test
-    void runFailsWhenRiskGuardDeniesDecision() {
+    void runCompletesWithRejectedTradeWhenRiskGuardDeniesDecision() {
         InvestmentHarness deniedHarness = new InvestmentHarness(
                 riskGuard,
                 tradeExecutor,
@@ -791,13 +794,21 @@ class InvestmentHarnessTest {
 
         HarnessRunResult result = deniedHarness.run(STRATEGY_IDENTITY);
 
-        assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
+        assertThat(result.status()).isEqualTo(HarnessRunStatus.COMPLETED);
         assertThat(result.riskCheckResult().status()).isEqualTo(RiskCheckStatus.DENIED);
+        assertThat(result.riskCheckResult().reasonCode())
+                .isEqualTo(RiskReasonCode.MAX_ORDER_RATIO_EXCEEDED);
+        assertThat(result.tradeResult().status()).isEqualTo(TradeStatus.REJECTED);
+        assertThat(result.tradeResult().reasonCode())
+                .isEqualTo(TradeReasonCode.RISK_DENIED);
+        assertThat(result.portfolioSnapshot().cashAmountKrw())
+                .isEqualTo(10_000_000L);
+        assertThat(result.portfolioSnapshot().positions()).isEmpty();
 
         HarnessStepResult validateDecisionStep = result.steps().get(5);
 
         assertThat(validateDecisionStep.type()).isEqualTo(HarnessStepType.VALIDATE_DECISION);
-        assertThat(validateDecisionStep.status()).isEqualTo(HarnessStepStatus.FAILED);
+        assertThat(validateDecisionStep.status()).isEqualTo(HarnessStepStatus.COMPLETED);
         assertThat(validateDecisionStep.message()).contains("Order amount exceeds max order ratio.");
         assertThat(validateDecisionStep.startedAt()).isNotNull();
         assertThat(validateDecisionStep.finishedAt()).isNotNull();
@@ -806,7 +817,7 @@ class InvestmentHarnessTest {
         HarnessStepResult executeTradeStep = result.steps().get(6);
 
         assertThat(executeTradeStep.type()).isEqualTo(HarnessStepType.EXECUTE_TRADE);
-        assertThat(executeTradeStep.status()).isEqualTo(HarnessStepStatus.FAILED);
+        assertThat(executeTradeStep.status()).isEqualTo(HarnessStepStatus.SKIPPED);
         assertThat(executeTradeStep.message()).isEqualTo("Risk check denied the decision.");
         assertThat(executeTradeStep.startedAt()).isNotNull();
         assertThat(executeTradeStep.finishedAt()).isNotNull();
@@ -1257,6 +1268,104 @@ class InvestmentHarnessTest {
                 .isEqualTo(InvestmentAction.BUY);
         assertThat(recordCaptor.getValue().getStatus())
                 .isEqualTo(TradeStatus.EXECUTED);
+    }
+
+    @Test
+    void runRejectsAiBuyWhenQuantityExceedsRiskLimit() {
+        List<AgentNextActionAiPrompt> prompts = new ArrayList<>();
+        AiAgentNextActionProvider aiProvider = new AiAgentNextActionProvider(
+                new AgentNextActionAiRequestFactory(),
+                new AgentNextActionAiPromptFactory(),
+                prompt -> {
+                    prompts.add(prompt);
+                    if (prompt.request().toolResults().isEmpty()) {
+                        return AgentNextAction.requestTool(
+                                HarnessToolRequest.currentPrice("005930")
+                        );
+                    }
+                    return AgentNextAction.finalDecision(
+                            new InvestmentDecision(
+                                    InvestmentAction.BUY,
+                                    "005930",
+                                    20L,
+                                    100_000L,
+                                    "AI proposed an over-limit order."
+                            )
+                    );
+                }
+        );
+        TradeExecutionHandler tradeExecutionHandler = mock(
+                TradeExecutionHandler.class
+        );
+        TradeRecordRepository tradeRecordRepository = mock(
+                TradeRecordRepository.class
+        );
+        TradeExecutor aiTradeExecutor = new TradeExecutor(
+                tradeExecutionHandler,
+                new TradeHistoryService(tradeRecordRepository)
+        );
+        InvestmentHarness aiHarness = new InvestmentHarness(
+                riskGuard,
+                aiTradeExecutor,
+                portfolioService,
+                marketService,
+                harnessRunHistoryService,
+                aiProvider,
+                new HarnessProperties(2, 1),
+                harnessToolAuthorizer,
+                harnessToolExecutor,
+                harnessToolResultValidator,
+                harnessAgentActionValidator,
+                harnessToolRequestValidator,
+                harnessRetryWaiter,
+                strategyStockUniverseRegistry,
+                currentPriceObservationService
+        );
+
+        HarnessRunResult result = aiHarness.run(STRATEGY_IDENTITY);
+
+        assertThat(result.status()).isEqualTo(HarnessRunStatus.COMPLETED);
+        assertThat(prompts).hasSize(2);
+        assertThat(prompts.getLast().request().toolResults())
+                .isEqualTo(result.toolResults());
+        assertThat(result.decision().action()).isEqualTo(InvestmentAction.BUY);
+        assertThat(result.decision().quantity()).isEqualTo(20L);
+        assertThat(result.riskCheckResult().status())
+                .isEqualTo(RiskCheckStatus.DENIED);
+        assertThat(result.riskCheckResult().reasonCode())
+                .isEqualTo(RiskReasonCode.MAX_ORDER_RATIO_EXCEEDED);
+        assertThat(result.tradeResult().status())
+                .isEqualTo(TradeStatus.REJECTED);
+        assertThat(result.tradeResult().reasonCode())
+                .isEqualTo(TradeReasonCode.RISK_DENIED);
+        assertThat(result.portfolioSnapshot().cashAmountKrw())
+                .isEqualTo(10_000_000L);
+        assertThat(result.portfolioSnapshot().positions()).isEmpty();
+        assertThat(result.steps())
+                .filteredOn(step ->
+                        step.type() == HarnessStepType.VALIDATE_DECISION
+                )
+                .singleElement()
+                .satisfies(step -> assertThat(step.status())
+                        .isEqualTo(HarnessStepStatus.COMPLETED));
+        assertThat(result.steps())
+                .filteredOn(step ->
+                        step.type() == HarnessStepType.EXECUTE_TRADE
+                )
+                .singleElement()
+                .satisfies(step -> assertThat(step.status())
+                        .isEqualTo(HarnessStepStatus.SKIPPED));
+        verifyNoInteractions(tradeExecutionHandler);
+
+        ArgumentCaptor<TradeRecordEntity> recordCaptor =
+                ArgumentCaptor.forClass(TradeRecordEntity.class);
+        verify(tradeRecordRepository).save(recordCaptor.capture());
+        assertThat(recordCaptor.getValue().getRunId())
+                .isEqualTo(result.runId());
+        assertThat(recordCaptor.getValue().getStatus())
+                .isEqualTo(TradeStatus.REJECTED);
+        assertThat(recordCaptor.getValue().getReasonCode())
+                .isEqualTo(TradeReasonCode.RISK_DENIED);
     }
 
     @Test
