@@ -1,4 +1,4 @@
-package com.stock.agent.decision.movingaverage.provider.ai.openai.client.response;
+package com.stock.agent.provider.ai.openai.client.response;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;

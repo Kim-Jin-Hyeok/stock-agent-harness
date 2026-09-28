@@ -1,7 +1,7 @@
-package com.stock.agent.decision.movingaverage.provider.ai.openai.client;
+package com.stock.agent.provider.ai.openai.client;
 
-import com.stock.agent.decision.movingaverage.provider.ai.openai.client.request.OpenAiResponsesRequest;
-import com.stock.agent.decision.movingaverage.provider.ai.openai.client.response.OpenAiResponsesResponse;
+import com.stock.agent.provider.ai.openai.client.request.OpenAiResponsesRequest;
+import com.stock.agent.provider.ai.openai.client.response.OpenAiResponsesResponse;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;

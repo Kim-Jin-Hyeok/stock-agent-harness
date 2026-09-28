@@ -1,11 +1,11 @@
 package com.stock.agent.decision.movingaverage.provider.ai.openai.config;
 
 import com.stock.agent.decision.movingaverage.provider.ai.execution.MovingAverageOrderDecisionAiExecutor;
-import com.stock.agent.decision.movingaverage.provider.ai.openai.client.OpenAiResponsesClient;
 import com.stock.agent.decision.movingaverage.provider.ai.openai.client.request.OpenAiResponsesRequestFactory;
 import com.stock.agent.decision.movingaverage.provider.ai.openai.client.response.OpenAiResponsesResponseInterpreter;
 import com.stock.agent.decision.movingaverage.provider.ai.openai.execution.OpenAiMovingAverageOrderDecisionExecutor;
 import com.stock.agent.decision.movingaverage.provider.ai.openai.response.OpenAiMovingAverageOrderDecisionResponseMapper;
+import com.stock.agent.provider.ai.openai.client.OpenAiResponsesClient;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;

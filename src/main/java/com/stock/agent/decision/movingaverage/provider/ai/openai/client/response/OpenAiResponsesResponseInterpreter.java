@@ -3,6 +3,7 @@ package com.stock.agent.decision.movingaverage.provider.ai.openai.client.respons
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.agent.decision.movingaverage.provider.ai.openai.response.OpenAiMovingAverageOrderDecisionResponse;
+import com.stock.agent.provider.ai.openai.client.response.OpenAiResponsesResponse;
 import org.springframework.stereotype.Component;
 
 import java.util.List;

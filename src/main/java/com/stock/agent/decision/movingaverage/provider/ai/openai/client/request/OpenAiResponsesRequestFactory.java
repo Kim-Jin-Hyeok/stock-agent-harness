@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.agent.decision.movingaverage.provider.ai.openai.client.schema.OpenAiOrderDecisionResponseSchema;
 import com.stock.agent.decision.movingaverage.provider.ai.openai.config.OpenAiMovingAverageOrderDecisionProperties;
 import com.stock.agent.decision.movingaverage.provider.ai.prompt.MovingAverageOrderDecisionAiPrompt;
+import com.stock.agent.provider.ai.openai.client.request.OpenAiResponsesRequest;
 import org.springframework.stereotype.Component;
 
 import java.util.Objects;

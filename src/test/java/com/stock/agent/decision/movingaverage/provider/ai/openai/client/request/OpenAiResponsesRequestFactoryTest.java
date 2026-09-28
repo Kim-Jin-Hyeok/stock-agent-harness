@@ -8,6 +8,7 @@ import com.stock.agent.decision.movingaverage.provider.ai.openai.config.OpenAiMo
 import com.stock.agent.decision.movingaverage.provider.ai.openai.config.OpenAiReasoningEffort;
 import com.stock.agent.decision.movingaverage.provider.ai.prompt.MovingAverageOrderDecisionAiPrompt;
 import com.stock.agent.decision.movingaverage.provider.ai.request.MovingAverageOrderDecisionAiRequest;
+import com.stock.agent.provider.ai.openai.client.request.OpenAiResponsesRequest;
 import com.stock.market.price.lookup.CurrentPriceLookupSource;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.signal.movingaverage.MovingAverageCrossoverSignal;

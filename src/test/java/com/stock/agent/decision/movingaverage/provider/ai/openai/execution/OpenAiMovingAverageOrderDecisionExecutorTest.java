@@ -1,9 +1,6 @@
 package com.stock.agent.decision.movingaverage.provider.ai.openai.execution;
 
-import com.stock.agent.decision.movingaverage.provider.ai.openai.client.OpenAiResponsesClient;
-import com.stock.agent.decision.movingaverage.provider.ai.openai.client.request.OpenAiResponsesRequest;
 import com.stock.agent.decision.movingaverage.provider.ai.openai.client.request.OpenAiResponsesRequestFactory;
-import com.stock.agent.decision.movingaverage.provider.ai.openai.client.response.OpenAiResponsesResponse;
 import com.stock.agent.decision.movingaverage.provider.ai.openai.client.response.OpenAiResponsesResponseInterpreter;
 import com.stock.agent.decision.movingaverage.provider.ai.openai.response.OpenAiMovingAverageOrderDecisionResponse;
 import com.stock.agent.decision.movingaverage.provider.ai.openai.response.OpenAiMovingAverageOrderDecisionResponseMapper;
@@ -11,6 +8,9 @@ import com.stock.agent.decision.movingaverage.provider.ai.prompt.MovingAverageOr
 import com.stock.agent.decision.movingaverage.provider.result.MovingAverageOrderDecisionProviderResult;
 import com.stock.agent.decision.order.proposal.OrderDecisionIntent;
 import com.stock.agent.decision.order.proposal.OrderQuantityProposal;
+import com.stock.agent.provider.ai.openai.client.OpenAiResponsesClient;
+import com.stock.agent.provider.ai.openai.client.request.OpenAiResponsesRequest;
+import com.stock.agent.provider.ai.openai.client.response.OpenAiResponsesResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;

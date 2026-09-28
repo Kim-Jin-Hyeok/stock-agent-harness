@@ -3,7 +3,6 @@ package com.stock.agent.decision.movingaverage.provider.ai.openai.config;
 import com.stock.agent.decision.movingaverage.provider.MovingAverageOrderDecisionProvider;
 import com.stock.agent.decision.movingaverage.provider.ai.AiMovingAverageOrderDecisionProvider;
 import com.stock.agent.decision.movingaverage.provider.ai.execution.MovingAverageOrderDecisionAiExecutor;
-import com.stock.agent.decision.movingaverage.provider.ai.openai.client.OpenAiResponsesClient;
 import com.stock.agent.decision.movingaverage.provider.ai.openai.client.request.OpenAiResponsesRequestFactory;
 import com.stock.agent.decision.movingaverage.provider.ai.openai.client.response.OpenAiResponsesResponseInterpreter;
 import com.stock.agent.decision.movingaverage.provider.ai.openai.execution.OpenAiMovingAverageOrderDecisionExecutor;
@@ -13,6 +12,7 @@ import com.stock.agent.decision.movingaverage.provider.ai.request.MovingAverageO
 import com.stock.agent.decision.movingaverage.provider.config.MovingAverageOrderDecisionConfiguration;
 import com.stock.agent.decision.movingaverage.provider.config.MovingAverageOrderDecisionProperties;
 import com.stock.agent.decision.movingaverage.provider.config.MovingAverageOrderDecisionProviderType;
+import com.stock.agent.provider.ai.openai.client.OpenAiResponsesClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.web.client.RestClient;
