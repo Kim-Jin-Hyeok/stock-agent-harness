@@ -1,4 +1,4 @@
-package com.stock.agent.decision.movingaverage.provider.ai.openai.config;
+package com.stock.agent.provider.ai.openai.config;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.bind.Bindable;
@@ -12,7 +12,7 @@ import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class OpenAiMovingAverageOrderDecisionPropertiesYamlBindingTest {
+class OpenAiProviderPropertiesYamlBindingTest {
 
     @Test
     void bindsDefaultOpenAiSettingsFromApplicationYaml() throws Exception {
@@ -24,18 +24,14 @@ class OpenAiMovingAverageOrderDecisionPropertiesYamlBindingTest {
                 )
                 .forEach(environment.getPropertySources()::addLast);
 
-        OpenAiMovingAverageOrderDecisionProperties properties =
-                Binder.get(environment)
-                        .bind(
-                                "agent.decision.moving-average.ai.openai",
-                                Bindable.of(
-                                        OpenAiMovingAverageOrderDecisionProperties.class
-                                )
-                        )
-                        .orElseThrow(() -> new IllegalStateException(
-                                "OpenAI moving average order decision settings "
-                                        + "must be configured."
-                        ));
+        OpenAiProviderProperties properties = Binder.get(environment)
+                .bind(
+                        "agent.provider.ai.openai",
+                        Bindable.of(OpenAiProviderProperties.class)
+                )
+                .orElseThrow(() -> new IllegalStateException(
+                        "OpenAI provider settings must be configured."
+                ));
 
         assertThat(properties.baseUrl())
                 .isEqualTo(URI.create("https://api.openai.com"));

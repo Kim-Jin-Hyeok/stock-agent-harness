@@ -13,6 +13,8 @@ import com.stock.agent.decision.movingaverage.provider.config.MovingAverageOrder
 import com.stock.agent.decision.movingaverage.provider.config.MovingAverageOrderDecisionProperties;
 import com.stock.agent.decision.movingaverage.provider.config.MovingAverageOrderDecisionProviderType;
 import com.stock.agent.provider.ai.openai.client.OpenAiResponsesClient;
+import com.stock.agent.provider.ai.openai.config.OpenAiProviderProperties;
+import com.stock.agent.provider.ai.openai.config.OpenAiReasoningEffort;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.web.client.RestClient;
@@ -117,7 +119,7 @@ class OpenAiMovingAverageOrderDecisionConfigurationTest {
                         OpenAiMovingAverageOrderDecisionConfiguration.class
                 )
                 .withBean(
-                        OpenAiMovingAverageOrderDecisionProperties.class,
+                        OpenAiProviderProperties.class,
                         () -> properties(apiKey)
                 )
                 .withBean(
@@ -136,10 +138,10 @@ class OpenAiMovingAverageOrderDecisionConfigurationTest {
                 );
     }
 
-    private OpenAiMovingAverageOrderDecisionProperties properties(
+    private OpenAiProviderProperties properties(
             String apiKey
     ) {
-        return new OpenAiMovingAverageOrderDecisionProperties(
+        return new OpenAiProviderProperties(
                 URI.create("https://api.openai.com"),
                 apiKey,
                 "gpt-6-luna",

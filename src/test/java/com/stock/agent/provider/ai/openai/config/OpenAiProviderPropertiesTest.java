@@ -1,4 +1,4 @@
-package com.stock.agent.decision.movingaverage.provider.ai.openai.config;
+package com.stock.agent.provider.ai.openai.config;
 
 import org.junit.jupiter.api.Test;
 
@@ -9,12 +9,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
-class OpenAiMovingAverageOrderDecisionPropertiesTest {
+class OpenAiProviderPropertiesTest {
     private static final URI BASE_URL = URI.create("https://api.openai.com");
 
     @Test
     void allowsMissingApiKeyUntilAiExecutorIsConfigured() {
-        OpenAiMovingAverageOrderDecisionProperties properties = properties(
+        OpenAiProviderProperties properties = properties(
                 null,
                 "gpt-6-luna",
                 OpenAiReasoningEffort.LOW,
@@ -28,7 +28,7 @@ class OpenAiMovingAverageOrderDecisionPropertiesTest {
     @Test
     void rejectsNullBaseUrl() {
         assertThatNullPointerException()
-                .isThrownBy(() -> new OpenAiMovingAverageOrderDecisionProperties(
+                .isThrownBy(() -> new OpenAiProviderProperties(
                         null,
                         "",
                         "gpt-6-luna",
@@ -91,14 +91,14 @@ class OpenAiMovingAverageOrderDecisionPropertiesTest {
                 .withMessage("maxOutputTokens must be positive.");
     }
 
-    private OpenAiMovingAverageOrderDecisionProperties properties(
+    private OpenAiProviderProperties properties(
             String apiKey,
             String model,
             OpenAiReasoningEffort reasoningEffort,
             Duration requestTimeout,
             int maxOutputTokens
     ) {
-        return new OpenAiMovingAverageOrderDecisionProperties(
+        return new OpenAiProviderProperties(
                 BASE_URL,
                 apiKey,
                 model,

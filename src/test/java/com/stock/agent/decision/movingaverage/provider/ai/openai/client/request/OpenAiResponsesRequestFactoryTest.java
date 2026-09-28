@@ -4,11 +4,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.decision.movingaverage.provider.ai.openai.client.schema.OpenAiOrderDecisionResponseSchema;
-import com.stock.agent.decision.movingaverage.provider.ai.openai.config.OpenAiMovingAverageOrderDecisionProperties;
-import com.stock.agent.decision.movingaverage.provider.ai.openai.config.OpenAiReasoningEffort;
 import com.stock.agent.decision.movingaverage.provider.ai.prompt.MovingAverageOrderDecisionAiPrompt;
 import com.stock.agent.decision.movingaverage.provider.ai.request.MovingAverageOrderDecisionAiRequest;
 import com.stock.agent.provider.ai.openai.client.request.OpenAiResponsesRequest;
+import com.stock.agent.provider.ai.openai.config.OpenAiProviderProperties;
+import com.stock.agent.provider.ai.openai.config.OpenAiReasoningEffort;
 import com.stock.market.price.lookup.CurrentPriceLookupSource;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.signal.movingaverage.MovingAverageCrossoverSignal;
@@ -75,8 +75,8 @@ class OpenAiResponsesRequestFactoryTest {
                 .withMessage("prompt must not be null.");
     }
 
-    private OpenAiMovingAverageOrderDecisionProperties properties() {
-        return new OpenAiMovingAverageOrderDecisionProperties(
+    private OpenAiProviderProperties properties() {
+        return new OpenAiProviderProperties(
                 URI.create("https://api.openai.com"),
                 API_KEY,
                 "gpt-6-luna",

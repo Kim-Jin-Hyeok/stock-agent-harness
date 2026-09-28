@@ -1,4 +1,4 @@
-package com.stock.agent.decision.movingaverage.provider.ai.openai.config;
+package com.stock.agent.provider.ai.openai.config;
 
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;

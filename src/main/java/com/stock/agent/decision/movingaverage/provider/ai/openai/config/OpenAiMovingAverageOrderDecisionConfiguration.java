@@ -6,6 +6,7 @@ import com.stock.agent.decision.movingaverage.provider.ai.openai.client.response
 import com.stock.agent.decision.movingaverage.provider.ai.openai.execution.OpenAiMovingAverageOrderDecisionExecutor;
 import com.stock.agent.decision.movingaverage.provider.ai.openai.response.OpenAiMovingAverageOrderDecisionResponseMapper;
 import com.stock.agent.provider.ai.openai.client.OpenAiResponsesClient;
+import com.stock.agent.provider.ai.openai.config.OpenAiProviderProperties;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -25,7 +26,7 @@ public class OpenAiMovingAverageOrderDecisionConfiguration {
 
     @Bean
     public RestClient openAiRestClient(
-            OpenAiMovingAverageOrderDecisionProperties properties
+            OpenAiProviderProperties properties
     ) {
         HttpClient httpClient = HttpClient.newBuilder()
                 .connectTimeout(properties.requestTimeout())
@@ -43,7 +44,7 @@ public class OpenAiMovingAverageOrderDecisionConfiguration {
     @Bean
     public OpenAiResponsesClient openAiResponsesClient(
             @Qualifier("openAiRestClient") RestClient restClient,
-            OpenAiMovingAverageOrderDecisionProperties properties
+            OpenAiProviderProperties properties
     ) {
         return new OpenAiResponsesClient(
                 restClient,

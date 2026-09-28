@@ -3,9 +3,9 @@ package com.stock.agent.decision.movingaverage.provider.ai.openai.client.request
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.agent.decision.movingaverage.provider.ai.openai.client.schema.OpenAiOrderDecisionResponseSchema;
-import com.stock.agent.decision.movingaverage.provider.ai.openai.config.OpenAiMovingAverageOrderDecisionProperties;
 import com.stock.agent.decision.movingaverage.provider.ai.prompt.MovingAverageOrderDecisionAiPrompt;
 import com.stock.agent.provider.ai.openai.client.request.OpenAiResponsesRequest;
+import com.stock.agent.provider.ai.openai.config.OpenAiProviderProperties;
 import org.springframework.stereotype.Component;
 
 import java.util.Objects;
@@ -17,12 +17,12 @@ public class OpenAiResponsesRequestFactory {
             "moving_average_order_decision";
 
     private final ObjectMapper objectMapper;
-    private final OpenAiMovingAverageOrderDecisionProperties properties;
+    private final OpenAiProviderProperties properties;
     private final OpenAiOrderDecisionResponseSchema responseSchema;
 
     public OpenAiResponsesRequestFactory(
             ObjectMapper objectMapper,
-            OpenAiMovingAverageOrderDecisionProperties properties,
+            OpenAiProviderProperties properties,
             OpenAiOrderDecisionResponseSchema responseSchema
     ) {
         this.objectMapper = Objects.requireNonNull(

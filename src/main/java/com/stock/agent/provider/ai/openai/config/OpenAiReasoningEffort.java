@@ -1,4 +1,4 @@
-package com.stock.agent.decision.movingaverage.provider.ai.openai.config;
+package com.stock.agent.provider.ai.openai.config;
 
 import java.util.Locale;
 

@@ -1,4 +1,4 @@
-package com.stock.agent.decision.movingaverage.provider.ai.openai.config;
+package com.stock.agent.provider.ai.openai.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -6,10 +6,8 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.Objects;
 
-@ConfigurationProperties(
-        prefix = "agent.decision.moving-average.ai.openai"
-)
-public record OpenAiMovingAverageOrderDecisionProperties(
+@ConfigurationProperties(prefix = "agent.provider.ai.openai")
+public record OpenAiProviderProperties(
         URI baseUrl,
         String apiKey,
         String model,
@@ -17,7 +15,7 @@ public record OpenAiMovingAverageOrderDecisionProperties(
         Duration requestTimeout,
         int maxOutputTokens
 ) {
-    public OpenAiMovingAverageOrderDecisionProperties {
+    public OpenAiProviderProperties {
         Objects.requireNonNull(baseUrl, "baseUrl must not be null.");
         apiKey = apiKey == null ? "" : apiKey;
         model = requireText(model, "model");
