@@ -1,10 +1,10 @@
 package com.stock.agent.decision.movingaverage.provider;
 
 import com.stock.agent.decision.movingaverage.MovingAverageOrderDecisionContext;
-import com.stock.agent.decision.order.proposal.OrderQuantityProposal;
+import com.stock.agent.decision.movingaverage.provider.result.MovingAverageOrderDecisionProviderResult;
 
 public interface MovingAverageOrderDecisionProvider {
-    OrderQuantityProposal propose(
+    MovingAverageOrderDecisionProviderResult propose(
             MovingAverageOrderDecisionContext context
     );
 }

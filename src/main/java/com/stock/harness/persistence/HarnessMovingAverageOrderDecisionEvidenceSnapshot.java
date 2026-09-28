@@ -18,8 +18,38 @@ public record HarnessMovingAverageOrderDecisionEvidenceSnapshot(
         BigDecimal oneSharePortfolioRatio,
         OrderDecisionIntent proposalIntent,
         Long proposedQuantity,
-        String proposalReason
+        String proposalReason,
+        String providerId,
+        Integer providerVersion
 ) {
+    public HarnessMovingAverageOrderDecisionEvidenceSnapshot(
+            InvestmentAction signalAction,
+            long currentPositionQuantity,
+            long maxAffordableQuantity,
+            long maxOrderRatioQuantity,
+            long maxPositionRatioQuantity,
+            long maxAllowedQuantity,
+            BigDecimal oneSharePortfolioRatio,
+            OrderDecisionIntent proposalIntent,
+            Long proposedQuantity,
+            String proposalReason
+    ) {
+        this(
+                signalAction,
+                currentPositionQuantity,
+                maxAffordableQuantity,
+                maxOrderRatioQuantity,
+                maxPositionRatioQuantity,
+                maxAllowedQuantity,
+                oneSharePortfolioRatio,
+                proposalIntent,
+                proposedQuantity,
+                proposalReason,
+                null,
+                null
+        );
+    }
+
     public HarnessMovingAverageOrderDecisionEvidenceSnapshot {
         Objects.requireNonNull(
                 signalAction,
@@ -52,6 +82,7 @@ public record HarnessMovingAverageOrderDecisionEvidenceSnapshot(
                     "oneSharePortfolioRatio must not be negative."
             );
         }
+        validateProviderIdentity(providerId, providerVersion);
 
         switch (proposalIntent) {
             case EXECUTE_ORDER -> validateOrderProposal(
@@ -84,8 +115,34 @@ public record HarnessMovingAverageOrderDecisionEvidenceSnapshot(
                 capacity.oneSharePortfolioRatio(),
                 evidence.proposal().intent(),
                 evidence.proposal().quantity(),
-                evidence.proposal().reason()
+                evidence.proposal().reason(),
+                evidence.providerIdentity().providerId(),
+                evidence.providerIdentity().providerVersion()
         );
+    }
+
+    private static void validateProviderIdentity(
+            String providerId,
+            Integer providerVersion
+    ) {
+        if (providerId == null && providerVersion == null) {
+            return;
+        }
+        if (providerId == null || providerVersion == null) {
+            throw new IllegalArgumentException(
+                    "Provider identity fields must be all present or all null."
+            );
+        }
+        if (providerId.isBlank()) {
+            throw new IllegalArgumentException(
+                    "providerId must not be blank."
+            );
+        }
+        if (providerVersion < 1) {
+            throw new IllegalArgumentException(
+                    "providerVersion must be at least 1."
+            );
+        }
     }
 
     private static void validateOrderProposal(

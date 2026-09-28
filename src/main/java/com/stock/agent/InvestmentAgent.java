@@ -3,9 +3,9 @@ package com.stock.agent;
 import com.stock.agent.decision.movingaverage.MovingAverageOrderDecisionContext;
 import com.stock.agent.decision.movingaverage.MovingAverageOrderDecisionContextFactory;
 import com.stock.agent.decision.movingaverage.provider.MovingAverageOrderDecisionProvider;
+import com.stock.agent.decision.movingaverage.provider.result.MovingAverageOrderDecisionProviderResult;
 import com.stock.agent.decision.movingaverage.resolution.MovingAverageOrderDecisionResolution;
 import com.stock.agent.decision.movingaverage.resolution.MovingAverageOrderDecisionResolver;
-import com.stock.agent.decision.order.proposal.OrderQuantityProposal;
 import com.stock.agent.evidence.movingaverage.MovingAverageDecisionEvidence;
 import com.stock.harness.HarnessRunContext;
 import com.stock.harness.tool.HarnessToolExecutionResult;
@@ -102,11 +102,12 @@ public class InvestmentAgent {
                         analysis,
                         currentPriceLookupResult
                 );
-        OrderQuantityProposal proposal = decisionProvider.propose(
-                decisionContext
-        );
+        MovingAverageOrderDecisionProviderResult providerResult =
+                decisionProvider.propose(
+                        decisionContext
+                );
         MovingAverageOrderDecisionResolution resolution =
-                decisionResolver.resolve(decisionContext, proposal);
+                decisionResolver.resolve(decisionContext, providerResult);
         if (!resolution.isResolved()) {
             throw new IllegalStateException(
                     "Moving average order proposal was rejected. reasonCode="

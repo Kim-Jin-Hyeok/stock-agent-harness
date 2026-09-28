@@ -1,6 +1,7 @@
 package com.stock.agent.evidence.movingaverage;
 
 import com.stock.agent.InvestmentAction;
+import com.stock.agent.decision.movingaverage.provider.identity.MovingAverageOrderDecisionProviderIdentity;
 import com.stock.agent.decision.order.proposal.OrderQuantityProposal;
 import com.stock.agent.evidence.movingaverage.order.MovingAverageOrderDecisionEvidence;
 import com.stock.market.price.lookup.CurrentPriceLookupSource;
@@ -133,6 +134,10 @@ class MovingAverageDecisionEvidenceTest {
                         4L,
                         1L,
                         new BigDecimal("0.007200")
+                ),
+                new MovingAverageOrderDecisionProviderIdentity(
+                        "MAX_CAPACITY_RULE_BASED",
+                        1
                 ),
                 OrderQuantityProposal.execute(
                         1L,

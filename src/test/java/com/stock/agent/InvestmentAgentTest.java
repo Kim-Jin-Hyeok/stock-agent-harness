@@ -3,7 +3,9 @@ package com.stock.agent;
 import com.stock.agent.decision.movingaverage.MovingAverageActionPolicy;
 import com.stock.agent.decision.movingaverage.MovingAverageOrderDecisionContextFactory;
 import com.stock.agent.decision.movingaverage.provider.MovingAverageOrderDecisionProvider;
+import com.stock.agent.decision.movingaverage.provider.identity.MovingAverageOrderDecisionProviderIdentity;
 import com.stock.agent.decision.movingaverage.provider.rulebased.MaxCapacityMovingAverageOrderDecisionProvider;
+import com.stock.agent.decision.movingaverage.provider.result.MovingAverageOrderDecisionProviderResult;
 import com.stock.agent.decision.movingaverage.resolution.MovingAverageOrderDecisionResolver;
 import com.stock.agent.decision.movingaverage.validation.MovingAverageOrderProposalValidator;
 import com.stock.agent.decision.order.proposal.OrderQuantityProposal;
@@ -164,14 +166,27 @@ class InvestmentAgentTest {
         assertThat(action.investmentDecision().movingAverageEvidence()
                 .analysis().crossoverSignal())
                 .isEqualTo(MovingAverageCrossoverSignal.GOLDEN_CROSS);
+        assertThat(action.investmentDecision().movingAverageEvidence()
+                .orderDecisionEvidence().providerIdentity().providerId())
+                .isEqualTo("MAX_CAPACITY_RULE_BASED");
+        assertThat(action.investmentDecision().movingAverageEvidence()
+                .orderDecisionEvidence().providerIdentity().providerVersion())
+                .isEqualTo(1);
     }
 
     @Test
     void nextRejectsProviderProposalExceedingAllowedCapacity() {
         MovingAverageOrderDecisionProvider invalidProvider = context ->
-                OrderQuantityProposal.execute(
-                        context.quantityCapacity().maxAllowedQuantity() + 1,
-                        "Exceed the allowed capacity."
+                new MovingAverageOrderDecisionProviderResult(
+                        new MovingAverageOrderDecisionProviderIdentity(
+                                "INVALID_TEST_PROVIDER",
+                                1
+                        ),
+                        OrderQuantityProposal.execute(
+                                context.quantityCapacity()
+                                        .maxAllowedQuantity() + 1,
+                                "Exceed the allowed capacity."
+                        )
                 );
         InvestmentAgent invalidAgent = investmentAgent(invalidProvider);
         HarnessRunContext context = runContext(

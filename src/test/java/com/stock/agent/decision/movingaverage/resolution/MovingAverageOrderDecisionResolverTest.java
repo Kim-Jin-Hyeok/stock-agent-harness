@@ -5,6 +5,8 @@ import com.stock.agent.InvestmentDecision;
 import com.stock.agent.decision.movingaverage.MovingAverageActionPolicy;
 import com.stock.agent.decision.movingaverage.MovingAverageOrderDecisionContext;
 import com.stock.agent.decision.movingaverage.MovingAverageOrderDecisionContextFactory;
+import com.stock.agent.decision.movingaverage.provider.identity.MovingAverageOrderDecisionProviderIdentity;
+import com.stock.agent.decision.movingaverage.provider.result.MovingAverageOrderDecisionProviderResult;
 import com.stock.agent.decision.movingaverage.validation.MovingAverageOrderProposalValidationReasonCode;
 import com.stock.agent.decision.movingaverage.validation.MovingAverageOrderProposalValidationResult;
 import com.stock.agent.decision.movingaverage.validation.MovingAverageOrderProposalValidationStatus;
@@ -65,10 +67,10 @@ class MovingAverageOrderDecisionResolverTest {
 
         MovingAverageOrderDecisionResolution resolution = resolver.resolve(
                 context,
-                OrderQuantityProposal.execute(
+                providerResult(OrderQuantityProposal.execute(
                         5L,
                         "Use half of the allowed capacity."
-                )
+                ))
         );
 
         assertThat(resolution.isResolved()).isTrue();
@@ -104,16 +106,22 @@ class MovingAverageOrderDecisionResolverTest {
                 5L,
                 "Use half of the allowed capacity."
         ));
+        assertThat(
+                resolution.decision()
+                        .movingAverageEvidence()
+                        .orderDecisionEvidence()
+                        .providerIdentity()
+        ).isEqualTo(providerIdentity());
     }
 
     @Test
     void resolvesValidSellProposalUsingSignalAction() {
         MovingAverageOrderDecisionResolution resolution = resolver.resolve(
                 sellContext(5L),
-                OrderQuantityProposal.execute(
+                providerResult(OrderQuantityProposal.execute(
                         3L,
                         "Reduce the current position."
-                )
+                ))
         );
 
         assertThat(resolution.isResolved()).isTrue();
@@ -128,9 +136,9 @@ class MovingAverageOrderDecisionResolverTest {
     void resolvesHoldProposalWithoutOrderFields() {
         MovingAverageOrderDecisionResolution resolution = resolver.resolve(
                 buyContext(100_000L, 10_000_000L),
-                OrderQuantityProposal.hold(
+                providerResult(OrderQuantityProposal.hold(
                         "Additional confirmation is required."
-                )
+                ))
         );
 
         assertThat(resolution.isResolved()).isTrue();
@@ -153,10 +161,10 @@ class MovingAverageOrderDecisionResolverTest {
     void rejectsProposalExceedingAllowedCapacity() {
         MovingAverageOrderDecisionResolution resolution = resolver.resolve(
                 buyContext(100_000L, 10_000_000L),
-                OrderQuantityProposal.execute(
+                providerResult(OrderQuantityProposal.execute(
                         11L,
                         "Attempt more than the allowed capacity."
-                )
+                ))
         );
 
         assertThat(resolution.isResolved()).isFalse();
@@ -172,10 +180,10 @@ class MovingAverageOrderDecisionResolverTest {
     void rejectsProposalWhenOrderCapacityIsUnavailable() {
         MovingAverageOrderDecisionResolution resolution = resolver.resolve(
                 buyContext(400_000L, 3_333_334L),
-                OrderQuantityProposal.execute(
+                providerResult(OrderQuantityProposal.execute(
                         1L,
                         "Attempt one share."
-                )
+                ))
         );
 
         assertThat(resolution.isResolved()).isFalse();
@@ -237,6 +245,22 @@ class MovingAverageOrderDecisionResolverTest {
                 MovingAverageCrossoverSignal.GOLDEN_CROSS,
                 emptyPortfolio(totalAssetAmountKrw),
                 currentPriceKrw
+        );
+    }
+
+    private MovingAverageOrderDecisionProviderResult providerResult(
+            OrderQuantityProposal proposal
+    ) {
+        return new MovingAverageOrderDecisionProviderResult(
+                providerIdentity(),
+                proposal
+        );
+    }
+
+    private MovingAverageOrderDecisionProviderIdentity providerIdentity() {
+        return new MovingAverageOrderDecisionProviderIdentity(
+                "MAX_CAPACITY_RULE_BASED",
+                1
         );
     }
 

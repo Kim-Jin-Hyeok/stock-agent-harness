@@ -106,6 +106,61 @@ class HarnessRunSnapshotJsonConverterTest {
     }
 
     @Test
+    void restoresLegacyOrderDecisionEvidenceWithoutProviderIdentity() {
+        String json = """
+                {
+                  "action": "BUY",
+                  "symbol": "005930",
+                  "quantity": 10,
+                  "expectedPriceKrw": 70000,
+                  "estimatedOrderAmountKrw": 700000,
+                  "reason": "Buy Samsung Electronics.",
+                  "movingAverageEvidence": {
+                    "status": "ANALYZED",
+                    "symbol": "005930",
+                    "requiredBarCount": 21,
+                    "availableBarCount": 60,
+                    "trend": "UPTREND",
+                    "shortPeriod": 5,
+                    "shortAveragePriceKrw": 71000.00,
+                    "longPeriod": 20,
+                    "longAveragePriceKrw": 70000.00,
+                    "asOfTradingDate": "2026-01-02",
+                    "currentPriceKrw": 72000,
+                    "currentPriceSource": "PROVIDER",
+                    "previousTrend": "FLAT",
+                    "previousShortAveragePriceKrw": 70000.00,
+                    "previousLongAveragePriceKrw": 70000.00,
+                    "previousAsOfTradingDate": "2026-01-01",
+                    "crossoverSignal": "GOLDEN_CROSS",
+                    "orderDecisionEvidence": {
+                      "signalAction": "BUY",
+                      "currentPositionQuantity": 0,
+                      "maxAffordableQuantity": 138,
+                      "maxOrderRatioQuantity": 13,
+                      "maxPositionRatioQuantity": 41,
+                      "maxAllowedQuantity": 13,
+                      "oneSharePortfolioRatio": 0.007200,
+                      "proposalIntent": "EXECUTE_ORDER",
+                      "proposedQuantity": 10,
+                      "proposalReason": "Buy Samsung Electronics."
+                    }
+                  }
+                }
+                """;
+
+        HarnessDecisionSnapshot restored = converter.toDecisionSnapshot(json);
+
+        HarnessMovingAverageOrderDecisionEvidenceSnapshot evidence =
+                restored.movingAverageEvidence().orderDecisionEvidence();
+        assertThat(evidence.providerId()).isNull();
+        assertThat(evidence.providerVersion()).isNull();
+        assertThat(evidence.proposalIntent())
+                .isEqualTo(OrderDecisionIntent.EXECUTE_ORDER);
+        assertThat(evidence.proposedQuantity()).isEqualTo(10L);
+    }
+
+    @Test
     void convertsRiskCheckSnapshotToJsonAndBack() {
         HarnessRiskCheckSnapshot snapshot = riskCheckSnapshot();
 
@@ -322,7 +377,9 @@ class HarnessRunSnapshotJsonConverterTest {
                 new BigDecimal("0.007200"),
                 OrderDecisionIntent.EXECUTE_ORDER,
                 10L,
-                "Buy Samsung Electronics."
+                "Buy Samsung Electronics.",
+                "MAX_CAPACITY_RULE_BASED",
+                1
         );
     }
 

@@ -3,6 +3,7 @@ package com.stock.agent.decision.movingaverage.resolution;
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
 import com.stock.agent.decision.movingaverage.MovingAverageOrderDecisionContext;
+import com.stock.agent.decision.movingaverage.provider.result.MovingAverageOrderDecisionProviderResult;
 import com.stock.agent.decision.movingaverage.validation.MovingAverageOrderProposalValidationResult;
 import com.stock.agent.decision.movingaverage.validation.MovingAverageOrderProposalValidationStatus;
 import com.stock.agent.decision.movingaverage.validation.MovingAverageOrderProposalValidator;
@@ -29,9 +30,14 @@ public class MovingAverageOrderDecisionResolver {
 
     public MovingAverageOrderDecisionResolution resolve(
             MovingAverageOrderDecisionContext context,
-            OrderQuantityProposal proposal
+            MovingAverageOrderDecisionProviderResult providerResult
     ) {
         Objects.requireNonNull(context, "context must not be null.");
+        Objects.requireNonNull(
+                providerResult,
+                "providerResult must not be null."
+        );
+        OrderQuantityProposal proposal = providerResult.proposal();
 
         MovingAverageOrderProposalValidationResult validationResult =
                 proposalValidator.validate(context, proposal);
@@ -44,8 +50,8 @@ public class MovingAverageOrderDecisionResolver {
 
         InvestmentDecision decision = proposal.intent()
                 == OrderDecisionIntent.HOLD
-                ? holdDecision(context, proposal)
-                : orderDecision(context, proposal);
+                ? holdDecision(context, providerResult)
+                : orderDecision(context, providerResult);
         return MovingAverageOrderDecisionResolution.resolved(
                 validationResult,
                 decision
@@ -54,35 +60,37 @@ public class MovingAverageOrderDecisionResolver {
 
     private InvestmentDecision holdDecision(
             MovingAverageOrderDecisionContext context,
-            OrderQuantityProposal proposal
+            MovingAverageOrderDecisionProviderResult providerResult
     ) {
+        OrderQuantityProposal proposal = providerResult.proposal();
         return new InvestmentDecision(
                 InvestmentAction.HOLD,
                 null,
                 null,
                 null,
                 proposal.reason(),
-                evidence(context, proposal)
+                evidence(context, providerResult)
         );
     }
 
     private InvestmentDecision orderDecision(
             MovingAverageOrderDecisionContext context,
-            OrderQuantityProposal proposal
+            MovingAverageOrderDecisionProviderResult providerResult
     ) {
+        OrderQuantityProposal proposal = providerResult.proposal();
         return new InvestmentDecision(
                 context.signalAction(),
                 context.symbol(),
                 proposal.quantity(),
                 context.currentPriceSnapshot().priceKrw(),
                 proposal.reason(),
-                evidence(context, proposal)
+                evidence(context, providerResult)
         );
     }
 
     private MovingAverageDecisionEvidence evidence(
             MovingAverageOrderDecisionContext context,
-            OrderQuantityProposal proposal
+            MovingAverageOrderDecisionProviderResult providerResult
     ) {
         return MovingAverageDecisionEvidence.analyzed(
                 context.analysisResult(),
@@ -91,7 +99,8 @@ public class MovingAverageOrderDecisionResolver {
                 new MovingAverageOrderDecisionEvidence(
                         context.signalAction(),
                         context.quantityCapacity(),
-                        proposal
+                        providerResult.providerIdentity(),
+                        providerResult.proposal()
                 )
         );
     }

@@ -2,6 +2,7 @@ package com.stock.harness.api;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
+import com.stock.agent.decision.movingaverage.provider.identity.MovingAverageOrderDecisionProviderIdentity;
 import com.stock.agent.decision.order.proposal.OrderQuantityProposal;
 import com.stock.agent.evidence.movingaverage.MovingAverageDecisionEvidence;
 import com.stock.agent.evidence.movingaverage.order.MovingAverageOrderDecisionEvidence;
@@ -149,6 +150,12 @@ class HarnessControllerTest {
                 .andExpect(jsonPath(
                         "$.decision.movingAverageEvidence.orderDecisionEvidence.proposal.intent"
                 ).value("EXECUTE_ORDER"))
+                .andExpect(jsonPath(
+                        "$.decision.movingAverageEvidence.orderDecisionEvidence.providerIdentity.providerId"
+                ).value("MAX_CAPACITY_RULE_BASED"))
+                .andExpect(jsonPath(
+                        "$.decision.movingAverageEvidence.orderDecisionEvidence.providerIdentity.providerVersion"
+                ).value(1))
                 .andExpect(jsonPath("$.tradeRecords[0].runId").value(runId))
                 .andExpect(jsonPath("$.tradeRecords[0].status").value("EXECUTED"));
 
@@ -249,6 +256,12 @@ class HarnessControllerTest {
                 .andExpect(jsonPath(
                         "$.decisionSnapshot.movingAverageEvidence.orderDecisionEvidence.proposedQuantity"
                 ).value(10L))
+                .andExpect(jsonPath(
+                        "$.decisionSnapshot.movingAverageEvidence.orderDecisionEvidence.providerId"
+                ).value("MAX_CAPACITY_RULE_BASED"))
+                .andExpect(jsonPath(
+                        "$.decisionSnapshot.movingAverageEvidence.orderDecisionEvidence.providerVersion"
+                ).value(1))
                 .andExpect(jsonPath("$.riskCheckSnapshot.status").value("APPROVED"))
                 .andExpect(jsonPath("$.portfolioSnapshot.cashAmountKrw").value(9_300_000L))
                 .andExpect(jsonPath("$.marketSnapshot.market").value("KR"))
@@ -494,6 +507,10 @@ class HarnessControllerTest {
                         41L,
                         10L,
                         new BigDecimal("0.007200")
+                ),
+                new MovingAverageOrderDecisionProviderIdentity(
+                        "MAX_CAPACITY_RULE_BASED",
+                        1
                 ),
                 OrderQuantityProposal.execute(
                         10L,

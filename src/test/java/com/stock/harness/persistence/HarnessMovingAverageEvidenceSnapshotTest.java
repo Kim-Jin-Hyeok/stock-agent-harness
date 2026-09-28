@@ -1,6 +1,7 @@
 package com.stock.harness.persistence;
 
 import com.stock.agent.InvestmentAction;
+import com.stock.agent.decision.movingaverage.provider.identity.MovingAverageOrderDecisionProviderIdentity;
 import com.stock.agent.decision.order.proposal.OrderDecisionIntent;
 import com.stock.agent.decision.order.proposal.OrderQuantityProposal;
 import com.stock.agent.evidence.movingaverage.MovingAverageDecisionEvidence;
@@ -77,6 +78,10 @@ class HarnessMovingAverageEvidenceSnapshotTest {
                 .isEqualTo(OrderDecisionIntent.EXECUTE_ORDER);
         assertThat(snapshot.orderDecisionEvidence().proposedQuantity())
                 .isEqualTo(1L);
+        assertThat(snapshot.orderDecisionEvidence().providerId())
+                .isEqualTo("MAX_CAPACITY_RULE_BASED");
+        assertThat(snapshot.orderDecisionEvidence().providerVersion())
+                .isEqualTo(1);
     }
 
     @Test
@@ -141,6 +146,31 @@ class HarnessMovingAverageEvidenceSnapshotTest {
                 );
     }
 
+    @Test
+    void rejectsPartiallyPopulatedProviderIdentity() {
+        assertThatThrownBy(() ->
+                new HarnessMovingAverageOrderDecisionEvidenceSnapshot(
+                        InvestmentAction.BUY,
+                        0L,
+                        13L,
+                        1L,
+                        4L,
+                        1L,
+                        new BigDecimal("0.007200"),
+                        OrderDecisionIntent.EXECUTE_ORDER,
+                        1L,
+                        "Execute within the allowed capacity.",
+                        "MAX_CAPACITY_RULE_BASED",
+                        null
+                )
+        )
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "Provider identity fields must be all present or all "
+                                + "null."
+                );
+    }
+
     private MovingAverageOrderDecisionEvidence orderDecisionEvidence() {
         return new MovingAverageOrderDecisionEvidence(
                 InvestmentAction.BUY,
@@ -154,6 +184,10 @@ class HarnessMovingAverageEvidenceSnapshotTest {
                         4L,
                         1L,
                         new BigDecimal("0.007200")
+                ),
+                new MovingAverageOrderDecisionProviderIdentity(
+                        "MAX_CAPACITY_RULE_BASED",
+                        1
                 ),
                 OrderQuantityProposal.execute(
                         1L,

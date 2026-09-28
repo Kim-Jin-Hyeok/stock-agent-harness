@@ -1,6 +1,7 @@
 package com.stock.agent.evidence.movingaverage.order;
 
 import com.stock.agent.InvestmentAction;
+import com.stock.agent.decision.movingaverage.provider.identity.MovingAverageOrderDecisionProviderIdentity;
 import com.stock.agent.decision.order.proposal.OrderQuantityProposal;
 import com.stock.risk.capacity.OrderQuantityCapacity;
 import org.junit.jupiter.api.Test;
@@ -24,11 +25,14 @@ class MovingAverageOrderDecisionEvidenceTest {
                 new MovingAverageOrderDecisionEvidence(
                         InvestmentAction.BUY,
                         capacity,
+                        providerIdentity(),
                         proposal
                 );
 
         assertThat(evidence.signalAction()).isEqualTo(InvestmentAction.BUY);
         assertThat(evidence.quantityCapacity()).isEqualTo(capacity);
+        assertThat(evidence.providerIdentity())
+                .isEqualTo(providerIdentity());
         assertThat(evidence.proposal()).isEqualTo(proposal);
     }
 
@@ -37,6 +41,7 @@ class MovingAverageOrderDecisionEvidenceTest {
         assertThatThrownBy(() -> new MovingAverageOrderDecisionEvidence(
                 InvestmentAction.SELL,
                 buyCapacity(),
+                providerIdentity(),
                 OrderQuantityProposal.hold("Wait for another signal.")
         ))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -56,6 +61,13 @@ class MovingAverageOrderDecisionEvidenceTest {
                 4L,
                 1L,
                 new BigDecimal("0.007200")
+        );
+    }
+
+    private MovingAverageOrderDecisionProviderIdentity providerIdentity() {
+        return new MovingAverageOrderDecisionProviderIdentity(
+                "MAX_CAPACITY_RULE_BASED",
+                1
         );
     }
 }

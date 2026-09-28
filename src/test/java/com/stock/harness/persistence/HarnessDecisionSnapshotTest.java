@@ -2,6 +2,7 @@ package com.stock.harness.persistence;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
+import com.stock.agent.decision.movingaverage.provider.identity.MovingAverageOrderDecisionProviderIdentity;
 import com.stock.agent.decision.order.proposal.OrderDecisionIntent;
 import com.stock.agent.decision.order.proposal.OrderQuantityProposal;
 import com.stock.agent.evidence.movingaverage.MovingAverageDecisionEvidence;
@@ -129,6 +130,16 @@ class HarnessDecisionSnapshotTest {
                         .orderDecisionEvidence()
                         .maxAllowedQuantity()
         ).isEqualTo(1L);
+        assertThat(
+                snapshot.movingAverageEvidence()
+                        .orderDecisionEvidence()
+                        .providerId()
+        ).isEqualTo("MAX_CAPACITY_RULE_BASED");
+        assertThat(
+                snapshot.movingAverageEvidence()
+                        .orderDecisionEvidence()
+                        .providerVersion()
+        ).isEqualTo(1);
     }
 
     private InvestmentDecision buyDecision() {
@@ -174,6 +185,10 @@ class HarnessDecisionSnapshotTest {
                         4L,
                         1L,
                         new BigDecimal("0.007200")
+                ),
+                new MovingAverageOrderDecisionProviderIdentity(
+                        "MAX_CAPACITY_RULE_BASED",
+                        1
                 ),
                 OrderQuantityProposal.hold(
                         "Wait for additional confirmation."
