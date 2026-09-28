@@ -19,12 +19,10 @@ import com.stock.market.price.lookup.CurrentPriceLookupResult;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisResult;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisService;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisStatus;
-import org.springframework.stereotype.Component;
 
 import java.util.Objects;
 import java.util.Optional;
 
-@Component
 public class InvestmentAgent implements AgentNextActionProvider {
     private final MovingAverageAnalysisService movingAverageAnalysisService;
     private final MovingAverageOrderDecisionContextFactory decisionContextFactory;

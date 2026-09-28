@@ -137,6 +137,8 @@ strategy:
         long-period: 200
 
 agent:
+  next-action:
+    provider-type: ${AGENT_NEXT_ACTION_PROVIDER_TYPE:RULE_BASED}
   provider:
     ai:
       openai:
