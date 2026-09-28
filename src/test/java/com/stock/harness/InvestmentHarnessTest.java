@@ -11,6 +11,10 @@ import com.stock.agent.decision.movingaverage.provider.MovingAverageOrderDecisio
 import com.stock.agent.decision.movingaverage.provider.rulebased.MaxCapacityMovingAverageOrderDecisionProvider;
 import com.stock.agent.decision.movingaverage.resolution.MovingAverageOrderDecisionResolver;
 import com.stock.agent.decision.movingaverage.validation.MovingAverageOrderProposalValidator;
+import com.stock.agent.provider.ai.AiAgentNextActionProvider;
+import com.stock.agent.provider.ai.prompt.AgentNextActionAiPrompt;
+import com.stock.agent.provider.ai.prompt.AgentNextActionAiPromptFactory;
+import com.stock.agent.provider.ai.request.AgentNextActionAiRequestFactory;
 import com.stock.harness.agent.validation.HarnessAgentActionValidationReasonCode;
 import com.stock.harness.agent.validation.HarnessAgentActionValidator;
 import com.stock.harness.execution.retry.HarnessRetryWaiter;
@@ -86,6 +90,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.IntStream;
@@ -1068,6 +1073,89 @@ class InvestmentHarnessTest {
                     assertThat(toolResult.output().currentPriceSnapshot().priceKrw())
                             .isEqualTo(100_000L);
                 });
+    }
+
+    @Test
+    void runFeedsValidatedToolResultBackIntoAiAgentContext() {
+        List<AgentNextActionAiPrompt> prompts = new ArrayList<>();
+        AiAgentNextActionProvider aiProvider = new AiAgentNextActionProvider(
+                new AgentNextActionAiRequestFactory(),
+                new AgentNextActionAiPromptFactory(),
+                prompt -> {
+                    prompts.add(prompt);
+                    if (prompt.request().toolResults().isEmpty()) {
+                        return AgentNextAction.requestTool(
+                                HarnessToolRequest.currentPrice("005930")
+                        );
+                    }
+                    return AgentNextAction.finalDecision(
+                            new InvestmentDecision(
+                                    InvestmentAction.HOLD,
+                                    null,
+                                    null,
+                                    null,
+                                    "AI received validated current price."
+                            )
+                    );
+                }
+        );
+        InvestmentHarness aiHarness = new InvestmentHarness(
+                riskGuard,
+                tradeExecutor,
+                portfolioService,
+                marketService,
+                harnessRunHistoryService,
+                aiProvider,
+                new HarnessProperties(2, 1),
+                harnessToolAuthorizer,
+                harnessToolExecutor,
+                harnessToolResultValidator,
+                harnessAgentActionValidator,
+                harnessToolRequestValidator,
+                harnessRetryWaiter,
+                strategyStockUniverseRegistry,
+                currentPriceObservationService
+        );
+
+        HarnessRunResult result = aiHarness.run(STRATEGY_IDENTITY);
+
+        assertThat(result.status()).isEqualTo(HarnessRunStatus.COMPLETED);
+        assertThat(result.decision().action())
+                .isEqualTo(InvestmentAction.HOLD);
+        assertThat(result.decision().reason())
+                .isEqualTo("AI received validated current price.");
+        assertThat(result.tradeResult().status())
+                .isEqualTo(TradeStatus.SKIPPED);
+        assertThat(prompts).hasSize(2);
+        assertThat(prompts.getFirst().request().candidateSymbols())
+                .containsExactly("005930");
+        assertThat(prompts.getFirst().request().toolResults()).isEmpty();
+        assertThat(prompts.getLast().request().toolResults())
+                .singleElement()
+                .satisfies(toolResult -> {
+                    assertThat(toolResult.status())
+                            .isEqualTo(HarnessToolExecutionStatus.EXECUTED);
+                    assertThat(toolResult.type())
+                            .isEqualTo(HarnessToolType.GET_CURRENT_PRICE);
+                    assertThat(toolResult.output().currentPriceSnapshot())
+                            .isEqualTo(new CurrentPriceSnapshot(
+                                    "005930",
+                                    100_000L,
+                                    CURRENT_PRICE_OBSERVED_AT
+                            ));
+                });
+        assertThat(result.steps())
+                .extracting(HarnessStepResult::type)
+                .filteredOn(HarnessStepType.RUN_INVESTMENT_AGENT::equals)
+                .hasSize(2);
+        assertThat(result.steps())
+                .extracting(HarnessStepResult::type)
+                .containsSubsequence(
+                        HarnessStepType.EXECUTE_TOOL_REQUEST,
+                        HarnessStepType.VALIDATE_TOOL_RESULT,
+                        HarnessStepType.CHECK_STEP_LIMIT,
+                        HarnessStepType.RUN_INVESTMENT_AGENT
+                );
     }
 
     @Test
