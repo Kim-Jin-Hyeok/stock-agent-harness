@@ -4,8 +4,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.env.YamlPropertySourceLoader;
-import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.mock.env.MockEnvironment;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -13,7 +13,7 @@ class MovingAverageOrderDecisionPropertiesYamlBindingTest {
 
     @Test
     void bindsRuleBasedProviderTypeFromApplicationYaml() throws Exception {
-        StandardEnvironment environment = new StandardEnvironment();
+        MockEnvironment environment = new MockEnvironment();
         new YamlPropertySourceLoader()
                 .load(
                         "application.yml",
