@@ -104,7 +104,7 @@ strategyId: SWING_V1
 주요 Risk: 종목 비중, 손절 기준, 최대 보유 기간
 ```
 
-정확한 실행 시각은 시장 데이터 수집 방식과 매매 가능 시간을 확인한 뒤 결정한다.
+`SWING_V1` Baseline의 상세한 데이터 기준 시점, 진입·청산, 수량과 비용 규칙은 [SWING_V1 Strategy Contract](strategy/swing/swing-v1-strategy-contract.md)에서 관리한다.
 
 스윙 전략은 현재 보유한 일봉과 이동평균 계산 구조를 가장 직접적으로 활용할 수 있는 첫 번째 능동 전략으로 본다.
 
