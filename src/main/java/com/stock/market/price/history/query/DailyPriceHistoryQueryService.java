@@ -7,8 +7,10 @@ import com.stock.market.price.history.persistence.DailyPriceBarRepository;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 @Service
 public class DailyPriceHistoryQueryService {
@@ -39,6 +41,26 @@ public class DailyPriceHistoryQueryService {
                 .toList();
 
         return new DailyPriceHistory(request.symbol(), bars);
+    }
+
+    public Optional<DailyPriceBar> getFirstDailyPriceBarAfter(
+            String symbol,
+            LocalDate tradingDate
+    ) {
+        if (symbol == null || symbol.isBlank()) {
+            throw new IllegalArgumentException("symbol must not be blank.");
+        }
+        Objects.requireNonNull(
+                tradingDate,
+                "tradingDate must not be null."
+        );
+
+        return repository
+                .findTopBySymbolAndTradingDateAfterOrderByTradingDateAsc(
+                        symbol,
+                        tradingDate
+                )
+                .map(entity -> entity.toBar());
     }
 
     public DailyPriceHistory getLatestDailyPriceHistory(

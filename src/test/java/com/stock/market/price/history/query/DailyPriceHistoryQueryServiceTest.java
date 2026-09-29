@@ -10,6 +10,7 @@ import org.springframework.data.domain.PageRequest;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -89,6 +90,77 @@ class DailyPriceHistoryQueryServiceTest {
         assertThatThrownBy(() -> service.getDailyPriceHistory(null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("request must not be null.");
+        verifyNoInteractions(repository);
+    }
+
+    @Test
+    void returnsFirstStoredDailyPriceBarAfterTradingDate() {
+        DailyPriceBarRepository repository = mock(
+                DailyPriceBarRepository.class
+        );
+        DailyPriceHistoryQueryService service =
+                new DailyPriceHistoryQueryService(repository);
+        DailyPriceBar nextBar = bar(TO_DATE.plusDays(3), 74_000L);
+        when(repository
+                .findTopBySymbolAndTradingDateAfterOrderByTradingDateAsc(
+                        SYMBOL,
+                        TO_DATE
+                ))
+                .thenReturn(Optional.of(
+                        DailyPriceBarEntity.from(SYMBOL, nextBar)
+                ));
+
+        Optional<DailyPriceBar> result =
+                service.getFirstDailyPriceBarAfter(SYMBOL, TO_DATE);
+
+        assertThat(result).contains(nextBar);
+        verify(repository)
+                .findTopBySymbolAndTradingDateAfterOrderByTradingDateAsc(
+                        SYMBOL,
+                        TO_DATE
+                );
+    }
+
+    @Test
+    void returnsEmptyWhenStoredDailyPriceBarDoesNotExistAfterTradingDate() {
+        DailyPriceBarRepository repository = mock(
+                DailyPriceBarRepository.class
+        );
+        DailyPriceHistoryQueryService service =
+                new DailyPriceHistoryQueryService(repository);
+        when(repository
+                .findTopBySymbolAndTradingDateAfterOrderByTradingDateAsc(
+                        SYMBOL,
+                        TO_DATE
+                ))
+                .thenReturn(Optional.empty());
+
+        Optional<DailyPriceBar> result =
+                service.getFirstDailyPriceBarAfter(SYMBOL, TO_DATE);
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void rejectsInvalidFirstDailyPriceBarAfterRequest() {
+        DailyPriceBarRepository repository = mock(
+                DailyPriceBarRepository.class
+        );
+        DailyPriceHistoryQueryService service =
+                new DailyPriceHistoryQueryService(repository);
+
+        assertThatThrownBy(() -> service.getFirstDailyPriceBarAfter(
+                " ",
+                TO_DATE
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("symbol must not be blank.");
+        assertThatThrownBy(() -> service.getFirstDailyPriceBarAfter(
+                SYMBOL,
+                null
+        ))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("tradingDate must not be null.");
         verifyNoInteractions(repository);
     }
 

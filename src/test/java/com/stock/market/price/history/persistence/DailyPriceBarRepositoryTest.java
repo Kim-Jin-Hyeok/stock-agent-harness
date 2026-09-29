@@ -79,6 +79,30 @@ class DailyPriceBarRepositoryTest {
     }
 
     @Test
+    void findsFirstBarForSymbolAfterTradingDate() {
+        LocalDate decisionDate = LocalDate.of(2026, 9, 25);
+        LocalDate nextStoredTradingDate = LocalDate.of(2026, 9, 28);
+        repository.saveAllAndFlush(List.of(
+                entity(SYMBOL, decisionDate, 72_000L),
+                entity(SYMBOL, nextStoredTradingDate, 73_000L),
+                entity(SYMBOL, nextStoredTradingDate.plusDays(1), 74_000L),
+                entity("000660", decisionDate.plusDays(1), 200_000L)
+        ));
+
+        DailyPriceBarEntity result = repository
+                .findTopBySymbolAndTradingDateAfterOrderByTradingDateAsc(
+                        SYMBOL,
+                        decisionDate
+                )
+                .orElseThrow();
+
+        assertThat(result.getSymbol()).isEqualTo(SYMBOL);
+        assertThat(result.getTradingDate())
+                .isEqualTo(nextStoredTradingDate);
+        assertThat(result.getClosePriceKrw()).isEqualTo(73_000L);
+    }
+
+    @Test
     void findsLimitedLatestBarsForSymbol() {
         repository.saveAllAndFlush(List.of(
                 entity(SYMBOL, TRADING_DATE.minusDays(3), 69_000L),

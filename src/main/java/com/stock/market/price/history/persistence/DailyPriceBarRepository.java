@@ -20,6 +20,12 @@ public interface DailyPriceBarRepository
             String symbol
     );
 
+    Optional<DailyPriceBarEntity>
+    findTopBySymbolAndTradingDateAfterOrderByTradingDateAsc(
+            String symbol,
+            LocalDate tradingDate
+    );
+
     List<DailyPriceBarEntity> findAllBySymbolOrderByTradingDateDesc(
             String symbol,
             Pageable pageable
