@@ -3,9 +3,7 @@ package com.stock.agent.provider.ai.openai.config;
 import com.stock.agent.decision.movingaverage.MovingAverageOrderDecisionContextFactory;
 import com.stock.agent.decision.movingaverage.provider.MovingAverageOrderDecisionProvider;
 import com.stock.agent.decision.movingaverage.resolution.MovingAverageOrderDecisionResolver;
-import com.stock.agent.decision.swing.v1.policy.SwingV1ActionPolicy;
-import com.stock.agent.decision.swing.v1.quantity.policy.SwingV1OrderQuantityPolicy;
-import com.stock.agent.decision.swing.v1.resolution.SwingV1DecisionResolver;
+import com.stock.agent.decision.swing.v1.SwingV1DecisionService;
 import com.stock.agent.provider.AgentNextActionProvider;
 import com.stock.agent.provider.ai.AiAgentNextActionProvider;
 import com.stock.agent.provider.ai.execution.AgentNextActionAiExecutor;
@@ -19,9 +17,7 @@ import com.stock.agent.provider.ai.request.AgentNextActionAiRequestFactory;
 import com.stock.agent.provider.config.AgentNextActionProviderConfiguration;
 import com.stock.agent.provider.config.AgentNextActionProviderProperties;
 import com.stock.agent.provider.config.AgentNextActionProviderType;
-import com.stock.portfolio.valuation.PortfolioValuationService;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisService;
-import com.stock.strategy.analysis.swing.SwingTechnicalAnalysisService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -133,24 +129,8 @@ class OpenAiAgentNextActionConfigurationTest {
                         () -> mock(MovingAverageOrderDecisionResolver.class)
                 )
                 .withBean(
-                        SwingTechnicalAnalysisService.class,
-                        () -> mock(SwingTechnicalAnalysisService.class)
-                )
-                .withBean(
-                        SwingV1ActionPolicy.class,
-                        () -> mock(SwingV1ActionPolicy.class)
-                )
-                .withBean(
-                        PortfolioValuationService.class,
-                        () -> mock(PortfolioValuationService.class)
-                )
-                .withBean(
-                        SwingV1OrderQuantityPolicy.class,
-                        () -> mock(SwingV1OrderQuantityPolicy.class)
-                )
-                .withBean(
-                        SwingV1DecisionResolver.class,
-                        () -> mock(SwingV1DecisionResolver.class)
+                        SwingV1DecisionService.class,
+                        () -> mock(SwingV1DecisionService.class)
                 )
                 .withBean(Clock.class, Clock::systemUTC)
                 .withBean(

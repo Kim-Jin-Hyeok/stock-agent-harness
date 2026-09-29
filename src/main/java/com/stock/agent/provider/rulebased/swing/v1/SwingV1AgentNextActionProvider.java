@@ -2,12 +2,8 @@ package com.stock.agent.provider.rulebased.swing.v1;
 
 import com.stock.agent.AgentNextAction;
 import com.stock.agent.InvestmentDecision;
-import com.stock.agent.decision.swing.v1.policy.SwingV1ActionPolicy;
-import com.stock.agent.decision.swing.v1.quantity.policy.SwingV1OrderQuantityPolicy;
-import com.stock.agent.decision.swing.v1.quantity.result.SwingV1OrderQuantityResult;
-import com.stock.agent.decision.swing.v1.resolution.SwingV1DecisionResolver;
-import com.stock.agent.decision.swing.v1.result.SwingV1ActionPolicyResult;
-import com.stock.agent.evidence.swing.v1.SwingV1DecisionEvidence;
+import com.stock.agent.decision.swing.v1.SwingV1DecisionInput;
+import com.stock.agent.decision.swing.v1.SwingV1DecisionService;
 import com.stock.agent.provider.AgentNextActionProvider;
 import com.stock.harness.HarnessRunContext;
 import com.stock.harness.tool.HarnessToolExecutionResult;
@@ -18,13 +14,8 @@ import com.stock.market.price.CurrentPriceSnapshot;
 import com.stock.market.price.history.DailyPriceHistory;
 import com.stock.portfolio.PortfolioPosition;
 import com.stock.portfolio.PortfolioSnapshot;
-import com.stock.portfolio.valuation.PortfolioValuationService;
-import com.stock.portfolio.valuation.PortfolioValuationSnapshot;
-import com.stock.strategy.analysis.swing.SwingTechnicalAnalysisResult;
-import com.stock.strategy.analysis.swing.SwingTechnicalAnalysisService;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -33,40 +24,16 @@ import java.util.Set;
 
 public class SwingV1AgentNextActionProvider
         implements AgentNextActionProvider {
-    private final SwingTechnicalAnalysisService analysisService;
-    private final SwingV1ActionPolicy actionPolicy;
-    private final PortfolioValuationService portfolioValuationService;
-    private final SwingV1OrderQuantityPolicy orderQuantityPolicy;
-    private final SwingV1DecisionResolver decisionResolver;
+    private final SwingV1DecisionService decisionService;
     private final Clock clock;
 
     public SwingV1AgentNextActionProvider(
-            SwingTechnicalAnalysisService analysisService,
-            SwingV1ActionPolicy actionPolicy,
-            PortfolioValuationService portfolioValuationService,
-            SwingV1OrderQuantityPolicy orderQuantityPolicy,
-            SwingV1DecisionResolver decisionResolver,
+            SwingV1DecisionService decisionService,
             Clock clock
     ) {
-        this.analysisService = Objects.requireNonNull(
-                analysisService,
-                "analysisService must not be null."
-        );
-        this.actionPolicy = Objects.requireNonNull(
-                actionPolicy,
-                "actionPolicy must not be null."
-        );
-        this.portfolioValuationService = Objects.requireNonNull(
-                portfolioValuationService,
-                "portfolioValuationService must not be null."
-        );
-        this.orderQuantityPolicy = Objects.requireNonNull(
-                orderQuantityPolicy,
-                "orderQuantityPolicy must not be null."
-        );
-        this.decisionResolver = Objects.requireNonNull(
-                decisionResolver,
-                "decisionResolver must not be null."
+        this.decisionService = Objects.requireNonNull(
+                decisionService,
+                "decisionService must not be null."
         );
         this.clock = Objects.requireNonNull(
                 clock,
@@ -105,24 +72,20 @@ public class SwingV1AgentNextActionProvider
         DailyPriceHistory history = historyResult.get()
                 .output()
                 .dailyPriceHistory();
-        SwingTechnicalAnalysisResult analysis = analysisService.analyze(
-                context.strategyIdentity(),
-                history
-        );
-        InvestmentDecision decision = decide(
+        InvestmentDecision decision = delegateDecision(
                 context,
                 candidateSymbol,
                 requiredPriceSymbols,
-                analysis
+                history
         );
         return AgentNextAction.finalDecision(decision);
     }
 
-    private InvestmentDecision decide(
+    private InvestmentDecision delegateDecision(
             HarnessRunContext context,
             String candidateSymbol,
             List<String> requiredPriceSymbols,
-            SwingTechnicalAnalysisResult analysis
+            DailyPriceHistory history
     ) {
         HarnessToolExecutionResult candidatePriceResult =
                 findCurrentPriceResult(context, candidateSymbol)
@@ -144,34 +107,15 @@ public class SwingV1AgentNextActionProvider
                         )))
                 .map(result -> result.output().currentPriceSnapshot())
                 .toList();
-        Instant evaluatedAt = clock.instant();
-        PortfolioValuationSnapshot portfolioValuation =
-                portfolioValuationService.evaluate(
-                        context.portfolioSnapshot(),
-                        currentPrices,
-                        evaluatedAt
-                );
-        SwingV1ActionPolicyResult actionResult = actionPolicy.decide(
-                analysis,
+        return decisionService.decide(new SwingV1DecisionInput(
+                context.strategyIdentity(),
+                history,
                 context.portfolioSnapshot(),
-                candidatePrice
-        );
-        SwingV1OrderQuantityResult quantityResult =
-                orderQuantityPolicy.calculate(
-                        actionResult,
-                        analysis,
-                        candidatePrice,
-                        portfolioValuation
-                );
-        SwingV1DecisionEvidence evidence = new SwingV1DecisionEvidence(
-                analysis,
                 candidatePrice,
                 candidatePriceResult.output().currentPriceSource(),
-                portfolioValuation,
-                actionResult,
-                quantityResult
-        );
-        return decisionResolver.resolve(evidence);
+                currentPrices,
+                clock.instant()
+        ));
     }
 
     private String firstCandidateSymbol(HarnessRunContext context) {

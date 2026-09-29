@@ -2,6 +2,7 @@ package com.stock.harness.integration.swing.v1;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.agent.InvestmentAction;
+import com.stock.agent.decision.swing.v1.SwingV1DecisionService;
 import com.stock.agent.decision.swing.v1.policy.SwingV1ActionPolicy;
 import com.stock.agent.decision.swing.v1.quantity.policy.SwingV1OrderQuantityPolicy;
 import com.stock.agent.decision.swing.v1.quantity.result.SwingV1OrderQuantityReasonCode;
@@ -314,11 +315,17 @@ class SwingV1HarnessFlowTest {
     ) {
         SwingV1AgentNextActionProvider swingV1Provider =
                 new SwingV1AgentNextActionProvider(
-                        swingAnalysisService(historyPolicy),
-                        new SwingV1ActionPolicy(),
-                        new PortfolioValuationService(freshnessPolicy),
-                        new SwingV1OrderQuantityPolicy(capacityCalculator),
-                        new SwingV1DecisionResolver(),
+                        new SwingV1DecisionService(
+                                swingAnalysisService(historyPolicy),
+                                new SwingV1ActionPolicy(),
+                                new PortfolioValuationService(
+                                        freshnessPolicy
+                                ),
+                                new SwingV1OrderQuantityPolicy(
+                                        capacityCalculator
+                                ),
+                                new SwingV1DecisionResolver()
+                        ),
                         CLOCK
                 );
         return new StrategyRuleBasedAgentNextActionProvider(
