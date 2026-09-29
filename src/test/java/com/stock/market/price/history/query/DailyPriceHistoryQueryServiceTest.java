@@ -249,6 +249,111 @@ class DailyPriceHistoryQueryServiceTest {
         verifyNoInteractions(repository);
     }
 
+    @Test
+    void returnsLatestHistoryAtOrBeforeEvaluationDateInTradingDateOrder() {
+        DailyPriceBarRepository repository = mock(
+                DailyPriceBarRepository.class
+        );
+        DailyPriceHistoryQueryService service =
+                new DailyPriceHistoryQueryService(repository);
+        LocalDate evaluationDate = TO_DATE.plusDays(1);
+        DailyPriceBar oldestBar = bar(FROM_DATE, 71_000L);
+        DailyPriceBar middleBar = bar(TO_DATE, 72_000L);
+        DailyPriceBar evaluationBar = bar(evaluationDate, 73_000L);
+        when(repository
+                .findAllBySymbolAndTradingDateLessThanEqualOrderByTradingDateDesc(
+                        SYMBOL,
+                        evaluationDate,
+                        PageRequest.of(0, 3)
+                ))
+                .thenReturn(List.of(
+                        DailyPriceBarEntity.from(SYMBOL, evaluationBar),
+                        DailyPriceBarEntity.from(SYMBOL, middleBar),
+                        DailyPriceBarEntity.from(SYMBOL, oldestBar)
+                ));
+
+        DailyPriceHistory history =
+                service.getLatestDailyPriceHistoryAtOrBefore(
+                        SYMBOL,
+                        evaluationDate,
+                        3
+                );
+
+        assertThat(history.symbol()).isEqualTo(SYMBOL);
+        assertThat(history.bars()).containsExactly(
+                oldestBar,
+                middleBar,
+                evaluationBar
+        );
+        verify(repository)
+                .findAllBySymbolAndTradingDateLessThanEqualOrderByTradingDateDesc(
+                        SYMBOL,
+                        evaluationDate,
+                        PageRequest.of(0, 3)
+                );
+    }
+
+    @Test
+    void returnsEmptyHistoryWhenNoBarsExistAtOrBeforeEvaluationDate() {
+        DailyPriceBarRepository repository = mock(
+                DailyPriceBarRepository.class
+        );
+        DailyPriceHistoryQueryService service =
+                new DailyPriceHistoryQueryService(repository);
+        when(repository
+                .findAllBySymbolAndTradingDateLessThanEqualOrderByTradingDateDesc(
+                        SYMBOL,
+                        TO_DATE,
+                        PageRequest.of(0, 3)
+                ))
+                .thenReturn(List.of());
+
+        DailyPriceHistory history =
+                service.getLatestDailyPriceHistoryAtOrBefore(
+                        SYMBOL,
+                        TO_DATE,
+                        3
+                );
+
+        assertThat(history.symbol()).isEqualTo(SYMBOL);
+        assertThat(history.bars()).isEmpty();
+    }
+
+    @Test
+    void rejectsInvalidHistoryAtOrBeforeRequest() {
+        DailyPriceBarRepository repository = mock(
+                DailyPriceBarRepository.class
+        );
+        DailyPriceHistoryQueryService service =
+                new DailyPriceHistoryQueryService(repository);
+
+        assertThatThrownBy(() ->
+                service.getLatestDailyPriceHistoryAtOrBefore(
+                        " ",
+                        TO_DATE,
+                        3
+                ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("symbol must not be blank.");
+        assertThatThrownBy(() ->
+                service.getLatestDailyPriceHistoryAtOrBefore(
+                        SYMBOL,
+                        null,
+                        3
+                ))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("evaluationDate must not be null.");
+        assertThatThrownBy(() ->
+                service.getLatestDailyPriceHistoryAtOrBefore(
+                        SYMBOL,
+                        TO_DATE,
+                        0
+                ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("limit must be at least 1.");
+        verifyNoInteractions(repository);
+    }
+
     private DailyPriceBar bar(
             LocalDate tradingDate,
             long closePriceKrw

@@ -30,4 +30,11 @@ public interface DailyPriceBarRepository
             String symbol,
             Pageable pageable
     );
+
+    List<DailyPriceBarEntity>
+    findAllBySymbolAndTradingDateLessThanEqualOrderByTradingDateDesc(
+            String symbol,
+            LocalDate tradingDate,
+            Pageable pageable
+    );
 }

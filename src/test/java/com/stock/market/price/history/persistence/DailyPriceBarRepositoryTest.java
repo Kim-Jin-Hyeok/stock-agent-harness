@@ -128,6 +128,34 @@ class DailyPriceBarRepositoryTest {
     }
 
     @Test
+    void findsLimitedLatestBarsAtOrBeforeEvaluationDate() {
+        LocalDate evaluationDate = TRADING_DATE.minusDays(1);
+        repository.saveAllAndFlush(List.of(
+                entity(SYMBOL, TRADING_DATE.minusDays(4), 68_000L),
+                entity(SYMBOL, TRADING_DATE.minusDays(3), 69_000L),
+                entity(SYMBOL, TRADING_DATE.minusDays(2), 70_000L),
+                entity(SYMBOL, evaluationDate, 71_000L),
+                entity(SYMBOL, TRADING_DATE, 72_000L),
+                entity("000660", evaluationDate, 200_000L)
+        ));
+
+        List<DailyPriceBarEntity> result = repository
+                .findAllBySymbolAndTradingDateLessThanEqualOrderByTradingDateDesc(
+                        SYMBOL,
+                        evaluationDate,
+                        PageRequest.of(0, 3)
+                );
+
+        assertThat(result)
+                .extracting(DailyPriceBarEntity::getTradingDate)
+                .containsExactly(
+                        evaluationDate,
+                        TRADING_DATE.minusDays(2),
+                        TRADING_DATE.minusDays(3)
+                );
+    }
+
+    @Test
     void rejectsDuplicateSymbolAndTradingDate() {
         repository.saveAndFlush(entity(SYMBOL, TRADING_DATE, 72_000L));
 
