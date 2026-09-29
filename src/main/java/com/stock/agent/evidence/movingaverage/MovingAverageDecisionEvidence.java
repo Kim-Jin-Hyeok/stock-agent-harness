@@ -1,5 +1,6 @@
 package com.stock.agent.evidence.movingaverage;
 
+import com.stock.agent.evidence.InvestmentDecisionEvidence;
 import com.stock.agent.evidence.movingaverage.order.MovingAverageOrderDecisionEvidence;
 import com.stock.market.price.lookup.CurrentPriceLookupSource;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisResult;
@@ -12,7 +13,7 @@ public record MovingAverageDecisionEvidence(
         Long currentPriceKrw,
         CurrentPriceLookupSource currentPriceSource,
         MovingAverageOrderDecisionEvidence orderDecisionEvidence
-) {
+) implements InvestmentDecisionEvidence {
     public MovingAverageDecisionEvidence {
         Objects.requireNonNull(analysis, "analysis must not be null.");
         if (analysis.status() == MovingAverageAnalysisStatus.ANALYZED) {
