@@ -3,9 +3,12 @@ package com.stock.risk.capacity;
 import com.stock.agent.InvestmentAction;
 import com.stock.portfolio.PortfolioPosition;
 import com.stock.portfolio.PortfolioSnapshot;
+import com.stock.portfolio.valuation.PortfolioPositionValuation;
+import com.stock.portfolio.valuation.PortfolioValuationSnapshot;
 import com.stock.risk.RiskProperties;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -67,6 +70,41 @@ class OrderQuantityCapacityCalculatorTest {
                 SYMBOL,
                 100_000L,
                 portfolio
+        );
+
+        assertThat(capacity.currentPositionQuantity()).isEqualTo(25L);
+        assertThat(capacity.maxPositionRatioQuantity()).isEqualTo(5L);
+        assertThat(capacity.maxAllowedQuantity()).isEqualTo(5L);
+    }
+
+    @Test
+    void usesCurrentEvaluationAmountForPositionLimit() {
+        Instant evaluatedAt = Instant.parse("2026-09-29T00:10:00Z");
+        PortfolioPositionValuation position =
+                new PortfolioPositionValuation(
+                        SYMBOL,
+                        25L,
+                        50_000L,
+                        100_000L,
+                        1_250_000L,
+                        2_500_000L,
+                        1_250_000L,
+                        evaluatedAt.minusSeconds(30)
+                );
+        PortfolioValuationSnapshot valuation =
+                new PortfolioValuationSnapshot(
+                        evaluatedAt,
+                        7_500_000L,
+                        2_500_000L,
+                        10_000_000L,
+                        List.of(position)
+                );
+
+        OrderQuantityCapacity capacity = calculator.calculate(
+                InvestmentAction.BUY,
+                SYMBOL,
+                100_000L,
+                valuation
         );
 
         assertThat(capacity.currentPositionQuantity()).isEqualTo(25L);
@@ -163,7 +201,7 @@ class OrderQuantityCapacityCalculatorTest {
                 InvestmentAction.BUY,
                 SYMBOL,
                 100_000L,
-                null
+                (PortfolioSnapshot) null
         ))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("portfolioSnapshot must not be null.");

@@ -2,6 +2,7 @@ package com.stock.risk.capacity;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.portfolio.PortfolioSnapshot;
+import com.stock.portfolio.valuation.PortfolioValuationSnapshot;
 import com.stock.risk.RiskProperties;
 import org.springframework.stereotype.Component;
 
@@ -44,9 +45,60 @@ public class OrderQuantityCapacityCalculator {
 
         long currentPositionQuantity =
                 portfolioSnapshot.positionQuantity(symbol);
+        return calculate(
+                action,
+                symbol,
+                currentPriceKrw,
+                portfolioSnapshot.cashAmountKrw(),
+                portfolioSnapshot.totalAssetAmountKrw(),
+                currentPositionQuantity,
+                portfolioSnapshot.positionMarketValueKrw(symbol)
+        );
+    }
+
+    public OrderQuantityCapacity calculate(
+            InvestmentAction action,
+            String symbol,
+            long currentPriceKrw,
+            PortfolioValuationSnapshot valuationSnapshot
+    ) {
+        Objects.requireNonNull(action, "action must not be null.");
+        if (symbol == null || symbol.isBlank()) {
+            throw new IllegalArgumentException("symbol must not be blank.");
+        }
+        if (currentPriceKrw <= 0) {
+            throw new IllegalArgumentException(
+                    "currentPriceKrw must be positive."
+            );
+        }
+        Objects.requireNonNull(
+                valuationSnapshot,
+                "valuationSnapshot must not be null."
+        );
+
+        return calculate(
+                action,
+                symbol,
+                currentPriceKrw,
+                valuationSnapshot.cashAmountKrw(),
+                valuationSnapshot.totalAssetAmountKrw(),
+                valuationSnapshot.positionQuantity(symbol),
+                valuationSnapshot.positionEvaluationAmountKrw(symbol)
+        );
+    }
+
+    private OrderQuantityCapacity calculate(
+            InvestmentAction action,
+            String symbol,
+            long currentPriceKrw,
+            long cashAmountKrw,
+            long totalAssetAmountKrw,
+            long currentPositionQuantity,
+            long currentPositionAmountKrw
+    ) {
         BigDecimal oneSharePortfolioRatio = oneSharePortfolioRatio(
                 currentPriceKrw,
-                portfolioSnapshot.totalAssetAmountKrw()
+                totalAssetAmountKrw
         );
 
         return switch (action) {
@@ -55,7 +107,9 @@ public class OrderQuantityCapacityCalculator {
                     currentPriceKrw,
                     currentPositionQuantity,
                     oneSharePortfolioRatio,
-                    portfolioSnapshot
+                    cashAmountKrw,
+                    totalAssetAmountKrw,
+                    currentPositionAmountKrw
             );
             case SELL -> new OrderQuantityCapacity(
                     action,
@@ -87,25 +141,27 @@ public class OrderQuantityCapacityCalculator {
             long currentPriceKrw,
             long currentPositionQuantity,
             BigDecimal oneSharePortfolioRatio,
-            PortfolioSnapshot portfolioSnapshot
+            long cashAmountKrw,
+            long totalAssetAmountKrw,
+            long currentPositionAmountKrw
     ) {
         long maxAffordableQuantity = nonNegativeAmount(
-                portfolioSnapshot.cashAmountKrw()
+                cashAmountKrw
         ) / currentPriceKrw;
         long maxOrderAmountKrw = ratioAmount(
-                portfolioSnapshot.totalAssetAmountKrw(),
+                totalAssetAmountKrw,
                 riskProperties.maxOrderRatio()
         );
         long maxOrderRatioQuantity =
                 maxOrderAmountKrw / currentPriceKrw;
         long maxPositionAmountKrw = ratioAmount(
-                portfolioSnapshot.totalAssetAmountKrw(),
+                totalAssetAmountKrw,
                 riskProperties.maxPositionRatio()
         );
         long remainingPositionAmountKrw = Math.max(
                 0,
                 maxPositionAmountKrw
-                        - portfolioSnapshot.positionMarketValueKrw(symbol)
+                        - currentPositionAmountKrw
         );
         long maxPositionRatioQuantity =
                 remainingPositionAmountKrw / currentPriceKrw;

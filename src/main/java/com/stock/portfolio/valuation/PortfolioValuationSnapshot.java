@@ -80,4 +80,26 @@ public record PortfolioValuationSnapshot(
             }
         }
     }
+
+    public long positionQuantity(String symbol) {
+        if (symbol == null || symbol.isBlank()) {
+            return 0L;
+        }
+        return positions.stream()
+                .filter(position -> symbol.equals(position.symbol()))
+                .mapToLong(PortfolioPositionValuation::quantity)
+                .sum();
+    }
+
+    public long positionEvaluationAmountKrw(String symbol) {
+        if (symbol == null || symbol.isBlank()) {
+            return 0L;
+        }
+        return positions.stream()
+                .filter(position -> symbol.equals(position.symbol()))
+                .mapToLong(
+                        PortfolioPositionValuation::evaluationAmountKrw
+                )
+                .sum();
+    }
 }

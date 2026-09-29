@@ -31,6 +31,12 @@ class PortfolioValuationSnapshotTest {
         assertThat(snapshot.positions()).hasSize(1);
         assertThat(snapshot.positions())
                 .isUnmodifiable();
+        assertThat(snapshot.positionQuantity("005930")).isEqualTo(10L);
+        assertThat(snapshot.positionEvaluationAmountKrw("005930"))
+                .isEqualTo(800_000L);
+        assertThat(snapshot.positionQuantity("000660")).isZero();
+        assertThat(snapshot.positionEvaluationAmountKrw("000660"))
+                .isZero();
     }
 
     @Test
