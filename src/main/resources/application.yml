@@ -135,6 +135,12 @@ strategy:
         horizon: LONG_TERM
         short-period: 50
         long-period: 200
+  average-true-range:
+    periods:
+      - strategy-id: SWING_V1
+        strategy-version: 1
+        horizon: SWING
+        period: 14
 
 agent:
   next-action:
