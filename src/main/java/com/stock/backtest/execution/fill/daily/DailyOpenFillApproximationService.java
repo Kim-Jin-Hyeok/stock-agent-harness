@@ -2,6 +2,7 @@ package com.stock.backtest.execution.fill.daily;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.backtest.execution.fill.BacktestFillType;
+import com.stock.market.price.history.DailyPriceBar;
 import com.stock.market.price.history.query.DailyPriceHistoryQueryService;
 import com.stock.trade.cost.TradeCostCalculator;
 import com.stock.trade.cost.model.TradeCostCalculation;
@@ -33,36 +34,60 @@ public class DailyOpenFillApproximationService {
 
     public Optional<DailyOpenFillApproximation> approximate(
             String symbol,
-            LocalDate decisionDate,
+            LocalDate signalDate,
             InvestmentAction action,
             long quantity,
             TradeCostModel costModel
     ) {
-        validateRequest(symbol, decisionDate, action, quantity, costModel);
+        validateRequest(symbol, signalDate, action, quantity, costModel);
 
         return dailyPriceHistoryQueryService
-                .getFirstDailyPriceBarAfter(symbol, decisionDate)
-                .map(fillBar -> {
-                    TradeCostCalculation tradeCostCalculation =
-                            tradeCostCalculator.calculate(
-                                    costModel,
-                                    action,
-                                    quantity,
-                                    fillBar.openPriceKrw()
-                            );
-                    return new DailyOpenFillApproximation(
-                            BacktestFillType.DAILY_OPEN_FILL_APPROXIMATION,
-                            symbol,
-                            decisionDate,
-                            fillBar.tradingDate(),
-                            tradeCostCalculation
-                    );
-                });
+                .getFirstDailyPriceBarAfter(symbol, signalDate)
+                .map(fillBar -> approximate(
+                        symbol,
+                        signalDate,
+                        fillBar,
+                        action,
+                        quantity,
+                        costModel
+                ));
+    }
+
+    public DailyOpenFillApproximation approximate(
+            String symbol,
+            LocalDate signalDate,
+            DailyPriceBar fillBar,
+            InvestmentAction action,
+            long quantity,
+            TradeCostModel costModel
+    ) {
+        validateRequest(symbol, signalDate, action, quantity, costModel);
+        Objects.requireNonNull(fillBar, "fillBar must not be null.");
+        if (!fillBar.tradingDate().isAfter(signalDate)) {
+            throw new IllegalArgumentException(
+                    "fillBar.tradingDate must be after signalDate."
+            );
+        }
+
+        TradeCostCalculation tradeCostCalculation =
+                tradeCostCalculator.calculate(
+                        costModel,
+                        action,
+                        quantity,
+                        fillBar.openPriceKrw()
+                );
+        return new DailyOpenFillApproximation(
+                BacktestFillType.DAILY_OPEN_FILL_APPROXIMATION,
+                symbol,
+                signalDate,
+                fillBar.tradingDate(),
+                tradeCostCalculation
+        );
     }
 
     private void validateRequest(
             String symbol,
-            LocalDate decisionDate,
+            LocalDate signalDate,
             InvestmentAction action,
             long quantity,
             TradeCostModel costModel
@@ -71,8 +96,8 @@ public class DailyOpenFillApproximationService {
             throw new IllegalArgumentException("symbol must not be blank.");
         }
         Objects.requireNonNull(
-                decisionDate,
-                "decisionDate must not be null."
+                signalDate,
+                "signalDate must not be null."
         );
         Objects.requireNonNull(action, "action must not be null.");
         if (action == InvestmentAction.HOLD) {

@@ -60,7 +60,7 @@ class DailyOpenFillApproximationServiceTest {
                 BacktestFillType.DAILY_OPEN_FILL_APPROXIMATION
         );
         assertThat(fill.symbol()).isEqualTo(SYMBOL);
-        assertThat(fill.decisionDate()).isEqualTo(DECISION_DATE);
+        assertThat(fill.signalDate()).isEqualTo(DECISION_DATE);
         assertThat(fill.fillDate()).isEqualTo(FILL_DATE);
         assertThat(fill.tradeCostCalculation().costModel())
                 .isSameAs(costModel);
@@ -110,6 +110,26 @@ class DailyOpenFillApproximationServiceTest {
     }
 
     @Test
+    void approximatesFillFromAlreadyLoadedNextDailyBar() {
+        DailyPriceBar fillBar = fillBar();
+
+        DailyOpenFillApproximation fill = service.approximate(
+                SYMBOL,
+                DECISION_DATE,
+                fillBar,
+                InvestmentAction.BUY,
+                10L,
+                costModel()
+        );
+
+        assertThat(fill.signalDate()).isEqualTo(DECISION_DATE);
+        assertThat(fill.fillDate()).isEqualTo(FILL_DATE);
+        assertThat(fill.tradeCostCalculation().referencePriceKrw())
+                .isEqualTo(fillBar.openPriceKrw());
+        verifyNoInteractions(queryService);
+    }
+
+    @Test
     void returnsEmptyWhenNextDailyPriceBarDoesNotExist() {
         when(queryService.getFirstDailyPriceBarAfter(
                 SYMBOL,
@@ -152,7 +172,7 @@ class DailyOpenFillApproximationServiceTest {
                 costModel
         ))
                 .isInstanceOf(NullPointerException.class)
-                .hasMessage("decisionDate must not be null.");
+                .hasMessage("signalDate must not be null.");
         assertThatThrownBy(() -> service.approximate(
                 SYMBOL,
                 DECISION_DATE,

@@ -15,14 +15,46 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.ToLongFunction;
 
 @Component
 public class BacktestPortfolioEvaluationContextFactory {
-    public BacktestPortfolioEvaluationContext create(
+    public BacktestPortfolioEvaluationContext createAtOpen(
             BacktestPortfolioState portfolioState,
             LocalDate evaluationDate,
             Instant evaluatedAt,
             Map<String, DailyPriceBar> dailyPriceBarsBySymbol
+    ) {
+        return create(
+                portfolioState,
+                evaluationDate,
+                evaluatedAt,
+                dailyPriceBarsBySymbol,
+                DailyPriceBar::openPriceKrw
+        );
+    }
+
+    public BacktestPortfolioEvaluationContext createAtClose(
+            BacktestPortfolioState portfolioState,
+            LocalDate evaluationDate,
+            Instant evaluatedAt,
+            Map<String, DailyPriceBar> dailyPriceBarsBySymbol
+    ) {
+        return create(
+                portfolioState,
+                evaluationDate,
+                evaluatedAt,
+                dailyPriceBarsBySymbol,
+                DailyPriceBar::closePriceKrw
+        );
+    }
+
+    private BacktestPortfolioEvaluationContext create(
+            BacktestPortfolioState portfolioState,
+            LocalDate evaluationDate,
+            Instant evaluatedAt,
+            Map<String, DailyPriceBar> dailyPriceBarsBySymbol,
+            ToLongFunction<DailyPriceBar> priceExtractor
     ) {
         Objects.requireNonNull(
                 portfolioState,
@@ -53,9 +85,11 @@ public class BacktestPortfolioEvaluationContextFactory {
         long positionEvaluationAmountKrw = positions.stream()
                 .mapToLong(position -> Math.multiplyExact(
                         position.quantity(),
-                        dailyPriceBarsBySymbol
-                                .get(position.symbol())
-                                .closePriceKrw()
+                        priceExtractor.applyAsLong(
+                                dailyPriceBarsBySymbol.get(
+                                        position.symbol()
+                                )
+                        )
                 ))
                 .reduce(0L, Math::addExact);
         PortfolioSnapshot portfolioSnapshot = new PortfolioSnapshot(
@@ -69,7 +103,8 @@ public class BacktestPortfolioEvaluationContextFactory {
         List<CurrentPriceSnapshot> currentPrices =
                 toCurrentPriceSnapshots(
                         evaluatedAt,
-                        dailyPriceBarsBySymbol
+                        dailyPriceBarsBySymbol,
+                        priceExtractor
                 );
 
         return new BacktestPortfolioEvaluationContext(
@@ -142,7 +177,8 @@ public class BacktestPortfolioEvaluationContextFactory {
 
     private List<CurrentPriceSnapshot> toCurrentPriceSnapshots(
             Instant evaluatedAt,
-            Map<String, DailyPriceBar> dailyPriceBarsBySymbol
+            Map<String, DailyPriceBar> dailyPriceBarsBySymbol,
+            ToLongFunction<DailyPriceBar> priceExtractor
     ) {
         return dailyPriceBarsBySymbol.entrySet()
                 .stream()
@@ -151,7 +187,7 @@ public class BacktestPortfolioEvaluationContextFactory {
                 ))
                 .map(entry -> new CurrentPriceSnapshot(
                         entry.getKey(),
-                        entry.getValue().closePriceKrw(),
+                        priceExtractor.applyAsLong(entry.getValue()),
                         evaluatedAt
                 ))
                 .toList();

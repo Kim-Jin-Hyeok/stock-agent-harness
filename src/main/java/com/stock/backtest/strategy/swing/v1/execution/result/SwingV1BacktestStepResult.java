@@ -12,6 +12,7 @@ import java.util.Objects;
 
 public record SwingV1BacktestStepResult(
         SwingV1BacktestStepStatus status,
+        LocalDate signalDate,
         LocalDate decisionDate,
         InvestmentDecision decision,
         DailyOpenFillApproximation fill,
@@ -22,11 +23,7 @@ public record SwingV1BacktestStepResult(
 ) {
     public SwingV1BacktestStepResult {
         Objects.requireNonNull(status, "status must not be null.");
-        Objects.requireNonNull(
-                decisionDate,
-                "decisionDate must not be null."
-        );
-        Objects.requireNonNull(decision, "decision must not be null.");
+        Objects.requireNonNull(signalDate, "signalDate must not be null.");
         Objects.requireNonNull(
                 portfolioStateBefore,
                 "portfolioStateBefore must not be null."
@@ -41,6 +38,8 @@ public record SwingV1BacktestStepResult(
 
         validateStatusFields(
                 status,
+                signalDate,
+                decisionDate,
                 decision,
                 fill,
                 portfolioTransition,
@@ -49,13 +48,36 @@ public record SwingV1BacktestStepResult(
         );
     }
 
+    public static SwingV1BacktestStepResult noNextDailyBar(
+            LocalDate signalDate,
+            String symbol,
+            BacktestPortfolioState portfolioState
+    ) {
+        if (symbol == null || symbol.isBlank()) {
+            throw new IllegalArgumentException("symbol must not be blank.");
+        }
+        return new SwingV1BacktestStepResult(
+                SwingV1BacktestStepStatus.NO_NEXT_DAILY_BAR,
+                signalDate,
+                null,
+                null,
+                null,
+                null,
+                portfolioState,
+                portfolioState,
+                "Next daily price bar was not found. symbol=" + symbol
+        );
+    }
+
     public static SwingV1BacktestStepResult hold(
+            LocalDate signalDate,
             LocalDate decisionDate,
             InvestmentDecision decision,
             BacktestPortfolioState portfolioState
     ) {
         return new SwingV1BacktestStepResult(
                 SwingV1BacktestStepStatus.HOLD,
+                signalDate,
                 decisionDate,
                 decision,
                 null,
@@ -66,25 +88,8 @@ public record SwingV1BacktestStepResult(
         );
     }
 
-    public static SwingV1BacktestStepResult noNextDailyBar(
-            LocalDate decisionDate,
-            InvestmentDecision decision,
-            BacktestPortfolioState portfolioState
-    ) {
-        return new SwingV1BacktestStepResult(
-                SwingV1BacktestStepStatus.NO_NEXT_DAILY_BAR,
-                decisionDate,
-                decision,
-                null,
-                null,
-                portfolioState,
-                portfolioState,
-                "Next daily price bar was not found. symbol="
-                        + decision.symbol()
-        );
-    }
-
     public static SwingV1BacktestStepResult transitioned(
+            LocalDate signalDate,
             LocalDate decisionDate,
             InvestmentDecision decision,
             DailyOpenFillApproximation fill,
@@ -100,6 +105,7 @@ public record SwingV1BacktestStepResult(
                 applied
                         ? SwingV1BacktestStepStatus.EXECUTED
                         : SwingV1BacktestStepStatus.REJECTED,
+                signalDate,
                 decisionDate,
                 decision,
                 fill,
@@ -114,12 +120,37 @@ public record SwingV1BacktestStepResult(
 
     private static void validateStatusFields(
             SwingV1BacktestStepStatus status,
+            LocalDate signalDate,
+            LocalDate decisionDate,
             InvestmentDecision decision,
             DailyOpenFillApproximation fill,
             BacktestPortfolioTransitionResult portfolioTransition,
             BacktestPortfolioState portfolioStateBefore,
             BacktestPortfolioState portfolioStateAfter
     ) {
+        if (status == SwingV1BacktestStepStatus.NO_NEXT_DAILY_BAR) {
+            validateNoNextDailyBar(
+                    decisionDate,
+                    decision,
+                    fill,
+                    portfolioTransition,
+                    portfolioStateBefore,
+                    portfolioStateAfter
+            );
+            return;
+        }
+
+        Objects.requireNonNull(
+                decisionDate,
+                "decisionDate must not be null."
+        );
+        Objects.requireNonNull(decision, "decision must not be null.");
+        if (!decisionDate.isAfter(signalDate)) {
+            throw new IllegalArgumentException(
+                    "decisionDate must be after signalDate."
+            );
+        }
+
         switch (status) {
             case HOLD -> validateHold(
                     decision,
@@ -128,14 +159,9 @@ public record SwingV1BacktestStepResult(
                     portfolioStateBefore,
                     portfolioStateAfter
             );
-            case NO_NEXT_DAILY_BAR -> validateNoNextDailyBar(
-                    decision,
-                    fill,
-                    portfolioTransition,
-                    portfolioStateBefore,
-                    portfolioStateAfter
-            );
             case EXECUTED -> validateTransition(
+                    signalDate,
+                    decisionDate,
                     decision,
                     fill,
                     portfolioTransition,
@@ -144,6 +170,8 @@ public record SwingV1BacktestStepResult(
             );
             case REJECTED -> {
                 validateTransition(
+                        signalDate,
+                        decisionDate,
                         decision,
                         fill,
                         portfolioTransition,
@@ -156,6 +184,33 @@ public record SwingV1BacktestStepResult(
                     );
                 }
             }
+            case NO_NEXT_DAILY_BAR -> throw new IllegalStateException(
+                    "NO_NEXT_DAILY_BAR must already be validated."
+            );
+        }
+    }
+
+    private static void validateNoNextDailyBar(
+            LocalDate decisionDate,
+            InvestmentDecision decision,
+            DailyOpenFillApproximation fill,
+            BacktestPortfolioTransitionResult portfolioTransition,
+            BacktestPortfolioState portfolioStateBefore,
+            BacktestPortfolioState portfolioStateAfter
+    ) {
+        if (decisionDate != null
+                || decision != null
+                || fill != null
+                || portfolioTransition != null) {
+            throw new IllegalArgumentException(
+                    "NO_NEXT_DAILY_BAR result must not contain decision "
+                            + "or execution data."
+            );
+        }
+        if (!portfolioStateAfter.equals(portfolioStateBefore)) {
+            throw new IllegalArgumentException(
+                    "NO_NEXT_DAILY_BAR result must preserve portfolio state."
+            );
         }
     }
 
@@ -171,52 +226,21 @@ public record SwingV1BacktestStepResult(
                     "HOLD status requires HOLD decision."
             );
         }
-        validateNoExecutionData(
-                fill,
-                portfolioTransition,
-                portfolioStateBefore,
-                portfolioStateAfter,
-                "HOLD"
-        );
-    }
-
-    private static void validateNoNextDailyBar(
-            InvestmentDecision decision,
-            DailyOpenFillApproximation fill,
-            BacktestPortfolioTransitionResult portfolioTransition,
-            BacktestPortfolioState portfolioStateBefore,
-            BacktestPortfolioState portfolioStateAfter
-    ) {
-        validateOrderDecision(decision);
-        validateNoExecutionData(
-                fill,
-                portfolioTransition,
-                portfolioStateBefore,
-                portfolioStateAfter,
-                "NO_NEXT_DAILY_BAR"
-        );
-    }
-
-    private static void validateNoExecutionData(
-            DailyOpenFillApproximation fill,
-            BacktestPortfolioTransitionResult portfolioTransition,
-            BacktestPortfolioState portfolioStateBefore,
-            BacktestPortfolioState portfolioStateAfter,
-            String status
-    ) {
         if (fill != null || portfolioTransition != null) {
             throw new IllegalArgumentException(
-                    status + " result must not contain execution data."
+                    "HOLD result must not contain execution data."
             );
         }
         if (!portfolioStateAfter.equals(portfolioStateBefore)) {
             throw new IllegalArgumentException(
-                    status + " result must preserve portfolio state."
+                    "HOLD result must preserve portfolio state."
             );
         }
     }
 
     private static void validateTransition(
+            LocalDate signalDate,
+            LocalDate decisionDate,
             InvestmentDecision decision,
             DailyOpenFillApproximation fill,
             BacktestPortfolioTransitionResult portfolioTransition,
@@ -229,6 +253,12 @@ public record SwingV1BacktestStepResult(
                 portfolioTransition,
                 "portfolioTransition must not be null."
         );
+        if (!fill.signalDate().equals(signalDate)
+                || !fill.fillDate().equals(decisionDate)) {
+            throw new IllegalArgumentException(
+                    "fill dates must match step dates."
+            );
+        }
         if (portfolioTransition.status() != expectedStatus) {
             throw new IllegalArgumentException(
                     "portfolioTransition status must match step status."
@@ -244,7 +274,9 @@ public record SwingV1BacktestStepResult(
         if (fill.tradeCostCalculation().action() != decision.action()
                 || !fill.symbol().equals(decision.symbol())
                 || fill.tradeCostCalculation().quantity()
-                != decision.quantity()) {
+                != decision.quantity()
+                || fill.tradeCostCalculation().referencePriceKrw()
+                != decision.expectedPriceKrw()) {
             throw new IllegalArgumentException(
                     "fill must match investment decision."
             );

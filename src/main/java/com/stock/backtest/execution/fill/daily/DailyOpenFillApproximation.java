@@ -9,7 +9,7 @@ import java.util.Objects;
 public record DailyOpenFillApproximation(
         BacktestFillType fillType,
         String symbol,
-        LocalDate decisionDate,
+        LocalDate signalDate,
         LocalDate fillDate,
         TradeCostCalculation tradeCostCalculation
 ) {
@@ -24,17 +24,17 @@ public record DailyOpenFillApproximation(
             throw new IllegalArgumentException("symbol must not be blank.");
         }
         Objects.requireNonNull(
-                decisionDate,
-                "decisionDate must not be null."
+                signalDate,
+                "signalDate must not be null."
         );
         Objects.requireNonNull(fillDate, "fillDate must not be null.");
         Objects.requireNonNull(
                 tradeCostCalculation,
                 "tradeCostCalculation must not be null."
         );
-        if (!fillDate.isAfter(decisionDate)) {
+        if (!fillDate.isAfter(signalDate)) {
             throw new IllegalArgumentException(
-                    "fillDate must be after decisionDate."
+                    "fillDate must be after signalDate."
             );
         }
     }

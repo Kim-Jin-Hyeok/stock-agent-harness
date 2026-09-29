@@ -17,6 +17,7 @@ import com.stock.backtest.strategy.swing.v1.execution.result.SwingV1BacktestStep
 import com.stock.backtest.strategy.swing.v1.execution.result.SwingV1BacktestStepStatus;
 import com.stock.market.price.history.DailyPriceBar;
 import com.stock.market.price.history.DailyPriceHistory;
+import com.stock.market.price.history.query.DailyPriceHistoryQueryService;
 import com.stock.market.price.lookup.CurrentPriceLookupSource;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
@@ -29,7 +30,6 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -41,11 +41,13 @@ import static org.mockito.Mockito.when;
 
 class SwingV1BacktestStepServiceTest {
     private static final String SYMBOL = "005930";
+    private static final LocalDate SIGNAL_DATE =
+            LocalDate.of(2026, 9, 28);
     private static final LocalDate DECISION_DATE =
             LocalDate.of(2026, 9, 29);
-    private static final Instant EVALUATED_AT =
-            Instant.parse("2026-09-29T06:30:00Z");
 
+    private final DailyPriceHistoryQueryService priceHistoryQueryService =
+            mock(DailyPriceHistoryQueryService.class);
     private final SwingV1DecisionService decisionService = mock(
             SwingV1DecisionService.class
     );
@@ -56,6 +58,7 @@ class SwingV1BacktestStepServiceTest {
             mock(BacktestPortfolioTransitionService.class);
     private final SwingV1BacktestStepService service =
             new SwingV1BacktestStepService(
+                    priceHistoryQueryService,
                     new BacktestPortfolioEvaluationContextFactory(),
                     decisionService,
                     fillService,
@@ -63,8 +66,9 @@ class SwingV1BacktestStepServiceTest {
             );
 
     @Test
-    void returnsHoldWithoutRequestingFillOrPortfolioTransition() {
+    void usesNextDailyOpenForDecisionAndReturnsHold() {
         SwingV1BacktestStepRequest request = request();
+        DailyPriceBar decisionBar = decisionBar();
         InvestmentDecision decision = new InvestmentDecision(
                 InvestmentAction.HOLD,
                 null,
@@ -72,6 +76,10 @@ class SwingV1BacktestStepServiceTest {
                 null,
                 "No entry signal."
         );
+        when(priceHistoryQueryService.getFirstDailyPriceBarAfter(
+                SYMBOL,
+                SIGNAL_DATE
+        )).thenReturn(Optional.of(decisionBar));
         when(decisionService.decide(any())).thenReturn(decision);
 
         SwingV1BacktestStepResult result = service.execute(request);
@@ -79,46 +87,52 @@ class SwingV1BacktestStepServiceTest {
         assertThat(result.status()).isEqualTo(
                 SwingV1BacktestStepStatus.HOLD
         );
-        assertThat(result.portfolioStateBefore())
-                .isSameAs(request.portfolioState());
+        assertThat(result.signalDate()).isEqualTo(SIGNAL_DATE);
+        assertThat(result.decisionDate()).isEqualTo(DECISION_DATE);
         assertThat(result.portfolioStateAfter())
                 .isSameAs(request.portfolioState());
-        assertThat(result.fill()).isNull();
-        assertThat(result.portfolioTransition()).isNull();
         verifyNoInteractions(fillService, transitionService);
 
         ArgumentCaptor<SwingV1DecisionInput> inputCaptor =
                 ArgumentCaptor.forClass(SwingV1DecisionInput.class);
         verify(decisionService).decide(inputCaptor.capture());
         SwingV1DecisionInput input = inputCaptor.getValue();
+        assertThat(input.dailyPriceHistory().bars().getLast().tradingDate())
+                .isEqualTo(SIGNAL_DATE);
         assertThat(input.candidateCurrentPrice().priceKrw())
-                .isEqualTo(71_000L);
+                .isEqualTo(80_000L);
+        assertThat(input.candidateCurrentPrice().observedAt())
+                .isEqualTo(Instant.parse("2026-09-29T00:10:00Z"));
         assertThat(input.candidateCurrentPriceSource()).isEqualTo(
-                CurrentPriceLookupSource.BACKTEST_DAILY_CLOSE
+                CurrentPriceLookupSource.BACKTEST_DAILY_OPEN
         );
-        assertThat(input.portfolioSnapshot().cashAmountKrw())
-                .isEqualTo(1_000_000L);
     }
 
     @Test
-    void executesOrderAndReturnsTransitionedPortfolio() {
+    void executesOrderUsingSameNextDailyOpenAsDecisionPrice() {
         SwingV1BacktestStepRequest request = request();
+        DailyPriceBar decisionBar = decisionBar();
         InvestmentDecision decision = buyDecision();
-        DailyOpenFillApproximation fill = fill();
+        DailyOpenFillApproximation fill = fill(decisionBar);
         BacktestPortfolioState updatedState = new BacktestPortfolioState(
-                929_000L,
-                List.of(new BacktestPosition(SYMBOL, 1L, 71_000L))
+                920_000L,
+                List.of(new BacktestPosition(SYMBOL, 1L, 80_000L))
         );
         BacktestPortfolioTransitionResult transition =
                 BacktestPortfolioTransitionResult.applied(updatedState);
+        when(priceHistoryQueryService.getFirstDailyPriceBarAfter(
+                SYMBOL,
+                SIGNAL_DATE
+        )).thenReturn(Optional.of(decisionBar));
         when(decisionService.decide(any())).thenReturn(decision);
         when(fillService.approximate(
                 SYMBOL,
-                DECISION_DATE,
+                SIGNAL_DATE,
+                decisionBar,
                 InvestmentAction.BUY,
                 1L,
                 request.costModel()
-        )).thenReturn(Optional.of(fill));
+        )).thenReturn(fill);
         when(transitionService.apply(
                 request.portfolioState(),
                 fill
@@ -129,22 +143,19 @@ class SwingV1BacktestStepServiceTest {
         assertThat(result.status()).isEqualTo(
                 SwingV1BacktestStepStatus.EXECUTED
         );
-        assertThat(result.decision()).isSameAs(decision);
-        assertThat(result.fill()).isSameAs(fill);
-        assertThat(result.portfolioTransition()).isSameAs(transition);
+        assertThat(result.decision().expectedPriceKrw())
+                .isEqualTo(80_000L);
+        assertThat(result.fill().tradeCostCalculation().referencePriceKrw())
+                .isEqualTo(80_000L);
         assertThat(result.portfolioStateAfter()).isSameAs(updatedState);
     }
 
     @Test
-    void preservesPortfolioWhenNextDailyBarDoesNotExist() {
+    void returnsNoNextDailyBarBeforeRequestingDecision() {
         SwingV1BacktestStepRequest request = request();
-        when(decisionService.decide(any())).thenReturn(buyDecision());
-        when(fillService.approximate(
+        when(priceHistoryQueryService.getFirstDailyPriceBarAfter(
                 SYMBOL,
-                DECISION_DATE,
-                InvestmentAction.BUY,
-                1L,
-                request.costModel()
+                SIGNAL_DATE
         )).thenReturn(Optional.empty());
 
         SwingV1BacktestStepResult result = service.execute(request);
@@ -152,17 +163,19 @@ class SwingV1BacktestStepServiceTest {
         assertThat(result.status()).isEqualTo(
                 SwingV1BacktestStepStatus.NO_NEXT_DAILY_BAR
         );
+        assertThat(result.decisionDate()).isNull();
+        assertThat(result.decision()).isNull();
         assertThat(result.portfolioStateAfter())
                 .isSameAs(request.portfolioState());
-        assertThat(result.fill()).isNull();
-        verifyNoInteractions(transitionService);
+        verifyNoInteractions(decisionService, fillService, transitionService);
     }
 
     @Test
     void returnsRejectedTransitionWithoutChangingPortfolio() {
         SwingV1BacktestStepRequest request = request();
+        DailyPriceBar decisionBar = decisionBar();
         InvestmentDecision decision = buyDecision();
-        DailyOpenFillApproximation fill = fill();
+        DailyOpenFillApproximation fill = fill(decisionBar);
         BacktestPortfolioTransitionResult transition =
                 BacktestPortfolioTransitionResult.rejected(
                         BacktestPortfolioTransitionReasonCode
@@ -170,14 +183,19 @@ class SwingV1BacktestStepServiceTest {
                         "Insufficient cash.",
                         request.portfolioState()
                 );
+        when(priceHistoryQueryService.getFirstDailyPriceBarAfter(
+                SYMBOL,
+                SIGNAL_DATE
+        )).thenReturn(Optional.of(decisionBar));
         when(decisionService.decide(any())).thenReturn(decision);
         when(fillService.approximate(
                 SYMBOL,
-                DECISION_DATE,
+                SIGNAL_DATE,
+                decisionBar,
                 InvestmentAction.BUY,
                 1L,
                 request.costModel()
-        )).thenReturn(Optional.of(fill));
+        )).thenReturn(fill);
         when(transitionService.apply(
                 request.portfolioState(),
                 fill
@@ -194,7 +212,6 @@ class SwingV1BacktestStepServiceTest {
     }
 
     private SwingV1BacktestStepRequest request() {
-        DailyPriceBar evaluationBar = bar(DECISION_DATE, 71_000L);
         return new SwingV1BacktestStepRequest(
                 new InvestmentStrategyIdentity(
                         "SWING_V1",
@@ -202,16 +219,17 @@ class SwingV1BacktestStepServiceTest {
                         InvestmentHorizon.SWING
                 ),
                 SYMBOL,
-                DECISION_DATE,
-                EVALUATED_AT,
+                SIGNAL_DATE,
                 new DailyPriceHistory(
                         SYMBOL,
                         List.of(
-                                bar(DECISION_DATE.minusDays(1), 70_000L),
-                                evaluationBar
+                                historyBar(
+                                        SIGNAL_DATE.minusDays(1),
+                                        69_000L
+                                ),
+                                historyBar(SIGNAL_DATE, 70_000L)
                         )
                 ),
-                Map.of(SYMBOL, evaluationBar),
                 BacktestPortfolioState.withCash(1_000_000L),
                 costModel()
         );
@@ -222,27 +240,38 @@ class SwingV1BacktestStepServiceTest {
                 InvestmentAction.BUY,
                 SYMBOL,
                 1L,
-                71_000L,
+                80_000L,
                 "Golden cross entry."
         );
     }
 
-    private DailyOpenFillApproximation fill() {
+    private DailyOpenFillApproximation fill(DailyPriceBar decisionBar) {
         return new DailyOpenFillApproximation(
                 BacktestFillType.DAILY_OPEN_FILL_APPROXIMATION,
                 SYMBOL,
+                SIGNAL_DATE,
                 DECISION_DATE,
-                DECISION_DATE.plusDays(1),
                 new TradeCostCalculator().calculate(
                         costModel(),
                         InvestmentAction.BUY,
                         1L,
-                        71_000L
+                        decisionBar.openPriceKrw()
                 )
         );
     }
 
-    private DailyPriceBar bar(
+    private DailyPriceBar decisionBar() {
+        return new DailyPriceBar(
+                DECISION_DATE,
+                80_000L,
+                82_000L,
+                78_000L,
+                81_000L,
+                1_000_000L
+        );
+    }
+
+    private DailyPriceBar historyBar(
             LocalDate tradingDate,
             long closePriceKrw
     ) {

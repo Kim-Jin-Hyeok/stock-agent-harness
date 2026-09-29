@@ -30,7 +30,7 @@ class DailyOpenFillApproximationTest {
                 calculation
         ))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("fillDate must be after decisionDate.");
+                .hasMessage("fillDate must be after signalDate.");
     }
 
     @Test
@@ -63,7 +63,7 @@ class DailyOpenFillApproximationTest {
                 calculation
         ))
                 .isInstanceOf(NullPointerException.class)
-                .hasMessage("decisionDate must not be null.");
+                .hasMessage("signalDate must not be null.");
         assertThatThrownBy(() -> new DailyOpenFillApproximation(
                 BacktestFillType.DAILY_OPEN_FILL_APPROXIMATION,
                 "005930",

@@ -12,25 +12,40 @@ import com.stock.backtest.portfolio.transition.BacktestPortfolioTransitionServic
 import com.stock.backtest.portfolio.transition.result.BacktestPortfolioTransitionResult;
 import com.stock.backtest.strategy.swing.v1.execution.result.SwingV1BacktestStepResult;
 import com.stock.market.price.CurrentPriceSnapshot;
+import com.stock.market.price.history.DailyPriceBar;
+import com.stock.market.price.history.query.DailyPriceHistoryQueryService;
 import com.stock.market.price.lookup.CurrentPriceLookupSource;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
 @Service
 public class SwingV1BacktestStepService {
+    private static final LocalTime DECISION_TIME = LocalTime.of(9, 10);
+    private static final ZoneId MARKET_ZONE = ZoneId.of("Asia/Seoul");
+
+    private final DailyPriceHistoryQueryService priceHistoryQueryService;
     private final BacktestPortfolioEvaluationContextFactory contextFactory;
     private final SwingV1DecisionService decisionService;
     private final DailyOpenFillApproximationService fillService;
     private final BacktestPortfolioTransitionService transitionService;
 
     public SwingV1BacktestStepService(
+            DailyPriceHistoryQueryService priceHistoryQueryService,
             BacktestPortfolioEvaluationContextFactory contextFactory,
             SwingV1DecisionService decisionService,
             DailyOpenFillApproximationService fillService,
             BacktestPortfolioTransitionService transitionService
     ) {
+        this.priceHistoryQueryService = Objects.requireNonNull(
+                priceHistoryQueryService,
+                "priceHistoryQueryService must not be null."
+        );
         this.contextFactory = Objects.requireNonNull(
                 contextFactory,
                 "contextFactory must not be null."
@@ -54,12 +69,31 @@ public class SwingV1BacktestStepService {
     ) {
         Objects.requireNonNull(request, "request must not be null.");
 
-        BacktestPortfolioEvaluationContext context = contextFactory.create(
-                request.portfolioState(),
-                request.decisionDate(),
-                request.evaluatedAt(),
-                request.evaluationBarsBySymbol()
-        );
+        Optional<DailyPriceBar> nextDailyPriceBar = priceHistoryQueryService
+                .getFirstDailyPriceBarAfter(
+                        request.candidateSymbol(),
+                        request.signalDate()
+                );
+        if (nextDailyPriceBar.isEmpty()) {
+            return SwingV1BacktestStepResult.noNextDailyBar(
+                    request.signalDate(),
+                    request.candidateSymbol(),
+                    request.portfolioState()
+            );
+        }
+
+        DailyPriceBar decisionBar = nextDailyPriceBar.orElseThrow();
+        Instant evaluatedAt = decisionBar.tradingDate()
+                .atTime(DECISION_TIME)
+                .atZone(MARKET_ZONE)
+                .toInstant();
+        BacktestPortfolioEvaluationContext context =
+                contextFactory.createAtOpen(
+                        request.portfolioState(),
+                        decisionBar.tradingDate(),
+                        evaluatedAt,
+                        Map.of(request.candidateSymbol(), decisionBar)
+                );
         CurrentPriceSnapshot candidateCurrentPrice = context
                 .findCurrentPrice(request.candidateSymbol())
                 .orElseThrow(() -> new IllegalStateException(
@@ -71,47 +105,45 @@ public class SwingV1BacktestStepService {
                         request.dailyPriceHistory(),
                         context.portfolioSnapshot(),
                         candidateCurrentPrice,
-                        CurrentPriceLookupSource.BACKTEST_DAILY_CLOSE,
+                        CurrentPriceLookupSource.BACKTEST_DAILY_OPEN,
                         context.currentPrices(),
-                        request.evaluatedAt()
+                        evaluatedAt
                 )
         );
 
         if (decision.action() == InvestmentAction.HOLD) {
             return SwingV1BacktestStepResult.hold(
-                    request.decisionDate(),
+                    request.signalDate(),
+                    decisionBar.tradingDate(),
                     decision,
                     request.portfolioState()
             );
         }
-        validateOrderDecision(decision, request.candidateSymbol());
+        validateOrderDecision(
+                decision,
+                request.candidateSymbol(),
+                candidateCurrentPrice.priceKrw()
+        );
 
-        Optional<DailyOpenFillApproximation> fill =
-                fillService.approximate(
-                        decision.symbol(),
-                        request.decisionDate(),
-                        decision.action(),
-                        decision.quantity(),
-                        request.costModel()
-                );
-        if (fill.isEmpty()) {
-            return SwingV1BacktestStepResult.noNextDailyBar(
-                    request.decisionDate(),
-                    decision,
-                    request.portfolioState()
-            );
-        }
+        DailyOpenFillApproximation fill = fillService.approximate(
+                decision.symbol(),
+                request.signalDate(),
+                decisionBar,
+                decision.action(),
+                decision.quantity(),
+                request.costModel()
+        );
 
-        DailyOpenFillApproximation filledOrder = fill.orElseThrow();
         BacktestPortfolioTransitionResult transition =
                 transitionService.apply(
                         request.portfolioState(),
-                        filledOrder
+                        fill
                 );
         return SwingV1BacktestStepResult.transitioned(
-                request.decisionDate(),
+                request.signalDate(),
+                decisionBar.tradingDate(),
                 decision,
-                filledOrder,
+                fill,
                 transition,
                 request.portfolioState()
         );
@@ -119,7 +151,8 @@ public class SwingV1BacktestStepService {
 
     private void validateOrderDecision(
             InvestmentDecision decision,
-            String candidateSymbol
+            String candidateSymbol,
+            long candidateCurrentPriceKrw
     ) {
         if (decision.action() == null
                 || decision.action() == InvestmentAction.HOLD
@@ -129,7 +162,8 @@ public class SwingV1BacktestStepService {
                 || decision.quantity() == null
                 || decision.quantity() <= 0
                 || decision.expectedPriceKrw() == null
-                || decision.expectedPriceKrw() <= 0) {
+                || decision.expectedPriceKrw() <= 0
+                || decision.expectedPriceKrw() != candidateCurrentPriceKrw) {
             throw new IllegalStateException(
                     "SWING_V1 decision must contain a valid candidate order."
             );

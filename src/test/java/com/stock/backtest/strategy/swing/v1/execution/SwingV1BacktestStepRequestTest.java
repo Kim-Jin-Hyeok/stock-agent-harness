@@ -1,6 +1,7 @@
 package com.stock.backtest.strategy.swing.v1.execution;
 
 import com.stock.backtest.portfolio.BacktestPortfolioState;
+import com.stock.backtest.portfolio.BacktestPosition;
 import com.stock.market.price.history.DailyPriceBar;
 import com.stock.market.price.history.DailyPriceHistory;
 import com.stock.strategy.profile.InvestmentHorizon;
@@ -9,21 +10,16 @@ import com.stock.trade.cost.model.TradeCostModel;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.LocalDate;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class SwingV1BacktestStepRequestTest {
     private static final String SYMBOL = "005930";
-    private static final LocalDate DECISION_DATE =
-            LocalDate.of(2026, 9, 29);
-    private static final Instant EVALUATED_AT =
-            Instant.parse("2026-09-29T06:30:00Z");
+    private static final LocalDate SIGNAL_DATE =
+            LocalDate.of(2026, 9, 28);
     private static final InvestmentStrategyIdentity STRATEGY_IDENTITY =
             new InvestmentStrategyIdentity(
                     "SWING_V1",
@@ -32,30 +28,25 @@ class SwingV1BacktestStepRequestTest {
             );
 
     @Test
-    void copiesEvaluationBarsAndAcceptsDecisionDateHistory() {
-        Map<String, DailyPriceBar> evaluationBars = new HashMap<>();
-        evaluationBars.put(SYMBOL, bar(DECISION_DATE));
+    void acceptsHistoryThatEndsOnSignalDate() {
+        DailyPriceHistory history = new DailyPriceHistory(
+                SYMBOL,
+                List.of(
+                        bar(SIGNAL_DATE.minusDays(1)),
+                        bar(SIGNAL_DATE)
+                )
+        );
 
         SwingV1BacktestStepRequest request = request(
                 STRATEGY_IDENTITY,
                 SYMBOL,
-                new DailyPriceHistory(
-                        SYMBOL,
-                        List.of(
-                                bar(DECISION_DATE.minusDays(1)),
-                                bar(DECISION_DATE)
-                        )
-                ),
-                evaluationBars
+                history,
+                BacktestPortfolioState.withCash(1_000_000L)
         );
-        evaluationBars.clear();
 
-        assertThat(request.evaluationBarsBySymbol())
-                .containsOnlyKeys(SYMBOL);
-        assertThatThrownBy(() -> request
-                .evaluationBarsBySymbol()
-                .clear())
-                .isInstanceOf(UnsupportedOperationException.class);
+        assertThat(request.signalDate()).isEqualTo(SIGNAL_DATE);
+        assertThat(request.dailyPriceHistory()).isSameAs(history);
+        assertThat(request.portfolioState().positions()).isEmpty();
     }
 
     @Test
@@ -70,8 +61,8 @@ class SwingV1BacktestStepRequestTest {
         assertThatThrownBy(() -> request(
                 wrongVersion,
                 SYMBOL,
-                history(DECISION_DATE),
-                Map.of(SYMBOL, bar(DECISION_DATE))
+                history(SYMBOL, SIGNAL_DATE),
+                BacktestPortfolioState.withCash(1_000_000L)
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
@@ -84,11 +75,8 @@ class SwingV1BacktestStepRequestTest {
         assertThatThrownBy(() -> request(
                 STRATEGY_IDENTITY,
                 SYMBOL,
-                new DailyPriceHistory(
-                        "000660",
-                        List.of(bar(DECISION_DATE))
-                ),
-                Map.of(SYMBOL, bar(DECISION_DATE))
+                history("000660", SIGNAL_DATE),
+                BacktestPortfolioState.withCash(1_000_000L)
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
@@ -97,12 +85,12 @@ class SwingV1BacktestStepRequestTest {
     }
 
     @Test
-    void rejectsHistoryThatDoesNotEndOnDecisionDate() {
+    void rejectsHistoryThatDoesNotEndOnSignalDate() {
         DailyPriceHistory historyWithFutureBar = new DailyPriceHistory(
                 SYMBOL,
                 List.of(
-                        bar(DECISION_DATE),
-                        bar(DECISION_DATE.plusDays(1))
+                        bar(SIGNAL_DATE),
+                        bar(SIGNAL_DATE.plusDays(1))
                 )
         );
 
@@ -110,26 +98,36 @@ class SwingV1BacktestStepRequestTest {
                 STRATEGY_IDENTITY,
                 SYMBOL,
                 historyWithFutureBar,
-                Map.of(SYMBOL, bar(DECISION_DATE))
+                BacktestPortfolioState.withCash(1_000_000L)
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
                         "dailyPriceHistory latest tradingDate must match "
-                                + "decisionDate."
+                                + "signalDate."
                 );
     }
 
     @Test
-    void rejectsEvaluationBarsWithoutCandidate() {
+    void rejectsPositionForAnotherSymbol() {
+        BacktestPortfolioState portfolioState = new BacktestPortfolioState(
+                1_000_000L,
+                List.of(new BacktestPosition(
+                        "000660",
+                        1L,
+                        180_000L
+                ))
+        );
+
         assertThatThrownBy(() -> request(
                 STRATEGY_IDENTITY,
                 SYMBOL,
-                history(DECISION_DATE),
-                Map.of("000660", bar(DECISION_DATE))
+                history(SYMBOL, SIGNAL_DATE),
+                portfolioState
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
-                        "evaluationBarsBySymbol must contain candidateSymbol."
+                        "portfolioState positions must match candidateSymbol "
+                                + "for single-symbol backtest step."
                 );
     }
 
@@ -137,23 +135,24 @@ class SwingV1BacktestStepRequestTest {
             InvestmentStrategyIdentity strategyIdentity,
             String candidateSymbol,
             DailyPriceHistory history,
-            Map<String, DailyPriceBar> evaluationBars
+            BacktestPortfolioState portfolioState
     ) {
         return new SwingV1BacktestStepRequest(
                 strategyIdentity,
                 candidateSymbol,
-                DECISION_DATE,
-                EVALUATED_AT,
+                SIGNAL_DATE,
                 history,
-                evaluationBars,
-                BacktestPortfolioState.withCash(1_000_000L),
+                portfolioState,
                 costModel()
         );
     }
 
-    private DailyPriceHistory history(LocalDate tradingDate) {
+    private DailyPriceHistory history(
+            String symbol,
+            LocalDate tradingDate
+    ) {
         return new DailyPriceHistory(
-                SYMBOL,
+                symbol,
                 List.of(bar(tradingDate))
         );
     }

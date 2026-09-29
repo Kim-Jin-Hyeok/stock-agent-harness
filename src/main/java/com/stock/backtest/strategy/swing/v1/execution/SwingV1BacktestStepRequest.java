@@ -7,18 +7,14 @@ import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import com.stock.trade.cost.model.TradeCostModel;
 
-import java.time.Instant;
 import java.time.LocalDate;
-import java.util.Map;
 import java.util.Objects;
 
 public record SwingV1BacktestStepRequest(
         InvestmentStrategyIdentity strategyIdentity,
         String candidateSymbol,
-        LocalDate decisionDate,
-        Instant evaluatedAt,
+        LocalDate signalDate,
         DailyPriceHistory dailyPriceHistory,
-        Map<String, DailyPriceBar> evaluationBarsBySymbol,
         BacktestPortfolioState portfolioState,
         TradeCostModel costModel
 ) {
@@ -37,10 +33,9 @@ public record SwingV1BacktestStepRequest(
             );
         }
         Objects.requireNonNull(
-                decisionDate,
-                "decisionDate must not be null."
+                signalDate,
+                "signalDate must not be null."
         );
-        Objects.requireNonNull(evaluatedAt, "evaluatedAt must not be null.");
         Objects.requireNonNull(
                 dailyPriceHistory,
                 "dailyPriceHistory must not be null."
@@ -50,21 +45,12 @@ public record SwingV1BacktestStepRequest(
                     "candidateSymbol must match dailyPriceHistory symbol."
             );
         }
-        validateDailyPriceHistory(dailyPriceHistory, decisionDate);
-
-        evaluationBarsBySymbol = Map.copyOf(Objects.requireNonNull(
-                evaluationBarsBySymbol,
-                "evaluationBarsBySymbol must not be null."
-        ));
-        if (!evaluationBarsBySymbol.containsKey(candidateSymbol)) {
-            throw new IllegalArgumentException(
-                    "evaluationBarsBySymbol must contain candidateSymbol."
-            );
-        }
+        validateDailyPriceHistory(dailyPriceHistory, signalDate);
         Objects.requireNonNull(
                 portfolioState,
                 "portfolioState must not be null."
         );
+        validateSingleSymbolPortfolio(portfolioState, candidateSymbol);
         Objects.requireNonNull(costModel, "costModel must not be null.");
     }
 
@@ -82,19 +68,36 @@ public record SwingV1BacktestStepRequest(
 
     private static void validateDailyPriceHistory(
             DailyPriceHistory dailyPriceHistory,
-            LocalDate decisionDate
+            LocalDate signalDate
     ) {
         if (dailyPriceHistory.bars().isEmpty()) {
             throw new IllegalArgumentException(
-                    "dailyPriceHistory must contain decisionDate bar."
+                    "dailyPriceHistory must contain signalDate bar."
             );
         }
         DailyPriceBar latestBar = dailyPriceHistory.bars()
                 .getLast();
-        if (!latestBar.tradingDate().equals(decisionDate)) {
+        if (!latestBar.tradingDate().equals(signalDate)) {
             throw new IllegalArgumentException(
                     "dailyPriceHistory latest tradingDate must match "
-                            + "decisionDate."
+                            + "signalDate."
+            );
+        }
+    }
+
+    private static void validateSingleSymbolPortfolio(
+            BacktestPortfolioState portfolioState,
+            String candidateSymbol
+    ) {
+        boolean containsOtherSymbol = portfolioState.positions()
+                .stream()
+                .anyMatch(position -> !candidateSymbol.equals(
+                        position.symbol()
+                ));
+        if (containsOtherSymbol) {
+            throw new IllegalArgumentException(
+                    "portfolioState positions must match candidateSymbol "
+                            + "for single-symbol backtest step."
             );
         }
     }

@@ -29,7 +29,7 @@ class BacktestPortfolioEvaluationContextFactoryTest {
         BacktestPortfolioState portfolioState =
                 BacktestPortfolioState.withCash(1_000_000L);
 
-        BacktestPortfolioEvaluationContext context = factory.create(
+        BacktestPortfolioEvaluationContext context = factory.createAtClose(
                 portfolioState,
                 EVALUATION_DATE,
                 EVALUATED_AT,
@@ -63,7 +63,7 @@ class BacktestPortfolioEvaluationContextFactoryTest {
                 List.of(samsung, hynix)
         );
 
-        BacktestPortfolioEvaluationContext context = factory.create(
+        BacktestPortfolioEvaluationContext context = factory.createAtClose(
                 portfolioState,
                 EVALUATION_DATE,
                 EVALUATED_AT,
@@ -113,6 +113,42 @@ class BacktestPortfolioEvaluationContextFactoryTest {
     }
 
     @Test
+    void evaluatesPortfolioAndCurrentPriceAtDailyOpen() {
+        BacktestPortfolioState portfolioState = new BacktestPortfolioState(
+                300_000L,
+                List.of(new BacktestPosition(
+                        "005930",
+                        10L,
+                        70_000L
+                ))
+        );
+        DailyPriceBar gapUpBar = new DailyPriceBar(
+                EVALUATION_DATE,
+                80_000L,
+                82_000L,
+                74_000L,
+                75_000L,
+                1_000_000L
+        );
+
+        BacktestPortfolioEvaluationContext context = factory.createAtOpen(
+                portfolioState,
+                EVALUATION_DATE,
+                EVALUATED_AT,
+                Map.of("005930", gapUpBar)
+        );
+
+        assertThat(context.portfolioSnapshot().totalAssetAmountKrw())
+                .isEqualTo(1_100_000L);
+        assertThat(context.findCurrentPrice("005930"))
+                .contains(new CurrentPriceSnapshot(
+                        "005930",
+                        80_000L,
+                        EVALUATED_AT
+                ));
+    }
+
+    @Test
     void rejectsMissingDailyPriceBarForPosition() {
         BacktestPortfolioState portfolioState = new BacktestPortfolioState(
                 300_000L,
@@ -123,7 +159,7 @@ class BacktestPortfolioEvaluationContextFactoryTest {
                 ))
         );
 
-        assertThatThrownBy(() -> factory.create(
+        assertThatThrownBy(() -> factory.createAtClose(
                 portfolioState,
                 EVALUATION_DATE,
                 EVALUATED_AT,
@@ -149,7 +185,7 @@ class BacktestPortfolioEvaluationContextFactoryTest {
                 1_000_000L
         );
 
-        assertThatThrownBy(() -> factory.create(
+        assertThatThrownBy(() -> factory.createAtClose(
                 portfolioState,
                 EVALUATION_DATE,
                 EVALUATED_AT,
@@ -167,7 +203,7 @@ class BacktestPortfolioEvaluationContextFactoryTest {
         BacktestPortfolioState portfolioState =
                 BacktestPortfolioState.withCash(1_000_000L);
 
-        assertThatThrownBy(() -> factory.create(
+        assertThatThrownBy(() -> factory.createAtClose(
                 portfolioState,
                 EVALUATION_DATE,
                 Instant.parse("2026-09-28T06:30:00Z"),
