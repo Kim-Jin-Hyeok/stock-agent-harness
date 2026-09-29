@@ -151,6 +151,9 @@ class MovingAverageOrderDecisionAiRequestFactoryTest {
         CurrentPriceLookupResult lookupResult = switch (source) {
             case PROVIDER -> CurrentPriceLookupResult.provider(snapshot);
             case CACHE -> CurrentPriceLookupResult.cache(snapshot);
+            case BACKTEST_DAILY_CLOSE -> throw new IllegalArgumentException(
+                    "Backtest price source is not used by this test helper."
+            );
         };
 
         return contextFactory.create(
