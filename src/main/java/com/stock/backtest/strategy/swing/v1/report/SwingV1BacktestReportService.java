@@ -5,6 +5,8 @@ import com.stock.backtest.performance.metric.BacktestPerformanceSummary;
 import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunRequest;
 import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunResult;
 import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunService;
+import com.stock.backtest.strategy.swing.v1.report.terminal.SwingV1TerminalLiquidationCalculator;
+import com.stock.backtest.strategy.swing.v1.report.terminal.SwingV1TerminalLiquidationEstimate;
 import org.springframework.stereotype.Service;
 
 import java.util.Objects;
@@ -13,10 +15,14 @@ import java.util.Objects;
 public class SwingV1BacktestReportService {
     private final SwingV1BacktestRunService runService;
     private final BacktestPerformanceCalculator performanceCalculator;
+    private final SwingV1TerminalLiquidationCalculator
+            terminalLiquidationCalculator;
 
     public SwingV1BacktestReportService(
             SwingV1BacktestRunService runService,
-            BacktestPerformanceCalculator performanceCalculator
+            BacktestPerformanceCalculator performanceCalculator,
+            SwingV1TerminalLiquidationCalculator
+                    terminalLiquidationCalculator
     ) {
         this.runService = Objects.requireNonNull(
                 runService,
@@ -25,6 +31,10 @@ public class SwingV1BacktestReportService {
         this.performanceCalculator = Objects.requireNonNull(
                 performanceCalculator,
                 "performanceCalculator must not be null."
+        );
+        this.terminalLiquidationCalculator = Objects.requireNonNull(
+                terminalLiquidationCalculator,
+                "terminalLiquidationCalculator must not be null."
         );
     }
 
@@ -45,10 +55,18 @@ public class SwingV1BacktestReportService {
                         runResult.initialPortfolioState(),
                         runResult.equityCurve()
                 );
+        SwingV1TerminalLiquidationEstimate terminalEstimate =
+                terminalLiquidationCalculator.calculate(
+                        performanceSummary.initialEquityAmountKrw(),
+                        runResult.finalPortfolioState(),
+                        runResult.equityCurve().getLast(),
+                        request.costModel()
+                );
         return new SwingV1BacktestReport(
                 request,
                 runResult,
-                performanceSummary
+                performanceSummary,
+                terminalEstimate
         );
     }
 }

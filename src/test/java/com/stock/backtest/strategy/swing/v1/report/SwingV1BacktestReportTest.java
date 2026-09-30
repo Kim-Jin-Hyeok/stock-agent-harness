@@ -8,12 +8,14 @@ import com.stock.backtest.portfolio.BacktestPortfolioState;
 import com.stock.backtest.strategy.swing.v1.execution.result.SwingV1BacktestStepResult;
 import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunRequest;
 import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunResult;
+import com.stock.backtest.strategy.swing.v1.report.terminal.SwingV1TerminalLiquidationEstimate;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import com.stock.trade.cost.model.TradeCostModel;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.math.MathContext;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
@@ -46,13 +48,17 @@ class SwingV1BacktestReportTest {
         SwingV1BacktestReport report = new SwingV1BacktestReport(
                 request,
                 runResult,
-                performanceSummary
+                performanceSummary,
+                terminalEstimate(INITIAL_CASH_AMOUNT_KRW)
         );
 
         assertThat(report.request()).isSameAs(request);
         assertThat(report.runResult()).isSameAs(runResult);
         assertThat(report.performanceSummary())
                 .isSameAs(performanceSummary);
+        assertThat(report.terminalLiquidationEstimate()
+                .markToMarketFinalEquityAmountKrw())
+                .isEqualTo(INITIAL_CASH_AMOUNT_KRW);
     }
 
     @Test
@@ -63,7 +69,8 @@ class SwingV1BacktestReportTest {
         assertThatThrownBy(() -> new SwingV1BacktestReport(
                 request,
                 runResult,
-                summary(1)
+                summary(1),
+                terminalEstimate(INITIAL_CASH_AMOUNT_KRW)
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
@@ -76,7 +83,8 @@ class SwingV1BacktestReportTest {
         assertThatThrownBy(() -> new SwingV1BacktestReport(
                 request(SYMBOL),
                 runResult(SYMBOL, false),
-                summary(1)
+                summary(1),
+                terminalEstimate(INITIAL_CASH_AMOUNT_KRW)
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("runResult equityCurve must not be empty.");
@@ -87,12 +95,28 @@ class SwingV1BacktestReportTest {
         assertThatThrownBy(() -> new SwingV1BacktestReport(
                 request(SYMBOL),
                 runResult(SYMBOL, true),
-                summary(2)
+                summary(2),
+                terminalEstimate(INITIAL_CASH_AMOUNT_KRW)
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
                         "performanceSummary observation count must match "
                                 + "runResult."
+                );
+    }
+
+    @Test
+    void rejectsTerminalEstimateWithDifferentMarkToMarketEquity() {
+        assertThatThrownBy(() -> new SwingV1BacktestReport(
+                request(SYMBOL),
+                runResult(SYMBOL, true),
+                summary(1),
+                terminalEstimate(900_000L)
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "terminalLiquidationEstimate mark-to-market "
+                                + "equity must match performanceSummary."
                 );
     }
 
@@ -160,6 +184,29 @@ class SwingV1BacktestReportTest {
                 null,
                 null,
                 observationCount
+        );
+    }
+
+    private SwingV1TerminalLiquidationEstimate terminalEstimate(
+            long finalEquityAmountKrw
+    ) {
+        long netProfitAmountKrw = Math.subtractExact(
+                finalEquityAmountKrw,
+                INITIAL_CASH_AMOUNT_KRW
+        );
+        BigDecimal totalReturnRate = BigDecimal
+                .valueOf(netProfitAmountKrw)
+                .divide(
+                        BigDecimal.valueOf(INITIAL_CASH_AMOUNT_KRW),
+                        MathContext.DECIMAL128
+                );
+        return new SwingV1TerminalLiquidationEstimate(
+                INITIAL_CASH_AMOUNT_KRW,
+                finalEquityAmountKrw,
+                0L,
+                finalEquityAmountKrw,
+                netProfitAmountKrw,
+                totalReturnRate
         );
     }
 

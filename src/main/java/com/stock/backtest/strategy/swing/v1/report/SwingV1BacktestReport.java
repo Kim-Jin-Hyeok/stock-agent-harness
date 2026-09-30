@@ -4,6 +4,7 @@ import com.stock.backtest.performance.equity.BacktestEquitySnapshot;
 import com.stock.backtest.performance.metric.BacktestPerformanceSummary;
 import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunRequest;
 import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunResult;
+import com.stock.backtest.strategy.swing.v1.report.terminal.SwingV1TerminalLiquidationEstimate;
 
 import java.util.List;
 import java.util.Objects;
@@ -11,7 +12,8 @@ import java.util.Objects;
 public record SwingV1BacktestReport(
         SwingV1BacktestRunRequest request,
         SwingV1BacktestRunResult runResult,
-        BacktestPerformanceSummary performanceSummary
+        BacktestPerformanceSummary performanceSummary,
+        SwingV1TerminalLiquidationEstimate terminalLiquidationEstimate
 ) {
     public SwingV1BacktestReport {
         Objects.requireNonNull(request, "request must not be null.");
@@ -23,9 +25,17 @@ public record SwingV1BacktestReport(
                 performanceSummary,
                 "performanceSummary must not be null."
         );
+        Objects.requireNonNull(
+                terminalLiquidationEstimate,
+                "terminalLiquidationEstimate must not be null."
+        );
 
         validateRunMatchesRequest(request, runResult);
         validatePerformanceSummary(runResult, performanceSummary);
+        validateTerminalLiquidationEstimate(
+                performanceSummary,
+                terminalLiquidationEstimate
+        );
     }
 
     private static void validateRunMatchesRequest(
@@ -92,6 +102,26 @@ public record SwingV1BacktestReport(
             throw new IllegalArgumentException(
                     "performanceSummary observation count must match "
                             + "runResult."
+            );
+        }
+    }
+
+    private static void validateTerminalLiquidationEstimate(
+            BacktestPerformanceSummary performanceSummary,
+            SwingV1TerminalLiquidationEstimate terminalEstimate
+    ) {
+        if (terminalEstimate.initialEquityAmountKrw()
+                != performanceSummary.initialEquityAmountKrw()) {
+            throw new IllegalArgumentException(
+                    "terminalLiquidationEstimate initial equity must match "
+                            + "performanceSummary."
+            );
+        }
+        if (terminalEstimate.markToMarketFinalEquityAmountKrw()
+                != performanceSummary.finalEquityAmountKrw()) {
+            throw new IllegalArgumentException(
+                    "terminalLiquidationEstimate mark-to-market equity "
+                            + "must match performanceSummary."
             );
         }
     }
