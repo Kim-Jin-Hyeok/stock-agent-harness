@@ -25,6 +25,8 @@ import com.stock.broker.order.cancellation.provider.BrokerOrderCancellationProvi
 import com.stock.broker.order.persistence.BrokerOrderRepository;
 import com.stock.broker.order.scheduler.BrokerOrderReconciliationScheduler;
 import com.stock.broker.order.scheduler.config.BrokerOrderReconciliationSchedulerProperties;
+import com.stock.market.index.history.collection.MarketIndexDailyHistoryCollectionService;
+import com.stock.market.index.history.persistence.MarketIndexDailyObservationRepository;
 import com.stock.market.index.history.provider.MarketIndexDailyHistoryProvider;
 import com.stock.market.index.history.provider.kis.KisMarketIndexDailyHistoryClient;
 import com.stock.market.index.history.provider.kis.KisMarketIndexDailyHistoryProvider;
@@ -81,6 +83,12 @@ class KisConfigurationTest {
                             () -> mock(DailyPriceBarRepository.class)
                     )
                     .withBean(
+                            MarketIndexDailyObservationRepository.class,
+                            () -> mock(
+                                    MarketIndexDailyObservationRepository.class
+                            )
+                    )
+                    .withBean(
                             BrokerOrderProperties.class,
                             () -> new BrokerOrderProperties(
                                     Duration.ofMinutes(5)
@@ -120,6 +128,9 @@ class KisConfigurationTest {
                     );
                     assertThat(context).doesNotHaveBean(
                             MarketIndexDailyHistoryProvider.class
+                    );
+                    assertThat(context).doesNotHaveBean(
+                            MarketIndexDailyHistoryCollectionService.class
                     );
                     assertThat(context).doesNotHaveBean(
                             KisMarketIndexDailyHistoryRequestWaiter.class
@@ -304,6 +315,9 @@ class KisConfigurationTest {
                             MarketIndexDailyHistoryProvider.class
                     )).isInstanceOf(
                             KisMarketIndexDailyHistoryProvider.class
+                    );
+                    assertThat(context).hasSingleBean(
+                            MarketIndexDailyHistoryCollectionService.class
                     );
                     assertThat(context).hasSingleBean(
                             KisMarketIndexDailyHistoryRequestWaiter.class

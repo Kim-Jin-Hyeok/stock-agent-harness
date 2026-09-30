@@ -23,6 +23,8 @@ import com.stock.broker.order.inquiry.provider.BrokerOrderInquiryProvider;
 import com.stock.broker.order.persistence.BrokerOrderRepository;
 import com.stock.broker.order.scheduler.BrokerOrderReconciliationScheduler;
 import com.stock.broker.order.scheduler.config.BrokerOrderReconciliationSchedulerProperties;
+import com.stock.market.index.history.collection.MarketIndexDailyHistoryCollectionService;
+import com.stock.market.index.history.persistence.MarketIndexDailyObservationRepository;
 import com.stock.market.index.history.provider.MarketIndexDailyHistoryProvider;
 import com.stock.market.index.history.provider.kis.KisMarketIndexDailyHistoryClient;
 import com.stock.market.index.history.provider.kis.KisMarketIndexDailyHistoryProvider;
@@ -165,6 +167,18 @@ public class KisConfiguration {
                 tokenProvider,
                 requestWaiter,
                 properties.dailyPriceHistoryMaxPages()
+        );
+    }
+
+    @Bean
+    public MarketIndexDailyHistoryCollectionService
+    marketIndexDailyHistoryCollectionService(
+            MarketIndexDailyHistoryProvider historyProvider,
+            MarketIndexDailyObservationRepository observationRepository
+    ) {
+        return new MarketIndexDailyHistoryCollectionService(
+                historyProvider,
+                observationRepository
         );
     }
 
