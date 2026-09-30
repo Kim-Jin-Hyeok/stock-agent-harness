@@ -23,6 +23,7 @@ import com.stock.broker.order.inquiry.provider.BrokerOrderInquiryProvider;
 import com.stock.broker.order.persistence.BrokerOrderRepository;
 import com.stock.broker.order.scheduler.BrokerOrderReconciliationScheduler;
 import com.stock.broker.order.scheduler.config.BrokerOrderReconciliationSchedulerProperties;
+import com.stock.market.index.history.provider.kis.KisMarketIndexDailyHistoryClient;
 import com.stock.market.price.history.collection.DailyPriceHistoryCollectionService;
 import com.stock.market.price.history.collection.config.DailyPriceHistoryBootstrapProperties;
 import com.stock.market.price.history.collection.config.DailyPriceHistoryCollectionProperties;
@@ -121,6 +122,21 @@ public class KisConfiguration {
                 properties.appKey(),
                 properties.appSecret(),
                 properties.dailyPriceHistoryMarket(),
+                clock
+        );
+    }
+
+    @Bean
+    public KisMarketIndexDailyHistoryClient
+    kisMarketIndexDailyHistoryClient(
+            RestClient kisRestClient,
+            KisProperties properties,
+            Clock clock
+    ) {
+        return new KisMarketIndexDailyHistoryClient(
+                kisRestClient,
+                properties.appKey(),
+                properties.appSecret(),
                 clock
         );
     }
