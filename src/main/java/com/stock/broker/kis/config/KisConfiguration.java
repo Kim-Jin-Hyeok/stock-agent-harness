@@ -28,6 +28,8 @@ import com.stock.market.index.history.collection.config.MarketIndexDailyHistoryB
 import com.stock.market.index.history.collection.config.MarketIndexDailyHistoryCollectionProperties;
 import com.stock.market.index.history.collection.policy.MarketIndexDailyHistoryCollectionDatePolicy;
 import com.stock.market.index.history.collection.runner.MarketIndexDailyHistoryBootstrapRunner;
+import com.stock.market.index.history.collection.scheduler.MarketIndexDailyHistoryCollectionScheduler;
+import com.stock.market.index.history.collection.scheduler.config.MarketIndexDailyHistoryCollectionSchedulerProperties;
 import com.stock.market.index.history.persistence.MarketIndexDailyObservationRepository;
 import com.stock.market.index.history.provider.MarketIndexDailyHistoryProvider;
 import com.stock.market.index.history.provider.kis.KisMarketIndexDailyHistoryClient;
@@ -204,6 +206,28 @@ public class KisConfiguration {
                 collectionDatePolicy,
                 bootstrapProperties,
                 collectionProperties
+        );
+    }
+
+    @Bean
+    @ConditionalOnProperty(
+            prefix = "market.index.history.collection.scheduler",
+            name = "enabled",
+            havingValue = "true"
+    )
+    public MarketIndexDailyHistoryCollectionScheduler
+    marketIndexDailyHistoryCollectionScheduler(
+            MarketIndexDailyHistoryCollectionService collectionService,
+            MarketIndexDailyHistoryCollectionDatePolicy collectionDatePolicy,
+            MarketIndexDailyHistoryCollectionProperties collectionProperties,
+            MarketIndexDailyHistoryCollectionSchedulerProperties
+                    schedulerProperties
+    ) {
+        return new MarketIndexDailyHistoryCollectionScheduler(
+                collectionService,
+                collectionDatePolicy,
+                collectionProperties,
+                schedulerProperties
         );
     }
 

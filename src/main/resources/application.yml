@@ -69,6 +69,10 @@ market:
         initial-lookback-years: 3
         bootstrap:
           enabled: false
+        scheduler:
+          enabled: false
+          cron: "0 25 20 * * MON-FRI"
+          zone-id: Asia/Seoul
   price:
     history:
       collection:

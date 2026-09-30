@@ -30,6 +30,8 @@ import com.stock.market.index.history.collection.config.MarketIndexDailyHistoryB
 import com.stock.market.index.history.collection.config.MarketIndexDailyHistoryCollectionProperties;
 import com.stock.market.index.history.collection.policy.MarketIndexDailyHistoryCollectionDatePolicy;
 import com.stock.market.index.history.collection.runner.MarketIndexDailyHistoryBootstrapRunner;
+import com.stock.market.index.history.collection.scheduler.MarketIndexDailyHistoryCollectionScheduler;
+import com.stock.market.index.history.collection.scheduler.config.MarketIndexDailyHistoryCollectionSchedulerProperties;
 import com.stock.market.index.history.persistence.MarketIndexDailyObservationRepository;
 import com.stock.market.index.history.provider.MarketIndexDailyHistoryProvider;
 import com.stock.market.index.history.provider.kis.KisMarketIndexDailyHistoryClient;
@@ -138,6 +140,9 @@ class KisConfigurationTest {
                     );
                     assertThat(context).doesNotHaveBean(
                             MarketIndexDailyHistoryBootstrapRunner.class
+                    );
+                    assertThat(context).doesNotHaveBean(
+                            MarketIndexDailyHistoryCollectionScheduler.class
                     );
                     assertThat(context).doesNotHaveBean(
                             KisMarketIndexDailyHistoryRequestWaiter.class
@@ -289,6 +294,50 @@ class KisConfigurationTest {
                 )
                 .run(context -> assertThat(context).hasSingleBean(
                         MarketIndexDailyHistoryBootstrapRunner.class
+                ));
+    }
+
+    @Test
+    void doesNotCreateMarketIndexDailyHistoryCollectionSchedulerWhenDisabled() {
+        contextRunner
+                .withPropertyValues(
+                        "broker.kis.enabled=true",
+                        "market.index.history.collection.scheduler.enabled=false"
+                )
+                .withBean(KisProperties.class, this::enabledProperties)
+                .run(context -> assertThat(context).doesNotHaveBean(
+                        MarketIndexDailyHistoryCollectionScheduler.class
+                ));
+    }
+
+    @Test
+    void createsMarketIndexDailyHistoryCollectionSchedulerWhenEnabled() {
+        contextRunner
+                .withPropertyValues(
+                        "broker.kis.enabled=true",
+                        "market.index.history.collection.scheduler.enabled=true"
+                )
+                .withBean(KisProperties.class, this::enabledProperties)
+                .withBean(
+                        MarketIndexDailyHistoryCollectionDatePolicy.class,
+                        () -> mock(
+                                MarketIndexDailyHistoryCollectionDatePolicy.class
+                        )
+                )
+                .withBean(
+                        MarketIndexDailyHistoryCollectionProperties.class,
+                        this::marketIndexCollectionProperties
+                )
+                .withBean(
+                        MarketIndexDailyHistoryCollectionSchedulerProperties.class,
+                        () -> new MarketIndexDailyHistoryCollectionSchedulerProperties(
+                                true,
+                                "0 25 20 * * MON-FRI",
+                                "Asia/Seoul"
+                        )
+                )
+                .run(context -> assertThat(context).hasSingleBean(
+                        MarketIndexDailyHistoryCollectionScheduler.class
                 ));
     }
 
