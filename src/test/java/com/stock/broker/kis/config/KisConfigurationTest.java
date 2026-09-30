@@ -26,6 +26,10 @@ import com.stock.broker.order.persistence.BrokerOrderRepository;
 import com.stock.broker.order.scheduler.BrokerOrderReconciliationScheduler;
 import com.stock.broker.order.scheduler.config.BrokerOrderReconciliationSchedulerProperties;
 import com.stock.market.index.history.collection.MarketIndexDailyHistoryCollectionService;
+import com.stock.market.index.history.collection.config.MarketIndexDailyHistoryBootstrapProperties;
+import com.stock.market.index.history.collection.config.MarketIndexDailyHistoryCollectionProperties;
+import com.stock.market.index.history.collection.policy.MarketIndexDailyHistoryCollectionDatePolicy;
+import com.stock.market.index.history.collection.runner.MarketIndexDailyHistoryBootstrapRunner;
 import com.stock.market.index.history.persistence.MarketIndexDailyObservationRepository;
 import com.stock.market.index.history.provider.MarketIndexDailyHistoryProvider;
 import com.stock.market.index.history.provider.kis.KisMarketIndexDailyHistoryClient;
@@ -131,6 +135,9 @@ class KisConfigurationTest {
                     );
                     assertThat(context).doesNotHaveBean(
                             MarketIndexDailyHistoryCollectionService.class
+                    );
+                    assertThat(context).doesNotHaveBean(
+                            MarketIndexDailyHistoryBootstrapRunner.class
                     );
                     assertThat(context).doesNotHaveBean(
                             KisMarketIndexDailyHistoryRequestWaiter.class
@@ -253,6 +260,35 @@ class KisConfigurationTest {
                 )
                 .run(context -> assertThat(context).hasSingleBean(
                         DailyPriceHistoryBootstrapRunner.class
+                ));
+    }
+
+    @Test
+    void createsMarketIndexDailyHistoryBootstrapRunnerWhenEnabled() {
+        contextRunner
+                .withPropertyValues(
+                        "broker.kis.enabled=true",
+                        "market.index.history.collection.bootstrap.enabled=true"
+                )
+                .withBean(KisProperties.class, this::enabledProperties)
+                .withBean(
+                        MarketIndexDailyHistoryCollectionDatePolicy.class,
+                        () -> mock(
+                                MarketIndexDailyHistoryCollectionDatePolicy.class
+                        )
+                )
+                .withBean(
+                        MarketIndexDailyHistoryBootstrapProperties.class,
+                        () -> new MarketIndexDailyHistoryBootstrapProperties(
+                                true
+                        )
+                )
+                .withBean(
+                        MarketIndexDailyHistoryCollectionProperties.class,
+                        this::marketIndexCollectionProperties
+                )
+                .run(context -> assertThat(context).hasSingleBean(
+                        MarketIndexDailyHistoryBootstrapRunner.class
                 ));
     }
 
@@ -424,6 +460,15 @@ class KisConfigurationTest {
         return new DailyPriceHistoryCollectionProperties(
                 LocalTime.of(20, 10),
                 List.of("005930"),
+                3
+        );
+    }
+
+    private MarketIndexDailyHistoryCollectionProperties
+    marketIndexCollectionProperties() {
+        return new MarketIndexDailyHistoryCollectionProperties(
+                LocalTime.of(20, 10),
+                List.of("KOSPI"),
                 3
         );
     }

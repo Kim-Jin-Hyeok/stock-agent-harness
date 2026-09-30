@@ -61,6 +61,14 @@ market:
       ttl: 30s
     validation:
       max-age: 1m
+  index:
+    history:
+      collection:
+        daily-bar-available-at: "20:10"
+        benchmark-ids: ["KOSPI"]
+        initial-lookback-years: 3
+        bootstrap:
+          enabled: false
   price:
     history:
       collection:

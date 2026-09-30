@@ -24,6 +24,10 @@ import com.stock.broker.order.persistence.BrokerOrderRepository;
 import com.stock.broker.order.scheduler.BrokerOrderReconciliationScheduler;
 import com.stock.broker.order.scheduler.config.BrokerOrderReconciliationSchedulerProperties;
 import com.stock.market.index.history.collection.MarketIndexDailyHistoryCollectionService;
+import com.stock.market.index.history.collection.config.MarketIndexDailyHistoryBootstrapProperties;
+import com.stock.market.index.history.collection.config.MarketIndexDailyHistoryCollectionProperties;
+import com.stock.market.index.history.collection.policy.MarketIndexDailyHistoryCollectionDatePolicy;
+import com.stock.market.index.history.collection.runner.MarketIndexDailyHistoryBootstrapRunner;
 import com.stock.market.index.history.persistence.MarketIndexDailyObservationRepository;
 import com.stock.market.index.history.provider.MarketIndexDailyHistoryProvider;
 import com.stock.market.index.history.provider.kis.KisMarketIndexDailyHistoryClient;
@@ -179,6 +183,27 @@ public class KisConfiguration {
         return new MarketIndexDailyHistoryCollectionService(
                 historyProvider,
                 observationRepository
+        );
+    }
+
+    @Bean
+    @ConditionalOnProperty(
+            prefix = "market.index.history.collection.bootstrap",
+            name = "enabled",
+            havingValue = "true"
+    )
+    public MarketIndexDailyHistoryBootstrapRunner
+    marketIndexDailyHistoryBootstrapRunner(
+            MarketIndexDailyHistoryCollectionService collectionService,
+            MarketIndexDailyHistoryCollectionDatePolicy collectionDatePolicy,
+            MarketIndexDailyHistoryBootstrapProperties bootstrapProperties,
+            MarketIndexDailyHistoryCollectionProperties collectionProperties
+    ) {
+        return new MarketIndexDailyHistoryBootstrapRunner(
+                collectionService,
+                collectionDatePolicy,
+                bootstrapProperties,
+                collectionProperties
         );
     }
 
