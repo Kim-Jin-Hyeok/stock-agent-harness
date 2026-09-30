@@ -1,5 +1,9 @@
 package com.stock.backtest.strategy.swing.v1.experiment.execution;
 
+import com.stock.backtest.performance.benchmark.BacktestBenchmarkPerformanceCalculator;
+import com.stock.backtest.performance.benchmark.BacktestBenchmarkPerformanceSummary;
+import com.stock.backtest.performance.benchmark.BacktestBenchmarkSeries;
+import com.stock.backtest.performance.benchmark.query.BacktestBenchmarkSeriesQueryService;
 import com.stock.backtest.portfolio.BacktestPortfolioState;
 import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunRequest;
 import com.stock.backtest.strategy.swing.v1.report.SwingV1BacktestReport;
@@ -8,6 +12,7 @@ import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import com.stock.strategy.universe.StrategyStockUniverseRegistry;
 import com.stock.trade.cost.model.TradeCostModel;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -21,6 +26,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class SwingV1BacktestExperimentServiceTest {
@@ -41,11 +47,40 @@ class SwingV1BacktestExperimentServiceTest {
             mock(StrategyStockUniverseRegistry.class);
     private final SwingV1BacktestReportService reportService =
             mock(SwingV1BacktestReportService.class);
+    private final BacktestBenchmarkSeriesQueryService
+            benchmarkSeriesQueryService = mock(
+                    BacktestBenchmarkSeriesQueryService.class
+            );
+    private final BacktestBenchmarkPerformanceCalculator
+            benchmarkPerformanceCalculator = mock(
+                    BacktestBenchmarkPerformanceCalculator.class
+            );
+    private final BacktestBenchmarkSeries benchmarkSeries = mock(
+            BacktestBenchmarkSeries.class
+    );
+    private final BacktestBenchmarkPerformanceSummary benchmarkSummary =
+            benchmarkSummary();
     private final SwingV1BacktestExperimentService service =
             new SwingV1BacktestExperimentService(
                     stockUniverseRegistry,
-                    reportService
+                    reportService,
+                    benchmarkSeriesQueryService,
+                    benchmarkPerformanceCalculator
             );
+
+    @BeforeEach
+    void setUpBenchmark() {
+        when(benchmarkSeriesQueryService.getSeries(
+                BENCHMARK_ID,
+                FROM_SIGNAL_DATE,
+                TO_SIGNAL_DATE
+        )).thenReturn(benchmarkSeries);
+        when(benchmarkPerformanceCalculator.calculate(
+                benchmarkSeries,
+                FROM_SIGNAL_DATE,
+                TO_SIGNAL_DATE
+        )).thenReturn(benchmarkSummary);
+    }
 
     @Test
     void executesEachUniverseSymbolWithIndependentEqualConditions() {
@@ -73,6 +108,18 @@ class SwingV1BacktestExperimentServiceTest {
         assertThat(result.request()).isSameAs(request);
         assertThat(result.reports())
                 .containsExactly(samsungReport, skHynixReport);
+        assertThat(result.benchmarkPerformanceSummary())
+                .isSameAs(benchmarkSummary);
+        verify(benchmarkSeriesQueryService).getSeries(
+                BENCHMARK_ID,
+                FROM_SIGNAL_DATE,
+                TO_SIGNAL_DATE
+        );
+        verify(benchmarkPerformanceCalculator).calculate(
+                benchmarkSeries,
+                FROM_SIGNAL_DATE,
+                TO_SIGNAL_DATE
+        );
         ArgumentCaptor<SwingV1BacktestRunRequest> requestCaptor =
                 ArgumentCaptor.forClass(
                         SwingV1BacktestRunRequest.class
@@ -145,6 +192,31 @@ class SwingV1BacktestExperimentServiceTest {
         verify(reportService, never()).generate(
                 org.mockito.ArgumentMatchers.any()
         );
+        verifyNoInteractions(
+                benchmarkSeriesQueryService,
+                benchmarkPerformanceCalculator
+        );
+    }
+
+    @Test
+    void stopsBeforeReportsWhenBenchmarkHistoryIsMissing() {
+        SwingV1BacktestExperimentRequest request = request();
+        when(stockUniverseRegistry.getCandidateSymbols(
+                STRATEGY_IDENTITY
+        )).thenReturn(List.of("005930"));
+        when(benchmarkSeriesQueryService.getSeries(
+                BENCHMARK_ID,
+                FROM_SIGNAL_DATE,
+                TO_SIGNAL_DATE
+        )).thenThrow(new IllegalStateException(
+                "Stored benchmark history must not be empty."
+        ));
+
+        assertThatThrownBy(() -> service.execute(request))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Stored benchmark history must not be empty.");
+        verifyNoInteractions(reportService);
+        verifyNoInteractions(benchmarkPerformanceCalculator);
     }
 
     private SwingV1BacktestExperimentRequest request() {
@@ -191,6 +263,21 @@ class SwingV1BacktestExperimentServiceTest {
                 new BigDecimal("0.0018"),
                 new BigDecimal("0.0010"),
                 new BigDecimal("0.0010")
+        );
+    }
+
+    private BacktestBenchmarkPerformanceSummary benchmarkSummary() {
+        return new BacktestBenchmarkPerformanceSummary(
+                BENCHMARK_ID,
+                FROM_SIGNAL_DATE,
+                TO_SIGNAL_DATE,
+                new BigDecimal("100"),
+                new BigDecimal("110"),
+                new BigDecimal("0.1"),
+                BigDecimal.ZERO,
+                null,
+                null,
+                2
         );
     }
 }

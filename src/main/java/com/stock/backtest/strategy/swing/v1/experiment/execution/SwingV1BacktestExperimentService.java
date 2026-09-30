@@ -1,5 +1,9 @@
 package com.stock.backtest.strategy.swing.v1.experiment.execution;
 
+import com.stock.backtest.performance.benchmark.BacktestBenchmarkPerformanceCalculator;
+import com.stock.backtest.performance.benchmark.BacktestBenchmarkPerformanceSummary;
+import com.stock.backtest.performance.benchmark.BacktestBenchmarkSeries;
+import com.stock.backtest.performance.benchmark.query.BacktestBenchmarkSeriesQueryService;
 import com.stock.backtest.portfolio.BacktestPortfolioState;
 import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunRequest;
 import com.stock.backtest.strategy.swing.v1.report.SwingV1BacktestReport;
@@ -15,10 +19,15 @@ import java.util.Objects;
 public class SwingV1BacktestExperimentService {
     private final StrategyStockUniverseRegistry stockUniverseRegistry;
     private final SwingV1BacktestReportService reportService;
+    private final BacktestBenchmarkSeriesQueryService benchmarkSeriesQueryService;
+    private final BacktestBenchmarkPerformanceCalculator
+            benchmarkPerformanceCalculator;
 
     public SwingV1BacktestExperimentService(
             StrategyStockUniverseRegistry stockUniverseRegistry,
-            SwingV1BacktestReportService reportService
+            SwingV1BacktestReportService reportService,
+            BacktestBenchmarkSeriesQueryService benchmarkSeriesQueryService,
+            BacktestBenchmarkPerformanceCalculator benchmarkPerformanceCalculator
     ) {
         this.stockUniverseRegistry = Objects.requireNonNull(
                 stockUniverseRegistry,
@@ -27,6 +36,14 @@ public class SwingV1BacktestExperimentService {
         this.reportService = Objects.requireNonNull(
                 reportService,
                 "reportService must not be null."
+        );
+        this.benchmarkSeriesQueryService = Objects.requireNonNull(
+                benchmarkSeriesQueryService,
+                "benchmarkSeriesQueryService must not be null."
+        );
+        this.benchmarkPerformanceCalculator = Objects.requireNonNull(
+                benchmarkPerformanceCalculator,
+                "benchmarkPerformanceCalculator must not be null."
         );
     }
 
@@ -41,6 +58,19 @@ public class SwingV1BacktestExperimentService {
                     "SWING_V1 stock universe must not be empty."
             );
         }
+
+        BacktestBenchmarkSeries benchmarkSeries = benchmarkSeriesQueryService
+                .getSeries(
+                        request.benchmarkId(),
+                        request.fromSignalDate(),
+                        request.toSignalDate()
+                );
+        BacktestBenchmarkPerformanceSummary benchmarkPerformanceSummary =
+                benchmarkPerformanceCalculator.calculate(
+                        benchmarkSeries,
+                        request.fromSignalDate(),
+                        request.toSignalDate()
+                );
 
         List<SwingV1BacktestReport> reports = new ArrayList<>(
                 candidateSymbols.size()
@@ -60,6 +90,10 @@ public class SwingV1BacktestExperimentService {
             reports.add(reportService.generate(runRequest));
         }
 
-        return new SwingV1BacktestExperimentResult(request, reports);
+        return new SwingV1BacktestExperimentResult(
+                request,
+                reports,
+                benchmarkPerformanceSummary
+        );
     }
 }

@@ -1,5 +1,6 @@
 package com.stock.backtest.strategy.swing.v1.experiment.execution;
 
+import com.stock.backtest.performance.benchmark.BacktestBenchmarkPerformanceSummary;
 import com.stock.backtest.portfolio.BacktestPortfolioState;
 import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunRequest;
 import com.stock.backtest.strategy.swing.v1.report.SwingV1BacktestReport;
@@ -40,16 +41,21 @@ class SwingV1BacktestExperimentResultTest {
         List<SwingV1BacktestReport> mutableReports = new ArrayList<>(
                 List.of(samsung, skHynix)
         );
+        BacktestBenchmarkPerformanceSummary benchmarkSummary =
+                benchmarkSummary();
 
         SwingV1BacktestExperimentResult result =
                 new SwingV1BacktestExperimentResult(
                         request,
-                        mutableReports
+                        mutableReports,
+                        benchmarkSummary
                 );
         mutableReports.clear();
 
         assertThat(result.request()).isSameAs(request);
         assertThat(result.reports()).containsExactly(samsung, skHynix);
+        assertThat(result.benchmarkPerformanceSummary())
+                .isSameAs(benchmarkSummary);
         assertThatThrownBy(() -> result.reports().clear())
                 .isInstanceOf(UnsupportedOperationException.class);
     }
@@ -63,7 +69,8 @@ class SwingV1BacktestExperimentResultTest {
                 List.of(
                         report(request, "005930"),
                         report(request, "005930")
-                )
+                ),
+                benchmarkSummary()
         )).isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
                         "Reports must not contain duplicate symbol: 005930"
@@ -82,7 +89,8 @@ class SwingV1BacktestExperimentResultTest {
 
         assertThatThrownBy(() -> new SwingV1BacktestExperimentResult(
                 request,
-                List.of(report(mismatchedRunRequest))
+                List.of(report(mismatchedRunRequest)),
+                benchmarkSummary()
         )).isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
                         "Report initial portfolio must match per-symbol "
@@ -94,9 +102,62 @@ class SwingV1BacktestExperimentResultTest {
     void rejectsEmptyReports() {
         assertThatThrownBy(() -> new SwingV1BacktestExperimentResult(
                 request(),
-                List.of()
+                List.of(),
+                benchmarkSummary()
         )).isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("reports must not be empty.");
+    }
+
+    @Test
+    void rejectsNullBenchmarkPerformanceSummary() {
+        SwingV1BacktestExperimentRequest request = request();
+
+        assertThatThrownBy(() -> new SwingV1BacktestExperimentResult(
+                request,
+                List.of(report(request, "005930")),
+                null
+        )).isInstanceOf(NullPointerException.class)
+                .hasMessage(
+                        "benchmarkPerformanceSummary must not be null."
+                );
+    }
+
+    @Test
+    void rejectsBenchmarkPerformanceForDifferentBenchmark() {
+        SwingV1BacktestExperimentRequest request = request();
+
+        assertThatThrownBy(() -> new SwingV1BacktestExperimentResult(
+                request,
+                List.of(report(request, "005930")),
+                benchmarkSummary(
+                        "KOSDAQ",
+                        FROM_SIGNAL_DATE,
+                        TO_SIGNAL_DATE
+                )
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "Benchmark performance benchmarkId must match "
+                                + "experiment request."
+                );
+    }
+
+    @Test
+    void rejectsBenchmarkPerformanceForDifferentDateRange() {
+        SwingV1BacktestExperimentRequest request = request();
+
+        assertThatThrownBy(() -> new SwingV1BacktestExperimentResult(
+                request,
+                List.of(report(request, "005930")),
+                benchmarkSummary(
+                        BENCHMARK_ID,
+                        FROM_SIGNAL_DATE.plusDays(1),
+                        TO_SIGNAL_DATE
+                )
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "Benchmark performance date range must match "
+                                + "experiment request."
+                );
     }
 
     private SwingV1BacktestExperimentRequest request() {
@@ -155,6 +216,33 @@ class SwingV1BacktestExperimentResultTest {
                 new BigDecimal("0.0018"),
                 new BigDecimal("0.0010"),
                 new BigDecimal("0.0010")
+        );
+    }
+
+    private BacktestBenchmarkPerformanceSummary benchmarkSummary() {
+        return benchmarkSummary(
+                BENCHMARK_ID,
+                FROM_SIGNAL_DATE,
+                TO_SIGNAL_DATE
+        );
+    }
+
+    private BacktestBenchmarkPerformanceSummary benchmarkSummary(
+            String benchmarkId,
+            LocalDate fromDate,
+            LocalDate toDate
+    ) {
+        return new BacktestBenchmarkPerformanceSummary(
+                benchmarkId,
+                fromDate,
+                toDate,
+                new BigDecimal("100"),
+                new BigDecimal("110"),
+                new BigDecimal("0.1"),
+                BigDecimal.ZERO,
+                null,
+                null,
+                2
         );
     }
 }

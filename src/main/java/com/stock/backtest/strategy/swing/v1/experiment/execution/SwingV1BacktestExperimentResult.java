@@ -1,5 +1,6 @@
 package com.stock.backtest.strategy.swing.v1.experiment.execution;
 
+import com.stock.backtest.performance.benchmark.BacktestBenchmarkPerformanceSummary;
 import com.stock.backtest.portfolio.BacktestPortfolioState;
 import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunRequest;
 import com.stock.backtest.strategy.swing.v1.report.SwingV1BacktestReport;
@@ -11,7 +12,8 @@ import java.util.Set;
 
 public record SwingV1BacktestExperimentResult(
         SwingV1BacktestExperimentRequest request,
-        List<SwingV1BacktestReport> reports
+        List<SwingV1BacktestReport> reports,
+        BacktestBenchmarkPerformanceSummary benchmarkPerformanceSummary
 ) {
     public SwingV1BacktestExperimentResult {
         Objects.requireNonNull(request, "request must not be null.");
@@ -24,7 +26,34 @@ public record SwingV1BacktestExperimentResult(
                     "reports must not be empty."
             );
         }
+        Objects.requireNonNull(
+                benchmarkPerformanceSummary,
+                "benchmarkPerformanceSummary must not be null."
+        );
+        validateBenchmarkPerformanceSummary(
+                request,
+                benchmarkPerformanceSummary
+        );
         validateReports(request, reports);
+    }
+
+    private static void validateBenchmarkPerformanceSummary(
+            SwingV1BacktestExperimentRequest request,
+            BacktestBenchmarkPerformanceSummary summary
+    ) {
+        if (!request.benchmarkId().equals(summary.benchmarkId())) {
+            throw new IllegalArgumentException(
+                    "Benchmark performance benchmarkId must match "
+                            + "experiment request."
+            );
+        }
+        if (!request.fromSignalDate().equals(summary.fromDate())
+                || !request.toSignalDate().equals(summary.toDate())) {
+            throw new IllegalArgumentException(
+                    "Benchmark performance date range must match "
+                            + "experiment request."
+            );
+        }
     }
 
     private static void validateReports(

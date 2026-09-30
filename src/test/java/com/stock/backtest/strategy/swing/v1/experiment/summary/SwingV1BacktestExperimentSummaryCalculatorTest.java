@@ -1,5 +1,6 @@
 package com.stock.backtest.strategy.swing.v1.experiment.summary;
 
+import com.stock.backtest.performance.benchmark.BacktestBenchmarkPerformanceSummary;
 import com.stock.backtest.performance.metric.BacktestPerformanceSummary;
 import com.stock.backtest.portfolio.BacktestPortfolioState;
 import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunRequest;
@@ -153,7 +154,28 @@ class SwingV1BacktestExperimentSummaryCalculatorTest {
             SwingV1BacktestExperimentRequest request,
             List<SwingV1BacktestReport> reports
     ) {
-        return new SwingV1BacktestExperimentResult(request, reports);
+        return new SwingV1BacktestExperimentResult(
+                request,
+                reports,
+                benchmarkSummary(request)
+        );
+    }
+
+    private BacktestBenchmarkPerformanceSummary benchmarkSummary(
+            SwingV1BacktestExperimentRequest request
+    ) {
+        return new BacktestBenchmarkPerformanceSummary(
+                request.benchmarkId(),
+                request.fromSignalDate(),
+                request.toSignalDate(),
+                new BigDecimal("100"),
+                new BigDecimal("110"),
+                new BigDecimal("0.1"),
+                BigDecimal.ZERO,
+                null,
+                null,
+                2
+        );
     }
 
     private SwingV1BacktestReport report(
