@@ -9,6 +9,7 @@ import java.util.Objects;
 
 public record SwingV1BacktestExperimentRequest(
         InvestmentStrategyIdentity strategyIdentity,
+        String benchmarkId,
         LocalDate fromSignalDate,
         LocalDate toSignalDate,
         long initialCashAmountKrwPerSymbol,
@@ -27,6 +28,11 @@ public record SwingV1BacktestExperimentRequest(
                 || strategyIdentity.horizon() != InvestmentHorizon.SWING) {
             throw new IllegalArgumentException(
                     "strategyIdentity must be SWING_V1 version 1."
+            );
+        }
+        if (benchmarkId == null || benchmarkId.isBlank()) {
+            throw new IllegalArgumentException(
+                    "benchmarkId must not be blank."
             );
         }
         Objects.requireNonNull(

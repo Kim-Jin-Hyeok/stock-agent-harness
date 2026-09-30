@@ -19,6 +19,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class SwingV1BacktestExperimentResultTest {
+    private static final String BENCHMARK_ID = "KOSPI";
     private static final InvestmentStrategyIdentity STRATEGY_IDENTITY =
             new InvestmentStrategyIdentity(
                     "SWING_V1",
@@ -101,6 +102,7 @@ class SwingV1BacktestExperimentResultTest {
     private SwingV1BacktestExperimentRequest request() {
         return new SwingV1BacktestExperimentRequest(
                 STRATEGY_IDENTITY,
+                BENCHMARK_ID,
                 FROM_SIGNAL_DATE,
                 TO_SIGNAL_DATE,
                 INITIAL_CASH_AMOUNT_KRW,

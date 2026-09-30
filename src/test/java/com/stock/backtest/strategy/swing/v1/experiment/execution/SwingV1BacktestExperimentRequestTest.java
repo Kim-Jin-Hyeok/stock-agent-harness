@@ -12,6 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class SwingV1BacktestExperimentRequestTest {
+    private static final String BENCHMARK_ID = "KOSPI";
     private static final InvestmentStrategyIdentity STRATEGY_IDENTITY =
             new InvestmentStrategyIdentity(
                     "SWING_V1",
@@ -30,6 +31,7 @@ class SwingV1BacktestExperimentRequestTest {
         SwingV1BacktestExperimentRequest request =
                 new SwingV1BacktestExperimentRequest(
                         STRATEGY_IDENTITY,
+                        BENCHMARK_ID,
                         FROM_SIGNAL_DATE,
                         TO_SIGNAL_DATE,
                         10_000_000L,
@@ -38,6 +40,7 @@ class SwingV1BacktestExperimentRequestTest {
 
         assertThat(request.strategyIdentity())
                 .isEqualTo(STRATEGY_IDENTITY);
+        assertThat(request.benchmarkId()).isEqualTo(BENCHMARK_ID);
         assertThat(request.fromSignalDate())
                 .isEqualTo(FROM_SIGNAL_DATE);
         assertThat(request.toSignalDate()).isEqualTo(TO_SIGNAL_DATE);
@@ -57,6 +60,7 @@ class SwingV1BacktestExperimentRequestTest {
 
         assertThatThrownBy(() -> new SwingV1BacktestExperimentRequest(
                 otherIdentity,
+                BENCHMARK_ID,
                 FROM_SIGNAL_DATE,
                 TO_SIGNAL_DATE,
                 10_000_000L,
@@ -68,9 +72,51 @@ class SwingV1BacktestExperimentRequestTest {
     }
 
     @Test
+    void rejectsNullBenchmarkId() {
+        assertThatThrownBy(() -> new SwingV1BacktestExperimentRequest(
+                STRATEGY_IDENTITY,
+                null,
+                FROM_SIGNAL_DATE,
+                TO_SIGNAL_DATE,
+                10_000_000L,
+                costModel()
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("benchmarkId must not be blank.");
+    }
+
+    @Test
+    void rejectsBlankBenchmarkId() {
+        assertThatThrownBy(() -> new SwingV1BacktestExperimentRequest(
+                STRATEGY_IDENTITY,
+                " ",
+                FROM_SIGNAL_DATE,
+                TO_SIGNAL_DATE,
+                10_000_000L,
+                costModel()
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("benchmarkId must not be blank.");
+    }
+
+    @Test
+    void acceptsKosdaqBenchmarkId() {
+        SwingV1BacktestExperimentRequest request =
+                new SwingV1BacktestExperimentRequest(
+                        STRATEGY_IDENTITY,
+                        "KOSDAQ",
+                        FROM_SIGNAL_DATE,
+                        TO_SIGNAL_DATE,
+                        10_000_000L,
+                        costModel()
+                );
+
+        assertThat(request.benchmarkId()).isEqualTo("KOSDAQ");
+    }
+
+    @Test
     void rejectsReversedSignalDateRange() {
         assertThatThrownBy(() -> new SwingV1BacktestExperimentRequest(
                 STRATEGY_IDENTITY,
+                BENCHMARK_ID,
                 TO_SIGNAL_DATE,
                 FROM_SIGNAL_DATE,
                 10_000_000L,
@@ -85,6 +131,7 @@ class SwingV1BacktestExperimentRequestTest {
     void rejectsNonPositivePerSymbolCash() {
         assertThatThrownBy(() -> new SwingV1BacktestExperimentRequest(
                 STRATEGY_IDENTITY,
+                BENCHMARK_ID,
                 FROM_SIGNAL_DATE,
                 TO_SIGNAL_DATE,
                 0L,
