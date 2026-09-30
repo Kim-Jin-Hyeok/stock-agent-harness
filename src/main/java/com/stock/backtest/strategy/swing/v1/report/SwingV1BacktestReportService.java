@@ -7,8 +7,11 @@ import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunResu
 import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunService;
 import com.stock.backtest.strategy.swing.v1.report.terminal.SwingV1TerminalLiquidationCalculator;
 import com.stock.backtest.strategy.swing.v1.report.terminal.SwingV1TerminalLiquidationEstimate;
+import com.stock.backtest.strategy.swing.v1.report.trade.SwingV1CompletedTrade;
+import com.stock.backtest.strategy.swing.v1.report.trade.SwingV1CompletedTradeExtractor;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Objects;
 
 @Service
@@ -17,12 +20,14 @@ public class SwingV1BacktestReportService {
     private final BacktestPerformanceCalculator performanceCalculator;
     private final SwingV1TerminalLiquidationCalculator
             terminalLiquidationCalculator;
+    private final SwingV1CompletedTradeExtractor completedTradeExtractor;
 
     public SwingV1BacktestReportService(
             SwingV1BacktestRunService runService,
             BacktestPerformanceCalculator performanceCalculator,
             SwingV1TerminalLiquidationCalculator
-                    terminalLiquidationCalculator
+                    terminalLiquidationCalculator,
+            SwingV1CompletedTradeExtractor completedTradeExtractor
     ) {
         this.runService = Objects.requireNonNull(
                 runService,
@@ -35,6 +40,10 @@ public class SwingV1BacktestReportService {
         this.terminalLiquidationCalculator = Objects.requireNonNull(
                 terminalLiquidationCalculator,
                 "terminalLiquidationCalculator must not be null."
+        );
+        this.completedTradeExtractor = Objects.requireNonNull(
+                completedTradeExtractor,
+                "completedTradeExtractor must not be null."
         );
     }
 
@@ -62,11 +71,14 @@ public class SwingV1BacktestReportService {
                         runResult.equityCurve().getLast(),
                         request.costModel()
                 );
+        List<SwingV1CompletedTrade> completedTrades =
+                completedTradeExtractor.extract(runResult.steps());
         return new SwingV1BacktestReport(
                 request,
                 runResult,
                 performanceSummary,
-                terminalEstimate
+                terminalEstimate,
+                completedTrades
         );
     }
 }

@@ -13,6 +13,7 @@ import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunResu
 import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunService;
 import com.stock.backtest.strategy.swing.v1.report.terminal.SwingV1TerminalLiquidationCalculator;
 import com.stock.backtest.strategy.swing.v1.report.terminal.SwingV1TerminalLiquidationEstimate;
+import com.stock.backtest.strategy.swing.v1.report.trade.SwingV1CompletedTradeExtractor;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import com.stock.trade.cost.model.TradeCostModel;
@@ -51,6 +52,8 @@ class SwingV1BacktestReportServiceTest {
             terminalLiquidationCalculator = mock(
                     SwingV1TerminalLiquidationCalculator.class
             );
+    private final SwingV1CompletedTradeExtractor completedTradeExtractor =
+            mock(SwingV1CompletedTradeExtractor.class);
 
     @Test
     void generatesReportFromRunResultAndEquityCurve() {
@@ -76,11 +79,14 @@ class SwingV1BacktestReportServiceTest {
                 runResult.equityCurve().getLast(),
                 request.costModel()
         )).thenReturn(terminalEstimate);
+        when(completedTradeExtractor.extract(runResult.steps()))
+                .thenReturn(List.of());
         SwingV1BacktestReportService service =
                 new SwingV1BacktestReportService(
                         runService,
                         performanceCalculator,
-                        terminalLiquidationCalculator
+                        terminalLiquidationCalculator,
+                        completedTradeExtractor
                 );
 
         SwingV1BacktestReport report = service.generate(request);
@@ -91,6 +97,7 @@ class SwingV1BacktestReportServiceTest {
                 .isSameAs(performanceSummary);
         assertThat(report.terminalLiquidationEstimate())
                 .isSameAs(terminalEstimate);
+        assertThat(report.completedTrades()).isEmpty();
         assertThat(report.request().costModel())
                 .isSameAs(request.costModel());
         verify(runService).execute(request);
@@ -104,6 +111,7 @@ class SwingV1BacktestReportServiceTest {
                 runResult.equityCurve().getLast(),
                 request.costModel()
         );
+        verify(completedTradeExtractor).extract(runResult.steps());
     }
 
     @Test
@@ -118,7 +126,8 @@ class SwingV1BacktestReportServiceTest {
                 new SwingV1BacktestReportService(
                         runService,
                         new BacktestPerformanceCalculator(),
-                        terminalLiquidationCalculator
+                        terminalLiquidationCalculator,
+                        completedTradeExtractor
                 );
 
         assertThatThrownBy(() -> service.generate(request))
@@ -150,7 +159,8 @@ class SwingV1BacktestReportServiceTest {
                 new SwingV1BacktestReportService(
                         runService,
                         performanceCalculator,
-                        terminalLiquidationCalculator
+                        terminalLiquidationCalculator,
+                        completedTradeExtractor
                 );
 
         assertThatThrownBy(() -> service.generate(request))
@@ -162,7 +172,8 @@ class SwingV1BacktestReportServiceTest {
         verifyNoInteractions(
                 runService,
                 performanceCalculator,
-                terminalLiquidationCalculator
+                terminalLiquidationCalculator,
+                completedTradeExtractor
         );
     }
 

@@ -49,7 +49,8 @@ class SwingV1BacktestReportTest {
                 request,
                 runResult,
                 performanceSummary,
-                terminalEstimate(INITIAL_CASH_AMOUNT_KRW)
+                terminalEstimate(INITIAL_CASH_AMOUNT_KRW),
+                List.of()
         );
 
         assertThat(report.request()).isSameAs(request);
@@ -59,6 +60,7 @@ class SwingV1BacktestReportTest {
         assertThat(report.terminalLiquidationEstimate()
                 .markToMarketFinalEquityAmountKrw())
                 .isEqualTo(INITIAL_CASH_AMOUNT_KRW);
+        assertThat(report.completedTrades()).isEmpty();
     }
 
     @Test
@@ -70,7 +72,8 @@ class SwingV1BacktestReportTest {
                 request,
                 runResult,
                 summary(1),
-                terminalEstimate(INITIAL_CASH_AMOUNT_KRW)
+                terminalEstimate(INITIAL_CASH_AMOUNT_KRW),
+                List.of()
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
@@ -84,7 +87,8 @@ class SwingV1BacktestReportTest {
                 request(SYMBOL),
                 runResult(SYMBOL, false),
                 summary(1),
-                terminalEstimate(INITIAL_CASH_AMOUNT_KRW)
+                terminalEstimate(INITIAL_CASH_AMOUNT_KRW),
+                List.of()
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("runResult equityCurve must not be empty.");
@@ -96,7 +100,8 @@ class SwingV1BacktestReportTest {
                 request(SYMBOL),
                 runResult(SYMBOL, true),
                 summary(2),
-                terminalEstimate(INITIAL_CASH_AMOUNT_KRW)
+                terminalEstimate(INITIAL_CASH_AMOUNT_KRW),
+                List.of()
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
@@ -111,7 +116,8 @@ class SwingV1BacktestReportTest {
                 request(SYMBOL),
                 runResult(SYMBOL, true),
                 summary(1),
-                terminalEstimate(900_000L)
+                terminalEstimate(900_000L),
+                List.of()
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
