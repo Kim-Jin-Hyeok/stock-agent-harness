@@ -2,10 +2,12 @@ package com.stock.backtest.strategy.swing.v1.execution.result;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
+import com.stock.backtest.performance.equity.BacktestEquitySnapshot;
 import com.stock.backtest.portfolio.BacktestPortfolioState;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -27,7 +29,8 @@ class SwingV1BacktestStepResultTest {
                         SIGNAL_DATE,
                         DECISION_DATE,
                         decision,
-                        portfolioState
+                        portfolioState,
+                        equitySnapshot(DECISION_DATE, portfolioState)
                 );
 
         assertThat(result.status()).isEqualTo(
@@ -36,6 +39,8 @@ class SwingV1BacktestStepResultTest {
         assertThat(result.signalDate()).isEqualTo(SIGNAL_DATE);
         assertThat(result.decisionDate()).isEqualTo(DECISION_DATE);
         assertThat(result.decision()).isSameAs(decision);
+        assertThat(result.equitySnapshot().valuationDate())
+                .isEqualTo(DECISION_DATE);
         assertThat(result.portfolioStateAfter()).isSameAs(portfolioState);
     }
 
@@ -54,6 +59,7 @@ class SwingV1BacktestStepResultTest {
         assertThat(result.signalDate()).isEqualTo(SIGNAL_DATE);
         assertThat(result.decisionDate()).isNull();
         assertThat(result.decision()).isNull();
+        assertThat(result.equitySnapshot()).isNull();
         assertThat(result.portfolioStateAfter()).isSameAs(portfolioState);
     }
 
@@ -63,10 +69,40 @@ class SwingV1BacktestStepResultTest {
                 SIGNAL_DATE,
                 SIGNAL_DATE,
                 holdDecision(),
-                portfolioState
+                portfolioState,
+                equitySnapshot(SIGNAL_DATE, portfolioState)
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("decisionDate must be after signalDate.");
+    }
+
+    @Test
+    void rejectsEquitySnapshotForDifferentDecisionDate() {
+        assertThatThrownBy(() -> SwingV1BacktestStepResult.hold(
+                SIGNAL_DATE,
+                DECISION_DATE,
+                holdDecision(),
+                portfolioState,
+                equitySnapshot(DECISION_DATE.plusDays(1), portfolioState)
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "equitySnapshot valuationDate must match "
+                                + "decisionDate."
+                );
+    }
+
+    @Test
+    void rejectsCompletedStepWithoutEquitySnapshot() {
+        assertThatThrownBy(() -> SwingV1BacktestStepResult.hold(
+                SIGNAL_DATE,
+                DECISION_DATE,
+                holdDecision(),
+                portfolioState,
+                null
+        ))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("equitySnapshot must not be null.");
     }
 
     @Test
@@ -88,6 +124,7 @@ class SwingV1BacktestStepResultTest {
                 null,
                 portfolioState,
                 portfolioState,
+                equitySnapshot(DECISION_DATE, portfolioState),
                 "Invalid hold."
         ))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -101,6 +138,21 @@ class SwingV1BacktestStepResultTest {
                 null,
                 null,
                 "No signal."
+        );
+    }
+
+    private BacktestEquitySnapshot equitySnapshot(
+            LocalDate valuationDate,
+            BacktestPortfolioState state
+    ) {
+        return new BacktestEquitySnapshot(
+                valuationDate,
+                valuationDate.atTime(9, 10)
+                        .atZone(ZoneId.of("Asia/Seoul"))
+                        .toInstant(),
+                state.cashAmountKrw(),
+                0L,
+                state.cashAmountKrw()
         );
     }
 }

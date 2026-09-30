@@ -8,6 +8,7 @@ import com.stock.backtest.context.portfolio.BacktestPortfolioEvaluationContext;
 import com.stock.backtest.context.portfolio.BacktestPortfolioEvaluationContextFactory;
 import com.stock.backtest.execution.fill.daily.DailyOpenFillApproximation;
 import com.stock.backtest.execution.fill.daily.DailyOpenFillApproximationService;
+import com.stock.backtest.performance.equity.BacktestEquitySnapshot;
 import com.stock.backtest.portfolio.transition.BacktestPortfolioTransitionService;
 import com.stock.backtest.portfolio.transition.result.BacktestPortfolioTransitionResult;
 import com.stock.backtest.strategy.swing.v1.execution.result.SwingV1BacktestStepResult;
@@ -116,7 +117,8 @@ public class SwingV1BacktestStepService {
                     request.signalDate(),
                     decisionBar.tradingDate(),
                     decision,
-                    request.portfolioState()
+                    request.portfolioState(),
+                    BacktestEquitySnapshot.from(context)
             );
         }
         validateOrderDecision(
@@ -139,13 +141,21 @@ public class SwingV1BacktestStepService {
                         request.portfolioState(),
                         fill
                 );
+        BacktestPortfolioEvaluationContext contextAfter =
+                contextFactory.createAtOpen(
+                        transition.portfolioState(),
+                        decisionBar.tradingDate(),
+                        evaluatedAt,
+                        Map.of(request.candidateSymbol(), decisionBar)
+                );
         return SwingV1BacktestStepResult.transitioned(
                 request.signalDate(),
                 decisionBar.tradingDate(),
                 decision,
                 fill,
                 transition,
-                request.portfolioState()
+                request.portfolioState(),
+                BacktestEquitySnapshot.from(contextAfter)
         );
     }
 

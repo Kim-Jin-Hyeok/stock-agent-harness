@@ -4,6 +4,7 @@ import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
 import com.stock.backtest.execution.fill.BacktestFillType;
 import com.stock.backtest.execution.fill.daily.DailyOpenFillApproximation;
+import com.stock.backtest.performance.equity.BacktestEquitySnapshot;
 import com.stock.backtest.portfolio.BacktestPortfolioState;
 import com.stock.backtest.portfolio.BacktestPosition;
 import com.stock.backtest.portfolio.transition.result.BacktestPortfolioTransitionResult;
@@ -24,6 +25,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -115,6 +117,9 @@ class SwingV1BacktestRunServiceTest {
         assertThat(result.steps()).containsExactly(firstStep, secondStep);
         assertThat(result.finalPortfolioState())
                 .isSameAs(purchasedState);
+        assertThat(result.equityCurve())
+                .extracting(BacktestEquitySnapshot::valuationDate)
+                .containsExactly(SECOND_SIGNAL_DATE, THIRD_SIGNAL_DATE);
 
         ArgumentCaptor<SwingV1BacktestStepRequest> requestCaptor =
                 ArgumentCaptor.forClass(
@@ -259,7 +264,8 @@ class SwingV1BacktestRunServiceTest {
                 decision,
                 fill,
                 BacktestPortfolioTransitionResult.applied(after),
-                before
+                before,
+                equitySnapshot(SECOND_SIGNAL_DATE, after, 70_000L)
         );
     }
 
@@ -278,7 +284,34 @@ class SwingV1BacktestRunServiceTest {
                         null,
                         "No signal."
                 ),
-                state
+                state,
+                equitySnapshot(decisionDate, state, 70_000L)
+        );
+    }
+
+    private BacktestEquitySnapshot equitySnapshot(
+            LocalDate valuationDate,
+            BacktestPortfolioState state,
+            long currentPriceKrw
+    ) {
+        long positionEvaluationAmountKrw = state.positions()
+                .stream()
+                .mapToLong(position -> Math.multiplyExact(
+                        position.quantity(),
+                        currentPriceKrw
+                ))
+                .reduce(0L, Math::addExact);
+        return new BacktestEquitySnapshot(
+                valuationDate,
+                valuationDate.atTime(9, 10)
+                        .atZone(ZoneId.of("Asia/Seoul"))
+                        .toInstant(),
+                state.cashAmountKrw(),
+                positionEvaluationAmountKrw,
+                Math.addExact(
+                        state.cashAmountKrw(),
+                        positionEvaluationAmountKrw
+                )
         );
     }
 

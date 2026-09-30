@@ -1,6 +1,7 @@
 package com.stock.backtest.strategy.swing.v1.execution.run;
 
 import com.stock.backtest.portfolio.BacktestPortfolioState;
+import com.stock.backtest.performance.equity.BacktestEquitySnapshot;
 import com.stock.backtest.strategy.swing.v1.execution.result.SwingV1BacktestStepResult;
 import com.stock.backtest.strategy.swing.v1.execution.result.SwingV1BacktestStepStatus;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
@@ -71,6 +72,7 @@ public record SwingV1BacktestRunResult(
     ) {
         BacktestPortfolioState expectedState = initialPortfolioState;
         LocalDate previousSignalDate = null;
+        LocalDate previousValuationDate = null;
 
         for (int index = 0; index < steps.size(); index++) {
             SwingV1BacktestStepResult step = Objects.requireNonNull(
@@ -103,6 +105,18 @@ public record SwingV1BacktestRunResult(
                         "NO_NEXT_DAILY_BAR must be the last step."
                 );
             }
+            if (step.equitySnapshot() != null) {
+                LocalDate valuationDate = step.equitySnapshot()
+                        .valuationDate();
+                if (previousValuationDate != null
+                        && !valuationDate.isAfter(previousValuationDate)) {
+                    throw new IllegalArgumentException(
+                            "equity snapshots must be ordered by unique "
+                                    + "valuationDate."
+                    );
+                }
+                previousValuationDate = valuationDate;
+            }
 
             expectedState = step.portfolioStateAfter();
             previousSignalDate = signalDate;
@@ -113,5 +127,12 @@ public record SwingV1BacktestRunResult(
                     "finalPortfolioState must match the last step state."
             );
         }
+    }
+
+    public List<BacktestEquitySnapshot> equityCurve() {
+        return steps.stream()
+                .map(SwingV1BacktestStepResult::equitySnapshot)
+                .filter(Objects::nonNull)
+                .toList();
     }
 }

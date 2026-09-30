@@ -91,6 +91,10 @@ class SwingV1BacktestStepServiceTest {
         assertThat(result.decisionDate()).isEqualTo(DECISION_DATE);
         assertThat(result.portfolioStateAfter())
                 .isSameAs(request.portfolioState());
+        assertThat(result.equitySnapshot().valuationDate())
+                .isEqualTo(DECISION_DATE);
+        assertThat(result.equitySnapshot().totalAssetAmountKrw())
+                .isEqualTo(1_000_000L);
         verifyNoInteractions(fillService, transitionService);
 
         ArgumentCaptor<SwingV1DecisionInput> inputCaptor =
@@ -148,6 +152,47 @@ class SwingV1BacktestStepServiceTest {
         assertThat(result.fill().tradeCostCalculation().referencePriceKrw())
                 .isEqualTo(80_000L);
         assertThat(result.portfolioStateAfter()).isSameAs(updatedState);
+        assertThat(result.equitySnapshot().cashAmountKrw())
+                .isEqualTo(920_000L);
+        assertThat(result.equitySnapshot().positionEvaluationAmountKrw())
+                .isEqualTo(80_000L);
+        assertThat(result.equitySnapshot().totalAssetAmountKrw())
+                .isEqualTo(1_000_000L);
+    }
+
+    @Test
+    void reflectsBuyCostsInEquitySnapshot() {
+        TradeCostModel costModel = costModelWithBuyCosts();
+        SwingV1BacktestStepRequest request = request(costModel);
+        DailyPriceBar decisionBar = decisionBar();
+        when(priceHistoryQueryService.getFirstDailyPriceBarAfter(
+                SYMBOL,
+                SIGNAL_DATE
+        )).thenReturn(Optional.of(decisionBar));
+        when(decisionService.decide(any())).thenReturn(buyDecision());
+        SwingV1BacktestStepService costAwareService =
+                new SwingV1BacktestStepService(
+                        priceHistoryQueryService,
+                        new BacktestPortfolioEvaluationContextFactory(),
+                        decisionService,
+                        new DailyOpenFillApproximationService(
+                                priceHistoryQueryService,
+                                new TradeCostCalculator()
+                        ),
+                        new BacktestPortfolioTransitionService()
+                );
+
+        SwingV1BacktestStepResult result =
+                costAwareService.execute(request);
+
+        assertThat(result.portfolioStateAfter().cashAmountKrw())
+                .isEqualTo(919_119L);
+        assertThat(result.equitySnapshot().cashAmountKrw())
+                .isEqualTo(919_119L);
+        assertThat(result.equitySnapshot().positionEvaluationAmountKrw())
+                .isEqualTo(80_000L);
+        assertThat(result.equitySnapshot().totalAssetAmountKrw())
+                .isEqualTo(999_119L);
     }
 
     @Test
@@ -165,6 +210,7 @@ class SwingV1BacktestStepServiceTest {
         );
         assertThat(result.decisionDate()).isNull();
         assertThat(result.decision()).isNull();
+        assertThat(result.equitySnapshot()).isNull();
         assertThat(result.portfolioStateAfter())
                 .isSameAs(request.portfolioState());
         verifyNoInteractions(decisionService, fillService, transitionService);
@@ -208,10 +254,18 @@ class SwingV1BacktestStepServiceTest {
         );
         assertThat(result.portfolioStateAfter())
                 .isSameAs(request.portfolioState());
+        assertThat(result.equitySnapshot().totalAssetAmountKrw())
+                .isEqualTo(1_000_000L);
         assertThat(result.reason()).isEqualTo("Insufficient cash.");
     }
 
     private SwingV1BacktestStepRequest request() {
+        return request(costModel());
+    }
+
+    private SwingV1BacktestStepRequest request(
+            TradeCostModel costModel
+    ) {
         return new SwingV1BacktestStepRequest(
                 new InvestmentStrategyIdentity(
                         "SWING_V1",
@@ -231,7 +285,7 @@ class SwingV1BacktestStepServiceTest {
                         )
                 ),
                 BacktestPortfolioState.withCash(1_000_000L),
-                costModel()
+                costModel
         );
     }
 
@@ -293,6 +347,18 @@ class SwingV1BacktestStepServiceTest {
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
+                BigDecimal.ZERO
+        );
+    }
+
+    private TradeCostModel costModelWithBuyCosts() {
+        return new TradeCostModel(
+                "BACKTEST_COST_V1",
+                1,
+                new BigDecimal("0.001"),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                new BigDecimal("0.01"),
                 BigDecimal.ZERO
         );
     }

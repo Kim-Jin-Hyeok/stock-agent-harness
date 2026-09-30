@@ -2,6 +2,7 @@ package com.stock.backtest.strategy.swing.v1.execution.run;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
+import com.stock.backtest.performance.equity.BacktestEquitySnapshot;
 import com.stock.backtest.portfolio.BacktestPortfolioState;
 import com.stock.backtest.strategy.swing.v1.execution.result.SwingV1BacktestStepResult;
 import com.stock.strategy.profile.InvestmentHorizon;
@@ -9,6 +10,7 @@ import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -39,6 +41,12 @@ class SwingV1BacktestRunResultTest {
         mutableSteps.clear();
 
         assertThat(result.steps()).hasSize(2);
+        assertThat(result.equityCurve())
+                .extracting(BacktestEquitySnapshot::valuationDate)
+                .containsExactly(
+                        SECOND_SIGNAL_DATE,
+                        SECOND_SIGNAL_DATE.plusDays(1)
+                );
         assertThat(result.finalPortfolioState())
                 .isEqualTo(portfolioState);
     }
@@ -111,7 +119,23 @@ class SwingV1BacktestRunResultTest {
                         null,
                         "No signal."
                 ),
-                state
+                state,
+                equitySnapshot(signalDate.plusDays(1), state)
+        );
+    }
+
+    private BacktestEquitySnapshot equitySnapshot(
+            LocalDate valuationDate,
+            BacktestPortfolioState state
+    ) {
+        return new BacktestEquitySnapshot(
+                valuationDate,
+                valuationDate.atTime(9, 10)
+                        .atZone(ZoneId.of("Asia/Seoul"))
+                        .toInstant(),
+                state.cashAmountKrw(),
+                0L,
+                state.cashAmountKrw()
         );
     }
 

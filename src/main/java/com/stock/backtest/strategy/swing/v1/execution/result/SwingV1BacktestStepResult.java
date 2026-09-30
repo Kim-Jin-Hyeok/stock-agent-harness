@@ -3,6 +3,7 @@ package com.stock.backtest.strategy.swing.v1.execution.result;
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
 import com.stock.backtest.execution.fill.daily.DailyOpenFillApproximation;
+import com.stock.backtest.performance.equity.BacktestEquitySnapshot;
 import com.stock.backtest.portfolio.BacktestPortfolioState;
 import com.stock.backtest.portfolio.transition.result.BacktestPortfolioTransitionResult;
 import com.stock.backtest.portfolio.transition.result.BacktestPortfolioTransitionStatus;
@@ -19,6 +20,7 @@ public record SwingV1BacktestStepResult(
         BacktestPortfolioTransitionResult portfolioTransition,
         BacktestPortfolioState portfolioStateBefore,
         BacktestPortfolioState portfolioStateAfter,
+        BacktestEquitySnapshot equitySnapshot,
         String reason
 ) {
     public SwingV1BacktestStepResult {
@@ -44,7 +46,8 @@ public record SwingV1BacktestStepResult(
                 fill,
                 portfolioTransition,
                 portfolioStateBefore,
-                portfolioStateAfter
+                portfolioStateAfter,
+                equitySnapshot
         );
     }
 
@@ -65,6 +68,7 @@ public record SwingV1BacktestStepResult(
                 null,
                 portfolioState,
                 portfolioState,
+                null,
                 "Next daily price bar was not found. symbol=" + symbol
         );
     }
@@ -73,7 +77,8 @@ public record SwingV1BacktestStepResult(
             LocalDate signalDate,
             LocalDate decisionDate,
             InvestmentDecision decision,
-            BacktestPortfolioState portfolioState
+            BacktestPortfolioState portfolioState,
+            BacktestEquitySnapshot equitySnapshot
     ) {
         return new SwingV1BacktestStepResult(
                 SwingV1BacktestStepStatus.HOLD,
@@ -84,6 +89,7 @@ public record SwingV1BacktestStepResult(
                 null,
                 portfolioState,
                 portfolioState,
+                equitySnapshot,
                 decision.reason()
         );
     }
@@ -94,7 +100,8 @@ public record SwingV1BacktestStepResult(
             InvestmentDecision decision,
             DailyOpenFillApproximation fill,
             BacktestPortfolioTransitionResult portfolioTransition,
-            BacktestPortfolioState portfolioStateBefore
+            BacktestPortfolioState portfolioStateBefore,
+            BacktestEquitySnapshot equitySnapshot
     ) {
         Objects.requireNonNull(
                 portfolioTransition,
@@ -112,6 +119,7 @@ public record SwingV1BacktestStepResult(
                 portfolioTransition,
                 portfolioStateBefore,
                 portfolioTransition.portfolioState(),
+                equitySnapshot,
                 applied
                         ? "Backtest step was executed."
                         : portfolioTransition.reason()
@@ -126,7 +134,8 @@ public record SwingV1BacktestStepResult(
             DailyOpenFillApproximation fill,
             BacktestPortfolioTransitionResult portfolioTransition,
             BacktestPortfolioState portfolioStateBefore,
-            BacktestPortfolioState portfolioStateAfter
+            BacktestPortfolioState portfolioStateAfter,
+            BacktestEquitySnapshot equitySnapshot
     ) {
         if (status == SwingV1BacktestStepStatus.NO_NEXT_DAILY_BAR) {
             validateNoNextDailyBar(
@@ -135,7 +144,8 @@ public record SwingV1BacktestStepResult(
                     fill,
                     portfolioTransition,
                     portfolioStateBefore,
-                    portfolioStateAfter
+                    portfolioStateAfter,
+                    equitySnapshot
             );
             return;
         }
@@ -150,6 +160,11 @@ public record SwingV1BacktestStepResult(
                     "decisionDate must be after signalDate."
             );
         }
+        validateEquitySnapshot(
+                decisionDate,
+                portfolioStateAfter,
+                equitySnapshot
+        );
 
         switch (status) {
             case HOLD -> validateHold(
@@ -196,20 +211,44 @@ public record SwingV1BacktestStepResult(
             DailyOpenFillApproximation fill,
             BacktestPortfolioTransitionResult portfolioTransition,
             BacktestPortfolioState portfolioStateBefore,
-            BacktestPortfolioState portfolioStateAfter
+            BacktestPortfolioState portfolioStateAfter,
+            BacktestEquitySnapshot equitySnapshot
     ) {
         if (decisionDate != null
                 || decision != null
                 || fill != null
-                || portfolioTransition != null) {
+                || portfolioTransition != null
+                || equitySnapshot != null) {
             throw new IllegalArgumentException(
-                    "NO_NEXT_DAILY_BAR result must not contain decision "
-                            + "or execution data."
+                    "NO_NEXT_DAILY_BAR result must not contain decision, "
+                            + "execution, or equity data."
             );
         }
         if (!portfolioStateAfter.equals(portfolioStateBefore)) {
             throw new IllegalArgumentException(
                     "NO_NEXT_DAILY_BAR result must preserve portfolio state."
+            );
+        }
+    }
+
+    private static void validateEquitySnapshot(
+            LocalDate decisionDate,
+            BacktestPortfolioState portfolioStateAfter,
+            BacktestEquitySnapshot equitySnapshot
+    ) {
+        Objects.requireNonNull(
+                equitySnapshot,
+                "equitySnapshot must not be null."
+        );
+        if (!equitySnapshot.valuationDate().equals(decisionDate)) {
+            throw new IllegalArgumentException(
+                    "equitySnapshot valuationDate must match decisionDate."
+            );
+        }
+        if (equitySnapshot.cashAmountKrw()
+                != portfolioStateAfter.cashAmountKrw()) {
+            throw new IllegalArgumentException(
+                    "equitySnapshot cash must match portfolioStateAfter."
             );
         }
     }
