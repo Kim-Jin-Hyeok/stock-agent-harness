@@ -14,6 +14,9 @@ import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunServ
 import com.stock.backtest.strategy.swing.v1.report.terminal.SwingV1TerminalLiquidationCalculator;
 import com.stock.backtest.strategy.swing.v1.report.terminal.SwingV1TerminalLiquidationEstimate;
 import com.stock.backtest.strategy.swing.v1.report.trade.SwingV1CompletedTradeExtractor;
+import com.stock.backtest.strategy.swing.v1.report.trade.metric.SwingV1ProfitFactor;
+import com.stock.backtest.strategy.swing.v1.report.trade.metric.SwingV1TradePerformanceCalculator;
+import com.stock.backtest.strategy.swing.v1.report.trade.metric.SwingV1TradePerformanceSummary;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import com.stock.trade.cost.model.TradeCostModel;
@@ -54,6 +57,10 @@ class SwingV1BacktestReportServiceTest {
             );
     private final SwingV1CompletedTradeExtractor completedTradeExtractor =
             mock(SwingV1CompletedTradeExtractor.class);
+    private final SwingV1TradePerformanceCalculator
+            tradePerformanceCalculator = mock(
+                    SwingV1TradePerformanceCalculator.class
+            );
 
     @Test
     void generatesReportFromRunResultAndEquityCurve() {
@@ -68,6 +75,8 @@ class SwingV1BacktestReportServiceTest {
         BacktestPerformanceSummary performanceSummary = summary(1);
         SwingV1TerminalLiquidationEstimate terminalEstimate =
                 terminalEstimate();
+        SwingV1TradePerformanceSummary tradePerformanceSummary =
+                noTradePerformanceSummary();
         when(runService.execute(request)).thenReturn(runResult);
         when(performanceCalculator.calculate(
                 runResult.initialPortfolioState(),
@@ -81,12 +90,15 @@ class SwingV1BacktestReportServiceTest {
         )).thenReturn(terminalEstimate);
         when(completedTradeExtractor.extract(runResult.steps()))
                 .thenReturn(List.of());
+        when(tradePerformanceCalculator.calculate(List.of()))
+                .thenReturn(tradePerformanceSummary);
         SwingV1BacktestReportService service =
                 new SwingV1BacktestReportService(
                         runService,
                         performanceCalculator,
                         terminalLiquidationCalculator,
-                        completedTradeExtractor
+                        completedTradeExtractor,
+                        tradePerformanceCalculator
                 );
 
         SwingV1BacktestReport report = service.generate(request);
@@ -98,6 +110,8 @@ class SwingV1BacktestReportServiceTest {
         assertThat(report.terminalLiquidationEstimate())
                 .isSameAs(terminalEstimate);
         assertThat(report.completedTrades()).isEmpty();
+        assertThat(report.tradePerformanceSummary())
+                .isSameAs(tradePerformanceSummary);
         assertThat(report.request().costModel())
                 .isSameAs(request.costModel());
         verify(runService).execute(request);
@@ -112,6 +126,7 @@ class SwingV1BacktestReportServiceTest {
                 request.costModel()
         );
         verify(completedTradeExtractor).extract(runResult.steps());
+        verify(tradePerformanceCalculator).calculate(List.of());
     }
 
     @Test
@@ -127,7 +142,8 @@ class SwingV1BacktestReportServiceTest {
                         runService,
                         new BacktestPerformanceCalculator(),
                         terminalLiquidationCalculator,
-                        completedTradeExtractor
+                        completedTradeExtractor,
+                        tradePerformanceCalculator
                 );
 
         assertThatThrownBy(() -> service.generate(request))
@@ -160,7 +176,8 @@ class SwingV1BacktestReportServiceTest {
                         runService,
                         performanceCalculator,
                         terminalLiquidationCalculator,
-                        completedTradeExtractor
+                        completedTradeExtractor,
+                        tradePerformanceCalculator
                 );
 
         assertThatThrownBy(() -> service.generate(request))
@@ -173,7 +190,8 @@ class SwingV1BacktestReportServiceTest {
                 runService,
                 performanceCalculator,
                 terminalLiquidationCalculator,
-                completedTradeExtractor
+                completedTradeExtractor,
+                tradePerformanceCalculator
         );
     }
 
@@ -253,6 +271,23 @@ class SwingV1BacktestReportServiceTest {
                 INITIAL_CASH_AMOUNT_KRW,
                 0L,
                 BigDecimal.ZERO
+        );
+    }
+
+    private SwingV1TradePerformanceSummary noTradePerformanceSummary() {
+        return new SwingV1TradePerformanceSummary(
+                0,
+                0,
+                0,
+                0,
+                0L,
+                0L,
+                0L,
+                null,
+                null,
+                null,
+                null,
+                SwingV1ProfitFactor.noCompletedTrades()
         );
     }
 

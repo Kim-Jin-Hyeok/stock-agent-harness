@@ -9,6 +9,8 @@ import com.stock.backtest.strategy.swing.v1.execution.result.SwingV1BacktestStep
 import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunRequest;
 import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunResult;
 import com.stock.backtest.strategy.swing.v1.report.terminal.SwingV1TerminalLiquidationEstimate;
+import com.stock.backtest.strategy.swing.v1.report.trade.metric.SwingV1ProfitFactor;
+import com.stock.backtest.strategy.swing.v1.report.trade.metric.SwingV1TradePerformanceSummary;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import com.stock.trade.cost.model.TradeCostModel;
@@ -50,7 +52,8 @@ class SwingV1BacktestReportTest {
                 runResult,
                 performanceSummary,
                 terminalEstimate(INITIAL_CASH_AMOUNT_KRW),
-                List.of()
+                List.of(),
+                noTradePerformanceSummary()
         );
 
         assertThat(report.request()).isSameAs(request);
@@ -61,6 +64,8 @@ class SwingV1BacktestReportTest {
                 .markToMarketFinalEquityAmountKrw())
                 .isEqualTo(INITIAL_CASH_AMOUNT_KRW);
         assertThat(report.completedTrades()).isEmpty();
+        assertThat(report.tradePerformanceSummary().completedTradeCount())
+                .isZero();
     }
 
     @Test
@@ -73,7 +78,8 @@ class SwingV1BacktestReportTest {
                 runResult,
                 summary(1),
                 terminalEstimate(INITIAL_CASH_AMOUNT_KRW),
-                List.of()
+                List.of(),
+                noTradePerformanceSummary()
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
@@ -88,7 +94,8 @@ class SwingV1BacktestReportTest {
                 runResult(SYMBOL, false),
                 summary(1),
                 terminalEstimate(INITIAL_CASH_AMOUNT_KRW),
-                List.of()
+                List.of(),
+                noTradePerformanceSummary()
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("runResult equityCurve must not be empty.");
@@ -101,7 +108,8 @@ class SwingV1BacktestReportTest {
                 runResult(SYMBOL, true),
                 summary(2),
                 terminalEstimate(INITIAL_CASH_AMOUNT_KRW),
-                List.of()
+                List.of(),
+                noTradePerformanceSummary()
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
@@ -117,12 +125,46 @@ class SwingV1BacktestReportTest {
                 runResult(SYMBOL, true),
                 summary(1),
                 terminalEstimate(900_000L),
-                List.of()
+                List.of(),
+                noTradePerformanceSummary()
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
                         "terminalLiquidationEstimate mark-to-market "
                                 + "equity must match performanceSummary."
+                );
+    }
+
+    @Test
+    void rejectsTradePerformanceSummaryWithDifferentTradeCount() {
+        SwingV1TradePerformanceSummary oneBreakEvenTradeSummary =
+                new SwingV1TradePerformanceSummary(
+                        1,
+                        0,
+                        0,
+                        1,
+                        0L,
+                        0L,
+                        0L,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null,
+                        null,
+                        SwingV1ProfitFactor.noProfitOrLoss()
+                );
+
+        assertThatThrownBy(() -> new SwingV1BacktestReport(
+                request(SYMBOL),
+                runResult(SYMBOL, true),
+                summary(1),
+                terminalEstimate(INITIAL_CASH_AMOUNT_KRW),
+                List.of(),
+                oneBreakEvenTradeSummary
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "tradePerformanceSummary count must match "
+                                + "completed trades."
                 );
     }
 
@@ -213,6 +255,23 @@ class SwingV1BacktestReportTest {
                 finalEquityAmountKrw,
                 netProfitAmountKrw,
                 totalReturnRate
+        );
+    }
+
+    private SwingV1TradePerformanceSummary noTradePerformanceSummary() {
+        return new SwingV1TradePerformanceSummary(
+                0,
+                0,
+                0,
+                0,
+                0L,
+                0L,
+                0L,
+                null,
+                null,
+                null,
+                null,
+                SwingV1ProfitFactor.noCompletedTrades()
         );
     }
 

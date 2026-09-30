@@ -9,6 +9,8 @@ import com.stock.backtest.strategy.swing.v1.report.terminal.SwingV1TerminalLiqui
 import com.stock.backtest.strategy.swing.v1.report.terminal.SwingV1TerminalLiquidationEstimate;
 import com.stock.backtest.strategy.swing.v1.report.trade.SwingV1CompletedTrade;
 import com.stock.backtest.strategy.swing.v1.report.trade.SwingV1CompletedTradeExtractor;
+import com.stock.backtest.strategy.swing.v1.report.trade.metric.SwingV1TradePerformanceCalculator;
+import com.stock.backtest.strategy.swing.v1.report.trade.metric.SwingV1TradePerformanceSummary;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -21,13 +23,16 @@ public class SwingV1BacktestReportService {
     private final SwingV1TerminalLiquidationCalculator
             terminalLiquidationCalculator;
     private final SwingV1CompletedTradeExtractor completedTradeExtractor;
+    private final SwingV1TradePerformanceCalculator
+            tradePerformanceCalculator;
 
     public SwingV1BacktestReportService(
             SwingV1BacktestRunService runService,
             BacktestPerformanceCalculator performanceCalculator,
             SwingV1TerminalLiquidationCalculator
                     terminalLiquidationCalculator,
-            SwingV1CompletedTradeExtractor completedTradeExtractor
+            SwingV1CompletedTradeExtractor completedTradeExtractor,
+            SwingV1TradePerformanceCalculator tradePerformanceCalculator
     ) {
         this.runService = Objects.requireNonNull(
                 runService,
@@ -44,6 +49,10 @@ public class SwingV1BacktestReportService {
         this.completedTradeExtractor = Objects.requireNonNull(
                 completedTradeExtractor,
                 "completedTradeExtractor must not be null."
+        );
+        this.tradePerformanceCalculator = Objects.requireNonNull(
+                tradePerformanceCalculator,
+                "tradePerformanceCalculator must not be null."
         );
     }
 
@@ -73,12 +82,15 @@ public class SwingV1BacktestReportService {
                 );
         List<SwingV1CompletedTrade> completedTrades =
                 completedTradeExtractor.extract(runResult.steps());
+        SwingV1TradePerformanceSummary tradePerformanceSummary =
+                tradePerformanceCalculator.calculate(completedTrades);
         return new SwingV1BacktestReport(
                 request,
                 runResult,
                 performanceSummary,
                 terminalEstimate,
-                completedTrades
+                completedTrades,
+                tradePerformanceSummary
         );
     }
 }

@@ -9,6 +9,7 @@ import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunRequ
 import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunResult;
 import com.stock.backtest.strategy.swing.v1.report.terminal.SwingV1TerminalLiquidationEstimate;
 import com.stock.backtest.strategy.swing.v1.report.trade.SwingV1CompletedTrade;
+import com.stock.backtest.strategy.swing.v1.report.trade.metric.SwingV1TradePerformanceSummary;
 
 import java.util.List;
 import java.util.Objects;
@@ -18,7 +19,8 @@ public record SwingV1BacktestReport(
         SwingV1BacktestRunResult runResult,
         BacktestPerformanceSummary performanceSummary,
         SwingV1TerminalLiquidationEstimate terminalLiquidationEstimate,
-        List<SwingV1CompletedTrade> completedTrades
+        List<SwingV1CompletedTrade> completedTrades,
+        SwingV1TradePerformanceSummary tradePerformanceSummary
 ) {
     public SwingV1BacktestReport {
         Objects.requireNonNull(request, "request must not be null.");
@@ -38,6 +40,10 @@ public record SwingV1BacktestReport(
                 completedTrades,
                 "completedTrades must not be null."
         ));
+        Objects.requireNonNull(
+                tradePerformanceSummary,
+                "tradePerformanceSummary must not be null."
+        );
 
         validateRunMatchesRequest(request, runResult);
         validatePerformanceSummary(runResult, performanceSummary);
@@ -46,6 +52,10 @@ public record SwingV1BacktestReport(
                 terminalLiquidationEstimate
         );
         validateCompletedTrades(request, runResult, completedTrades);
+        validateTradePerformanceSummary(
+                completedTrades,
+                tradePerformanceSummary
+        );
     }
 
     private static void validateRunMatchesRequest(
@@ -183,6 +193,29 @@ public record SwingV1BacktestReport(
                         "completedTrade fills must belong to runResult."
                 );
             }
+        }
+    }
+
+    private static void validateTradePerformanceSummary(
+            List<SwingV1CompletedTrade> completedTrades,
+            SwingV1TradePerformanceSummary tradePerformanceSummary
+    ) {
+        if (tradePerformanceSummary.completedTradeCount()
+                != completedTrades.size()) {
+            throw new IllegalArgumentException(
+                    "tradePerformanceSummary count must match completed "
+                            + "trades."
+            );
+        }
+        long totalNetProfitLossAmountKrw = completedTrades.stream()
+                .mapToLong(SwingV1CompletedTrade::netProfitLossAmountKrw)
+                .reduce(0L, Math::addExact);
+        if (tradePerformanceSummary.totalNetProfitLossAmountKrw()
+                != totalNetProfitLossAmountKrw) {
+            throw new IllegalArgumentException(
+                    "tradePerformanceSummary net profit must match "
+                            + "completed trades."
+            );
         }
     }
 }
