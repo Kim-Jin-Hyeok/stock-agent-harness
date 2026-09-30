@@ -23,7 +23,10 @@ import com.stock.broker.order.inquiry.provider.BrokerOrderInquiryProvider;
 import com.stock.broker.order.persistence.BrokerOrderRepository;
 import com.stock.broker.order.scheduler.BrokerOrderReconciliationScheduler;
 import com.stock.broker.order.scheduler.config.BrokerOrderReconciliationSchedulerProperties;
+import com.stock.market.index.history.provider.MarketIndexDailyHistoryProvider;
 import com.stock.market.index.history.provider.kis.KisMarketIndexDailyHistoryClient;
+import com.stock.market.index.history.provider.kis.KisMarketIndexDailyHistoryProvider;
+import com.stock.market.index.history.provider.kis.KisMarketIndexDailyHistoryRequestWaiter;
 import com.stock.market.price.history.collection.DailyPriceHistoryCollectionService;
 import com.stock.market.price.history.collection.config.DailyPriceHistoryBootstrapProperties;
 import com.stock.market.price.history.collection.config.DailyPriceHistoryCollectionProperties;
@@ -138,6 +141,30 @@ public class KisConfiguration {
                 properties.appKey(),
                 properties.appSecret(),
                 clock
+        );
+    }
+
+    @Bean
+    public KisMarketIndexDailyHistoryRequestWaiter
+    kisMarketIndexDailyHistoryRequestWaiter(KisProperties properties) {
+        return new KisMarketIndexDailyHistoryRequestWaiter(
+                properties.dailyPriceHistoryRequestDelay()
+        );
+    }
+
+    @Bean
+    public MarketIndexDailyHistoryProvider
+    marketIndexDailyHistoryProvider(
+            KisMarketIndexDailyHistoryClient historyClient,
+            KisTokenProvider tokenProvider,
+            KisMarketIndexDailyHistoryRequestWaiter requestWaiter,
+            KisProperties properties
+    ) {
+        return new KisMarketIndexDailyHistoryProvider(
+                historyClient,
+                tokenProvider,
+                requestWaiter,
+                properties.dailyPriceHistoryMaxPages()
         );
     }
 
