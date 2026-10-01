@@ -36,6 +36,8 @@ class SwingV1BacktestExperimentResultTest {
             LocalDate.of(2026, 6, 30);
     private static final LocalDate FROM_VALUATION_DATE =
             LocalDate.of(2026, 1, 5);
+    private static final LocalDate MIDDLE_VALUATION_DATE =
+            LocalDate.of(2026, 1, 6);
     private static final LocalDate TO_VALUATION_DATE =
             LocalDate.of(2026, 7, 1);
     private static final long INITIAL_CASH_AMOUNT_KRW = 10_000_000L;
@@ -168,13 +170,24 @@ class SwingV1BacktestExperimentResultTest {
     }
 
     @Test
-    void rejectsReportsWithDifferentValuationRanges() {
+    void rejectsReportsWithDifferentMiddleValuationDates() {
         SwingV1BacktestExperimentRequest request = request();
 
         assertThatThrownBy(() -> new SwingV1BacktestExperimentResult(
                 request,
                 List.of(
-                        report(request, "005930"),
+                        report(
+                                runRequest(
+                                        request,
+                                        "005930",
+                                        BacktestPortfolioState.withCash(
+                                                INITIAL_CASH_AMOUNT_KRW
+                                        )
+                                ),
+                                FROM_VALUATION_DATE,
+                                MIDDLE_VALUATION_DATE,
+                                TO_VALUATION_DATE
+                        ),
                         report(
                                 runRequest(
                                         request,
@@ -183,15 +196,43 @@ class SwingV1BacktestExperimentResultTest {
                                                 INITIAL_CASH_AMOUNT_KRW
                                         )
                                 ),
-                                FROM_VALUATION_DATE.plusDays(1),
+                                FROM_VALUATION_DATE,
                                 TO_VALUATION_DATE
                         )
                 ),
                 benchmarkSummary()
         )).isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
-                        "Report valuation date ranges must match "
-                                + "across symbols."
+                        "Report valuation dates must match across symbols. "
+                                + "symbol=000660, expectedDate="
+                                + MIDDLE_VALUATION_DATE
+                                + ", actualDate=" + TO_VALUATION_DATE
+                );
+    }
+
+    @Test
+    void rejectsBenchmarkPerformanceWithDifferentObservationCount() {
+        SwingV1BacktestExperimentRequest request = request();
+        SwingV1BacktestRunRequest runRequest = runRequest(
+                request,
+                "005930",
+                BacktestPortfolioState.withCash(INITIAL_CASH_AMOUNT_KRW)
+        );
+        SwingV1BacktestReport report = report(
+                runRequest,
+                FROM_VALUATION_DATE,
+                MIDDLE_VALUATION_DATE,
+                TO_VALUATION_DATE
+        );
+
+        assertThatThrownBy(() -> new SwingV1BacktestExperimentResult(
+                request,
+                List.of(report),
+                benchmarkSummary()
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "Benchmark performance observation count must "
+                                + "match report valuation dates."
                 );
     }
 
@@ -245,8 +286,7 @@ class SwingV1BacktestExperimentResultTest {
 
     private SwingV1BacktestReport report(
             SwingV1BacktestRunRequest runRequest,
-            LocalDate fromValuationDate,
-            LocalDate toValuationDate
+            LocalDate... valuationDates
     ) {
         SwingV1BacktestReport report = mock(SwingV1BacktestReport.class);
         SwingV1BacktestRunResult runResult = mock(
@@ -254,10 +294,11 @@ class SwingV1BacktestExperimentResultTest {
         );
         when(report.request()).thenReturn(runRequest);
         when(report.runResult()).thenReturn(runResult);
-        when(runResult.equityCurve()).thenReturn(List.of(
-                equitySnapshot(fromValuationDate),
-                equitySnapshot(toValuationDate)
-        ));
+        when(runResult.equityCurve()).thenReturn(
+                List.of(valuationDates).stream()
+                        .map(this::equitySnapshot)
+                        .toList()
+        );
         return report;
     }
 

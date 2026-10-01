@@ -33,14 +33,14 @@ public record SwingV1BacktestExperimentResult(
         validateReports(request, reports);
         validateBenchmarkPerformanceSummary(
                 request,
-                SwingV1BacktestValuationRange.fromReports(reports),
+                SwingV1BacktestValuationDates.fromReports(reports),
                 benchmarkPerformanceSummary
         );
     }
 
     private static void validateBenchmarkPerformanceSummary(
             SwingV1BacktestExperimentRequest request,
-            SwingV1BacktestValuationRange valuationRange,
+            SwingV1BacktestValuationDates valuationDates,
             BacktestBenchmarkPerformanceSummary summary
     ) {
         if (!request.benchmarkId().equals(summary.benchmarkId())) {
@@ -49,10 +49,16 @@ public record SwingV1BacktestExperimentResult(
                             + "experiment request."
             );
         }
-        if (!valuationRange.fromDate().equals(summary.fromDate())
-                || !valuationRange.toDate().equals(summary.toDate())) {
+        if (!valuationDates.fromDate().equals(summary.fromDate())
+                || !valuationDates.toDate().equals(summary.toDate())) {
             throw new IllegalArgumentException(
                     "Benchmark performance date range must match "
+                            + "report valuation dates."
+            );
+        }
+        if (valuationDates.dates().size() != summary.observationCount()) {
+            throw new IllegalArgumentException(
+                    "Benchmark performance observation count must match "
                             + "report valuation dates."
             );
         }

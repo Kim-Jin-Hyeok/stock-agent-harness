@@ -1,5 +1,6 @@
 package com.stock.backtest.strategy.swing.v1.experiment.execution;
 
+import com.stock.backtest.performance.benchmark.BacktestBenchmarkObservation;
 import com.stock.backtest.performance.benchmark.BacktestBenchmarkPerformanceCalculator;
 import com.stock.backtest.performance.benchmark.BacktestBenchmarkPerformanceSummary;
 import com.stock.backtest.performance.benchmark.BacktestBenchmarkSeries;
@@ -46,6 +47,8 @@ class SwingV1BacktestExperimentServiceTest {
             LocalDate.of(2026, 6, 30);
     private static final LocalDate FROM_VALUATION_DATE =
             LocalDate.of(2026, 1, 5);
+    private static final LocalDate MIDDLE_VALUATION_DATE =
+            LocalDate.of(2026, 1, 6);
     private static final LocalDate TO_VALUATION_DATE =
             LocalDate.of(2026, 7, 1);
     private static final long INITIAL_CASH_AMOUNT_KRW = 10_000_000L;
@@ -62,8 +65,10 @@ class SwingV1BacktestExperimentServiceTest {
             benchmarkPerformanceCalculator = mock(
                     BacktestBenchmarkPerformanceCalculator.class
             );
-    private final BacktestBenchmarkSeries benchmarkSeries = mock(
-            BacktestBenchmarkSeries.class
+    private final BacktestBenchmarkSeries benchmarkSeries = benchmarkSeries(
+            FROM_VALUATION_DATE,
+            MIDDLE_VALUATION_DATE,
+            TO_VALUATION_DATE
     );
     private final BacktestBenchmarkPerformanceSummary benchmarkSummary =
             benchmarkSummary();
@@ -191,7 +196,7 @@ class SwingV1BacktestExperimentServiceTest {
     }
 
     @Test
-    void rejectsDifferentValuationRangesBeforeLoadingBenchmark() {
+    void rejectsMissingMiddleValuationDateBeforeLoadingBenchmark() {
         SwingV1BacktestExperimentRequest request = request();
         SwingV1BacktestRunRequest samsungRequest = runRequest(
                 request,
@@ -204,7 +209,7 @@ class SwingV1BacktestExperimentServiceTest {
         SwingV1BacktestReport samsungReport = report(samsungRequest);
         SwingV1BacktestReport skHynixReport = report(
                 skHynixRequest,
-                FROM_VALUATION_DATE.plusDays(1),
+                FROM_VALUATION_DATE,
                 TO_VALUATION_DATE
         );
         when(stockUniverseRegistry.getCandidateSymbols(
@@ -218,8 +223,10 @@ class SwingV1BacktestExperimentServiceTest {
         assertThatThrownBy(() -> service.execute(request))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
-                        "Report valuation date ranges must match "
-                                + "across symbols."
+                        "Report valuation dates must match across symbols. "
+                                + "symbol=000660, expectedDate="
+                                + MIDDLE_VALUATION_DATE
+                                + ", actualDate=" + TO_VALUATION_DATE
                 );
         verifyNoInteractions(
                 benchmarkSeriesQueryService,
@@ -275,7 +282,7 @@ class SwingV1BacktestExperimentServiceTest {
     }
 
     @Test
-    void stopsWhenBenchmarkHasNoFinalValuationDate() {
+    void stopsWhenBenchmarkHasNoMiddleValuationDate() {
         SwingV1BacktestExperimentRequest request = request();
         SwingV1BacktestRunRequest runRequest = runRequest(
                 request,
@@ -287,21 +294,56 @@ class SwingV1BacktestExperimentServiceTest {
         )).thenReturn(List.of("005930"));
         when(reportService.generate(runRequest))
                 .thenReturn(report);
-        when(benchmarkPerformanceCalculator.calculate(
-                benchmarkSeries,
+        when(benchmarkSeriesQueryService.getSeries(
+                BENCHMARK_ID,
                 FROM_VALUATION_DATE,
                 TO_VALUATION_DATE
-        )).thenThrow(new IllegalArgumentException(
-                "Benchmark observation not found for toDate: "
-                        + TO_VALUATION_DATE
+        )).thenReturn(benchmarkSeries(
+                FROM_VALUATION_DATE,
+                TO_VALUATION_DATE
         ));
 
         assertThatThrownBy(() -> service.execute(request))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(IllegalStateException.class)
                 .hasMessage(
-                        "Benchmark observation not found for toDate: "
-                                + TO_VALUATION_DATE
+                        "Benchmark observation dates must match report "
+                                + "valuation dates. benchmarkId=KOSPI, "
+                                + "expectedDate=" + MIDDLE_VALUATION_DATE
+                                + ", actualDate=" + TO_VALUATION_DATE
                 );
+        verifyNoInteractions(benchmarkPerformanceCalculator);
+    }
+
+    @Test
+    void stopsWhenBenchmarkHasExtraValuationDate() {
+        SwingV1BacktestExperimentRequest request = request();
+        SwingV1BacktestRunRequest runRequest = runRequest(request, "005930");
+        SwingV1BacktestReport report = report(runRequest);
+        when(stockUniverseRegistry.getCandidateSymbols(
+                STRATEGY_IDENTITY
+        )).thenReturn(List.of("005930"));
+        when(reportService.generate(runRequest)).thenReturn(report);
+        when(benchmarkSeriesQueryService.getSeries(
+                BENCHMARK_ID,
+                FROM_VALUATION_DATE,
+                TO_VALUATION_DATE
+        )).thenReturn(benchmarkSeries(
+                FROM_VALUATION_DATE,
+                MIDDLE_VALUATION_DATE,
+                MIDDLE_VALUATION_DATE.plusDays(1),
+                TO_VALUATION_DATE
+        ));
+
+        assertThatThrownBy(() -> service.execute(request))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage(
+                        "Benchmark observation dates must match report "
+                                + "valuation dates. benchmarkId=KOSPI, "
+                                + "expectedDate=" + TO_VALUATION_DATE
+                                + ", actualDate="
+                                + MIDDLE_VALUATION_DATE.plusDays(1)
+                );
+        verifyNoInteractions(benchmarkPerformanceCalculator);
     }
 
     private SwingV1BacktestExperimentRequest request() {
@@ -337,14 +379,14 @@ class SwingV1BacktestExperimentServiceTest {
         return report(
                 request,
                 FROM_VALUATION_DATE,
+                MIDDLE_VALUATION_DATE,
                 TO_VALUATION_DATE
         );
     }
 
     private SwingV1BacktestReport report(
             SwingV1BacktestRunRequest request,
-            LocalDate fromValuationDate,
-            LocalDate toValuationDate
+            LocalDate... valuationDates
     ) {
         SwingV1BacktestReport report = mock(SwingV1BacktestReport.class);
         SwingV1BacktestRunResult runResult = mock(
@@ -352,11 +394,26 @@ class SwingV1BacktestExperimentServiceTest {
         );
         when(report.request()).thenReturn(request);
         when(report.runResult()).thenReturn(runResult);
-        when(runResult.equityCurve()).thenReturn(List.of(
-                equitySnapshot(fromValuationDate),
-                equitySnapshot(toValuationDate)
-        ));
+        when(runResult.equityCurve()).thenReturn(
+                List.of(valuationDates).stream()
+                        .map(this::equitySnapshot)
+                        .toList()
+        );
         return report;
+    }
+
+    private BacktestBenchmarkSeries benchmarkSeries(
+            LocalDate... observationDates
+    ) {
+        return new BacktestBenchmarkSeries(
+                BENCHMARK_ID,
+                List.of(observationDates).stream()
+                        .map(date -> new BacktestBenchmarkObservation(
+                                date,
+                                new BigDecimal("100")
+                        ))
+                        .toList()
+        );
     }
 
     private BacktestEquitySnapshot equitySnapshot(LocalDate valuationDate) {
@@ -394,7 +451,7 @@ class SwingV1BacktestExperimentServiceTest {
                 BigDecimal.ZERO,
                 null,
                 null,
-                2
+                3
         );
     }
 }

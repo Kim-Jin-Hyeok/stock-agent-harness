@@ -77,19 +77,20 @@ public class SwingV1BacktestExperimentService {
             reports.add(reportService.generate(runRequest));
         }
 
-        SwingV1BacktestValuationRange valuationRange =
-                SwingV1BacktestValuationRange.fromReports(reports);
+        SwingV1BacktestValuationDates valuationDates =
+                SwingV1BacktestValuationDates.fromReports(reports);
         BacktestBenchmarkSeries benchmarkSeries = benchmarkSeriesQueryService
                 .getSeries(
                         request.benchmarkId(),
-                        valuationRange.fromDate(),
-                        valuationRange.toDate()
+                        valuationDates.fromDate(),
+                        valuationDates.toDate()
                 );
+        valuationDates.validateBenchmarkDates(benchmarkSeries);
         BacktestBenchmarkPerformanceSummary benchmarkPerformanceSummary =
                 benchmarkPerformanceCalculator.calculate(
                         benchmarkSeries,
-                        valuationRange.fromDate(),
-                        valuationRange.toDate()
+                        valuationDates.fromDate(),
+                        valuationDates.toDate()
                 );
 
         return new SwingV1BacktestExperimentResult(
