@@ -4,8 +4,10 @@ import com.stock.backtest.performance.benchmark.BacktestBenchmarkPerformanceCalc
 import com.stock.backtest.performance.benchmark.BacktestBenchmarkPerformanceSummary;
 import com.stock.backtest.performance.benchmark.BacktestBenchmarkSeries;
 import com.stock.backtest.performance.benchmark.query.BacktestBenchmarkSeriesQueryService;
+import com.stock.backtest.performance.equity.BacktestEquitySnapshot;
 import com.stock.backtest.portfolio.BacktestPortfolioState;
 import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunRequest;
+import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunResult;
 import com.stock.backtest.strategy.swing.v1.report.SwingV1BacktestReport;
 import com.stock.backtest.strategy.swing.v1.report.SwingV1BacktestReportService;
 import com.stock.strategy.profile.InvestmentHorizon;
@@ -18,6 +20,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -41,6 +44,10 @@ class SwingV1BacktestExperimentServiceTest {
             LocalDate.of(2026, 1, 2);
     private static final LocalDate TO_SIGNAL_DATE =
             LocalDate.of(2026, 6, 30);
+    private static final LocalDate FROM_VALUATION_DATE =
+            LocalDate.of(2026, 1, 5);
+    private static final LocalDate TO_VALUATION_DATE =
+            LocalDate.of(2026, 7, 1);
     private static final long INITIAL_CASH_AMOUNT_KRW = 10_000_000L;
 
     private final StrategyStockUniverseRegistry stockUniverseRegistry =
@@ -72,13 +79,13 @@ class SwingV1BacktestExperimentServiceTest {
     void setUpBenchmark() {
         when(benchmarkSeriesQueryService.getSeries(
                 BENCHMARK_ID,
-                FROM_SIGNAL_DATE,
-                TO_SIGNAL_DATE
+                FROM_VALUATION_DATE,
+                TO_VALUATION_DATE
         )).thenReturn(benchmarkSeries);
         when(benchmarkPerformanceCalculator.calculate(
                 benchmarkSeries,
-                FROM_SIGNAL_DATE,
-                TO_SIGNAL_DATE
+                FROM_VALUATION_DATE,
+                TO_VALUATION_DATE
         )).thenReturn(benchmarkSummary);
     }
 
@@ -112,13 +119,13 @@ class SwingV1BacktestExperimentServiceTest {
                 .isSameAs(benchmarkSummary);
         verify(benchmarkSeriesQueryService).getSeries(
                 BENCHMARK_ID,
-                FROM_SIGNAL_DATE,
-                TO_SIGNAL_DATE
+                FROM_VALUATION_DATE,
+                TO_VALUATION_DATE
         );
         verify(benchmarkPerformanceCalculator).calculate(
                 benchmarkSeries,
-                FROM_SIGNAL_DATE,
-                TO_SIGNAL_DATE
+                FROM_VALUATION_DATE,
+                TO_VALUATION_DATE
         );
         ArgumentCaptor<SwingV1BacktestRunRequest> requestCaptor =
                 ArgumentCaptor.forClass(
@@ -177,6 +184,47 @@ class SwingV1BacktestExperimentServiceTest {
         verify(reportService).generate(samsungRequest);
         verify(reportService).generate(skHynixRequest);
         verify(reportService, never()).generate(naverRequest);
+        verifyNoInteractions(
+                benchmarkSeriesQueryService,
+                benchmarkPerformanceCalculator
+        );
+    }
+
+    @Test
+    void rejectsDifferentValuationRangesBeforeLoadingBenchmark() {
+        SwingV1BacktestExperimentRequest request = request();
+        SwingV1BacktestRunRequest samsungRequest = runRequest(
+                request,
+                "005930"
+        );
+        SwingV1BacktestRunRequest skHynixRequest = runRequest(
+                request,
+                "000660"
+        );
+        SwingV1BacktestReport samsungReport = report(samsungRequest);
+        SwingV1BacktestReport skHynixReport = report(
+                skHynixRequest,
+                FROM_VALUATION_DATE.plusDays(1),
+                TO_VALUATION_DATE
+        );
+        when(stockUniverseRegistry.getCandidateSymbols(
+                STRATEGY_IDENTITY
+        )).thenReturn(List.of("005930", "000660"));
+        when(reportService.generate(samsungRequest))
+                .thenReturn(samsungReport);
+        when(reportService.generate(skHynixRequest))
+                .thenReturn(skHynixReport);
+
+        assertThatThrownBy(() -> service.execute(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "Report valuation date ranges must match "
+                                + "across symbols."
+                );
+        verifyNoInteractions(
+                benchmarkSeriesQueryService,
+                benchmarkPerformanceCalculator
+        );
     }
 
     @Test
@@ -199,15 +247,22 @@ class SwingV1BacktestExperimentServiceTest {
     }
 
     @Test
-    void stopsBeforeReportsWhenBenchmarkHistoryIsMissing() {
+    void stopsAfterReportsWhenBenchmarkHistoryIsMissing() {
         SwingV1BacktestExperimentRequest request = request();
+        SwingV1BacktestRunRequest runRequest = runRequest(
+                request,
+                "005930"
+        );
+        SwingV1BacktestReport report = report(runRequest);
         when(stockUniverseRegistry.getCandidateSymbols(
                 STRATEGY_IDENTITY
         )).thenReturn(List.of("005930"));
+        when(reportService.generate(runRequest))
+                .thenReturn(report);
         when(benchmarkSeriesQueryService.getSeries(
                 BENCHMARK_ID,
-                FROM_SIGNAL_DATE,
-                TO_SIGNAL_DATE
+                FROM_VALUATION_DATE,
+                TO_VALUATION_DATE
         )).thenThrow(new IllegalStateException(
                 "Stored benchmark history must not be empty."
         ));
@@ -215,8 +270,38 @@ class SwingV1BacktestExperimentServiceTest {
         assertThatThrownBy(() -> service.execute(request))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Stored benchmark history must not be empty.");
-        verifyNoInteractions(reportService);
+        verify(reportService).generate(runRequest);
         verifyNoInteractions(benchmarkPerformanceCalculator);
+    }
+
+    @Test
+    void stopsWhenBenchmarkHasNoFinalValuationDate() {
+        SwingV1BacktestExperimentRequest request = request();
+        SwingV1BacktestRunRequest runRequest = runRequest(
+                request,
+                "005930"
+        );
+        SwingV1BacktestReport report = report(runRequest);
+        when(stockUniverseRegistry.getCandidateSymbols(
+                STRATEGY_IDENTITY
+        )).thenReturn(List.of("005930"));
+        when(reportService.generate(runRequest))
+                .thenReturn(report);
+        when(benchmarkPerformanceCalculator.calculate(
+                benchmarkSeries,
+                FROM_VALUATION_DATE,
+                TO_VALUATION_DATE
+        )).thenThrow(new IllegalArgumentException(
+                "Benchmark observation not found for toDate: "
+                        + TO_VALUATION_DATE
+        ));
+
+        assertThatThrownBy(() -> service.execute(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "Benchmark observation not found for toDate: "
+                                + TO_VALUATION_DATE
+                );
     }
 
     private SwingV1BacktestExperimentRequest request() {
@@ -249,9 +334,41 @@ class SwingV1BacktestExperimentServiceTest {
     private SwingV1BacktestReport report(
             SwingV1BacktestRunRequest request
     ) {
+        return report(
+                request,
+                FROM_VALUATION_DATE,
+                TO_VALUATION_DATE
+        );
+    }
+
+    private SwingV1BacktestReport report(
+            SwingV1BacktestRunRequest request,
+            LocalDate fromValuationDate,
+            LocalDate toValuationDate
+    ) {
         SwingV1BacktestReport report = mock(SwingV1BacktestReport.class);
+        SwingV1BacktestRunResult runResult = mock(
+                SwingV1BacktestRunResult.class
+        );
         when(report.request()).thenReturn(request);
+        when(report.runResult()).thenReturn(runResult);
+        when(runResult.equityCurve()).thenReturn(List.of(
+                equitySnapshot(fromValuationDate),
+                equitySnapshot(toValuationDate)
+        ));
         return report;
+    }
+
+    private BacktestEquitySnapshot equitySnapshot(LocalDate valuationDate) {
+        return new BacktestEquitySnapshot(
+                valuationDate,
+                valuationDate.atTime(9, 10)
+                        .atZone(ZoneId.of("Asia/Seoul"))
+                        .toInstant(),
+                INITIAL_CASH_AMOUNT_KRW,
+                0L,
+                INITIAL_CASH_AMOUNT_KRW
+        );
     }
 
     private TradeCostModel costModel() {
@@ -269,8 +386,8 @@ class SwingV1BacktestExperimentServiceTest {
     private BacktestBenchmarkPerformanceSummary benchmarkSummary() {
         return new BacktestBenchmarkPerformanceSummary(
                 BENCHMARK_ID,
-                FROM_SIGNAL_DATE,
-                TO_SIGNAL_DATE,
+                FROM_VALUATION_DATE,
+                TO_VALUATION_DATE,
                 new BigDecimal("100"),
                 new BigDecimal("110"),
                 new BigDecimal("0.1"),

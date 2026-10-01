@@ -1,8 +1,10 @@
 package com.stock.backtest.strategy.swing.v1.experiment.execution;
 
 import com.stock.backtest.performance.benchmark.BacktestBenchmarkPerformanceSummary;
+import com.stock.backtest.performance.equity.BacktestEquitySnapshot;
 import com.stock.backtest.portfolio.BacktestPortfolioState;
 import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunRequest;
+import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunResult;
 import com.stock.backtest.strategy.swing.v1.report.SwingV1BacktestReport;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
@@ -11,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,6 +34,10 @@ class SwingV1BacktestExperimentResultTest {
             LocalDate.of(2026, 1, 2);
     private static final LocalDate TO_SIGNAL_DATE =
             LocalDate.of(2026, 6, 30);
+    private static final LocalDate FROM_VALUATION_DATE =
+            LocalDate.of(2026, 1, 5);
+    private static final LocalDate TO_VALUATION_DATE =
+            LocalDate.of(2026, 7, 1);
     private static final long INITIAL_CASH_AMOUNT_KRW = 10_000_000L;
 
     @Test
@@ -131,8 +138,8 @@ class SwingV1BacktestExperimentResultTest {
                 List.of(report(request, "005930")),
                 benchmarkSummary(
                         "KOSDAQ",
-                        FROM_SIGNAL_DATE,
-                        TO_SIGNAL_DATE
+                        FROM_VALUATION_DATE,
+                        TO_VALUATION_DATE
                 )
         )).isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
@@ -150,14 +157,56 @@ class SwingV1BacktestExperimentResultTest {
                 List.of(report(request, "005930")),
                 benchmarkSummary(
                         BENCHMARK_ID,
-                        FROM_SIGNAL_DATE.plusDays(1),
+                        FROM_SIGNAL_DATE,
                         TO_SIGNAL_DATE
                 )
         )).isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
                         "Benchmark performance date range must match "
-                                + "experiment request."
+                                + "report valuation dates."
                 );
+    }
+
+    @Test
+    void rejectsReportsWithDifferentValuationRanges() {
+        SwingV1BacktestExperimentRequest request = request();
+
+        assertThatThrownBy(() -> new SwingV1BacktestExperimentResult(
+                request,
+                List.of(
+                        report(request, "005930"),
+                        report(
+                                runRequest(
+                                        request,
+                                        "000660",
+                                        BacktestPortfolioState.withCash(
+                                                INITIAL_CASH_AMOUNT_KRW
+                                        )
+                                ),
+                                FROM_VALUATION_DATE.plusDays(1),
+                                TO_VALUATION_DATE
+                        )
+                ),
+                benchmarkSummary()
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "Report valuation date ranges must match "
+                                + "across symbols."
+                );
+    }
+
+    @Test
+    void rejectsReportWithoutValuationSnapshots() {
+        SwingV1BacktestExperimentRequest request = request();
+        SwingV1BacktestReport report = report(request, "005930");
+        when(report.runResult().equityCurve()).thenReturn(List.of());
+
+        assertThatThrownBy(() -> new SwingV1BacktestExperimentResult(
+                request,
+                List.of(report),
+                benchmarkSummary()
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Report equityCurve must not be empty.");
     }
 
     private SwingV1BacktestExperimentRequest request() {
@@ -187,9 +236,41 @@ class SwingV1BacktestExperimentResultTest {
     private SwingV1BacktestReport report(
             SwingV1BacktestRunRequest runRequest
     ) {
+        return report(
+                runRequest,
+                FROM_VALUATION_DATE,
+                TO_VALUATION_DATE
+        );
+    }
+
+    private SwingV1BacktestReport report(
+            SwingV1BacktestRunRequest runRequest,
+            LocalDate fromValuationDate,
+            LocalDate toValuationDate
+    ) {
         SwingV1BacktestReport report = mock(SwingV1BacktestReport.class);
+        SwingV1BacktestRunResult runResult = mock(
+                SwingV1BacktestRunResult.class
+        );
         when(report.request()).thenReturn(runRequest);
+        when(report.runResult()).thenReturn(runResult);
+        when(runResult.equityCurve()).thenReturn(List.of(
+                equitySnapshot(fromValuationDate),
+                equitySnapshot(toValuationDate)
+        ));
         return report;
+    }
+
+    private BacktestEquitySnapshot equitySnapshot(LocalDate valuationDate) {
+        return new BacktestEquitySnapshot(
+                valuationDate,
+                valuationDate.atTime(9, 10)
+                        .atZone(ZoneId.of("Asia/Seoul"))
+                        .toInstant(),
+                INITIAL_CASH_AMOUNT_KRW,
+                0L,
+                INITIAL_CASH_AMOUNT_KRW
+        );
     }
 
     private SwingV1BacktestRunRequest runRequest(
@@ -222,8 +303,8 @@ class SwingV1BacktestExperimentResultTest {
     private BacktestBenchmarkPerformanceSummary benchmarkSummary() {
         return benchmarkSummary(
                 BENCHMARK_ID,
-                FROM_SIGNAL_DATE,
-                TO_SIGNAL_DATE
+                FROM_VALUATION_DATE,
+                TO_VALUATION_DATE
         );
     }
 

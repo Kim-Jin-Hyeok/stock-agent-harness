@@ -59,19 +59,6 @@ public class SwingV1BacktestExperimentService {
             );
         }
 
-        BacktestBenchmarkSeries benchmarkSeries = benchmarkSeriesQueryService
-                .getSeries(
-                        request.benchmarkId(),
-                        request.fromSignalDate(),
-                        request.toSignalDate()
-                );
-        BacktestBenchmarkPerformanceSummary benchmarkPerformanceSummary =
-                benchmarkPerformanceCalculator.calculate(
-                        benchmarkSeries,
-                        request.fromSignalDate(),
-                        request.toSignalDate()
-                );
-
         List<SwingV1BacktestReport> reports = new ArrayList<>(
                 candidateSymbols.size()
         );
@@ -89,6 +76,21 @@ public class SwingV1BacktestExperimentService {
                     );
             reports.add(reportService.generate(runRequest));
         }
+
+        SwingV1BacktestValuationRange valuationRange =
+                SwingV1BacktestValuationRange.fromReports(reports);
+        BacktestBenchmarkSeries benchmarkSeries = benchmarkSeriesQueryService
+                .getSeries(
+                        request.benchmarkId(),
+                        valuationRange.fromDate(),
+                        valuationRange.toDate()
+                );
+        BacktestBenchmarkPerformanceSummary benchmarkPerformanceSummary =
+                benchmarkPerformanceCalculator.calculate(
+                        benchmarkSeries,
+                        valuationRange.fromDate(),
+                        valuationRange.toDate()
+                );
 
         return new SwingV1BacktestExperimentResult(
                 request,

@@ -1,9 +1,11 @@
 package com.stock.backtest.strategy.swing.v1.experiment.summary;
 
 import com.stock.backtest.performance.benchmark.BacktestBenchmarkPerformanceSummary;
+import com.stock.backtest.performance.equity.BacktestEquitySnapshot;
 import com.stock.backtest.performance.metric.BacktestPerformanceSummary;
 import com.stock.backtest.portfolio.BacktestPortfolioState;
 import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunRequest;
+import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunResult;
 import com.stock.backtest.strategy.swing.v1.experiment.execution.SwingV1BacktestExperimentRequest;
 import com.stock.backtest.strategy.swing.v1.experiment.execution.SwingV1BacktestExperimentResult;
 import com.stock.backtest.strategy.swing.v1.report.SwingV1BacktestReport;
@@ -16,6 +18,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -35,6 +38,10 @@ class SwingV1BacktestExperimentSummaryCalculatorTest {
             LocalDate.of(2026, 1, 2);
     private static final LocalDate TO_SIGNAL_DATE =
             LocalDate.of(2026, 6, 30);
+    private static final LocalDate FROM_VALUATION_DATE =
+            LocalDate.of(2026, 1, 5);
+    private static final LocalDate TO_VALUATION_DATE =
+            LocalDate.of(2026, 7, 1);
     private static final long INITIAL_CASH_AMOUNT_KRW = 10_000_000L;
 
     private final SwingV1BacktestExperimentSummaryCalculator calculator =
@@ -166,8 +173,8 @@ class SwingV1BacktestExperimentSummaryCalculatorTest {
     ) {
         return new BacktestBenchmarkPerformanceSummary(
                 request.benchmarkId(),
-                request.fromSignalDate(),
-                request.toSignalDate(),
+                FROM_VALUATION_DATE,
+                TO_VALUATION_DATE,
                 new BigDecimal("100"),
                 new BigDecimal("110"),
                 new BigDecimal("0.1"),
@@ -187,6 +194,9 @@ class SwingV1BacktestExperimentSummaryCalculatorTest {
             int completedTradeCount
     ) {
         SwingV1BacktestReport report = mock(SwingV1BacktestReport.class);
+        SwingV1BacktestRunResult runResult = mock(
+                SwingV1BacktestRunResult.class
+        );
         SwingV1TerminalLiquidationEstimate terminalEstimate = mock(
                 SwingV1TerminalLiquidationEstimate.class
         );
@@ -197,6 +207,11 @@ class SwingV1BacktestExperimentSummaryCalculatorTest {
                 SwingV1TradePerformanceSummary.class
         );
         when(report.request()).thenReturn(runRequest(request, symbol));
+        when(report.runResult()).thenReturn(runResult);
+        when(runResult.equityCurve()).thenReturn(List.of(
+                equitySnapshot(FROM_VALUATION_DATE),
+                equitySnapshot(TO_VALUATION_DATE)
+        ));
         when(terminalEstimate.liquidationAdjustedTotalReturnRate())
                 .thenReturn(liquidationAdjustedReturnRate);
         when(report.terminalLiquidationEstimate())
@@ -211,6 +226,18 @@ class SwingV1BacktestExperimentSummaryCalculatorTest {
         when(report.tradePerformanceSummary())
                 .thenReturn(tradePerformanceSummary);
         return report;
+    }
+
+    private BacktestEquitySnapshot equitySnapshot(LocalDate valuationDate) {
+        return new BacktestEquitySnapshot(
+                valuationDate,
+                valuationDate.atTime(9, 10)
+                        .atZone(ZoneId.of("Asia/Seoul"))
+                        .toInstant(),
+                INITIAL_CASH_AMOUNT_KRW,
+                0L,
+                INITIAL_CASH_AMOUNT_KRW
+        );
     }
 
     private SwingV1BacktestRunRequest runRequest(
