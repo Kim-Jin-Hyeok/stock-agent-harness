@@ -1,7 +1,12 @@
 package com.stock.backtest.strategy.swing.v1.experiment.runner;
 
 import com.stock.agent.InvestmentDecision;
+import com.stock.backtest.comparison.buyandhold.calculation.BuyAndHoldBacktestCalculator;
+import com.stock.backtest.comparison.buyandhold.model.BuyAndHoldBacktestRequest;
+import com.stock.backtest.comparison.buyandhold.model.BuyAndHoldBacktestResult;
 import com.stock.backtest.performance.benchmark.BacktestBenchmarkPerformanceSummary;
+import com.stock.backtest.performance.metric.BacktestPerformanceCalculator;
+import com.stock.backtest.performance.metric.BacktestPerformanceSummary;
 import com.stock.backtest.portfolio.BacktestPortfolioState;
 import com.stock.backtest.strategy.swing.v1.experiment.evaluation.SwingV1BacktestExperimentEvaluation;
 import com.stock.backtest.strategy.swing.v1.experiment.evaluation.SwingV1BacktestExperimentEvaluationService;
@@ -12,10 +17,15 @@ import com.stock.backtest.strategy.swing.v1.experiment.summary.SwingV1BacktestEx
 import com.stock.backtest.strategy.swing.v1.execution.result.SwingV1BacktestStepResult;
 import com.stock.backtest.strategy.swing.v1.execution.result.SwingV1BacktestStepStatus;
 import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunResult;
+import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunRequest;
 import com.stock.backtest.strategy.swing.v1.report.SwingV1BacktestReport;
+import com.stock.backtest.strategy.swing.v1.report.terminal.SwingV1TerminalLiquidationEstimate;
+import com.stock.market.price.history.DailyPriceBar;
+import com.stock.market.price.history.DailyPriceHistory;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import com.stock.trade.cost.model.TradeCostModel;
+import com.stock.trade.cost.TradeCostCalculator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -25,6 +35,7 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -70,6 +81,20 @@ class SwingV1BacktestManualRunnerTest {
         when(runResult.finalPortfolioState()).thenReturn(
                 BacktestPortfolioState.withCash(10_000_000L)
         );
+        when(report.request()).thenReturn(new SwingV1BacktestRunRequest(
+                new InvestmentStrategyIdentity("SWING_V1", 1, InvestmentHorizon.SWING),
+                "005930", properties.fromSignalDate(), properties.toSignalDate(),
+                BacktestPortfolioState.withCash(properties.initialCashAmountKrwPerSymbol()),
+                properties.costModel()
+        ));
+        BacktestPerformanceSummary performance = mock(BacktestPerformanceSummary.class);
+        when(report.performanceSummary()).thenReturn(performance);
+        when(performance.maxDrawdownRate()).thenReturn(new BigDecimal("0.03"));
+        SwingV1TerminalLiquidationEstimate terminal = mock(SwingV1TerminalLiquidationEstimate.class);
+        when(report.terminalLiquidationEstimate()).thenReturn(terminal);
+        when(terminal.liquidationAdjustedTotalReturnRate()).thenReturn(new BigDecimal("0.02"));
+        List<BuyAndHoldBacktestResult> comparisons = comparisons(properties);
+        when(evaluation.buyAndHoldResults()).thenReturn(comparisons);
         SwingV1BacktestManualRunner runner = new SwingV1BacktestManualRunner(
                 evaluationService,
                 properties
@@ -101,6 +126,21 @@ class SwingV1BacktestManualRunnerTest {
         assertThat(output.getOut()).contains(
                 "SWING_V1 manual backtest diagnostic. symbol=005930"
         ).contains("finalPositionQuantity=0");
+        assertThat(output.getOut()).contains(
+                "manual backtest buy-and-hold comparison. symbol=005930",
+                "initialAllocationRatio=1,", "initialAllocationRatio=0.1,",
+                "swingLiquidationAdjustedReturnRate=0.02", "swingMaxDrawdownRate=0.03"
+        );
+        for (BuyAndHoldBacktestResult comparison : comparisons) {
+            assertThat(output.getOut()).contains(
+                    "buyAndHoldLiquidationAdjustedReturnRate="
+                            + comparison.liquidationAdjustedTotalReturnRate(),
+                    "swingExcessReturnRateVsBuyAndHold="
+                            + new BigDecimal("0.02").subtract(
+                                    comparison.liquidationAdjustedTotalReturnRate()
+                            )
+            );
+        }
     }
 
     @Test
@@ -173,6 +213,26 @@ class SwingV1BacktestManualRunnerTest {
         )).isInstanceOf(NullPointerException.class)
                 .hasMessage("properties must not be null.");
         verifyNoInteractions(evaluationService);
+    }
+
+    private List<BuyAndHoldBacktestResult> comparisons(
+            SwingV1BacktestManualRunProperties properties
+    ) {
+        LocalDate date = LocalDate.of(2026, 8, 4);
+        BuyAndHoldBacktestCalculator calculator = new BuyAndHoldBacktestCalculator(
+                new TradeCostCalculator(), new BacktestPerformanceCalculator()
+        );
+        return SwingV1BacktestExperimentEvaluation.BUY_AND_HOLD_INITIAL_ALLOCATION_RATIOS
+                .stream().map(ratio -> calculator.calculate(
+                        new BuyAndHoldBacktestRequest(
+                                "005930", properties.initialCashAmountKrwPerSymbol(), ratio,
+                                List.of(date.atTime(9, 10).atZone(ZoneId.of("Asia/Seoul"))
+                                        .toInstant()), properties.costModel()
+                        ),
+                        new DailyPriceHistory("005930", List.of(
+                                new DailyPriceBar(date, 100L, 100L, 100L, 100L, 1L)
+                        ))
+                )).toList();
     }
 
     private SwingV1BacktestManualRunProperties properties() {

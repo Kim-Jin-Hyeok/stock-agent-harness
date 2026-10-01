@@ -74,3 +74,11 @@ $runArgs = @(
 저장된 데이터로 수행한 첫 실행의 조건, 재현성 검사와 무거래 원인은 [SWING_V1 기준 결과 01](validation/swing-v1-baseline-observation-01.md)에 기록한다.
 
 지수 과거 이력을 실제로 보충한 뒤 동일한 전략과 비용 가정으로 기간을 확대한 결과는 [SWING_V1 확대 결과 02](validation/swing-v1-baseline-observation-02.md)에 기록한다. 기존 기간 대조, 거래별 검산과 데이터 보존 확인을 포함하며 실제투자 승격을 의미하지 않는다.
+
+## 동일 종목 매수 후 보유 비교
+
+평가 서비스는 각 종목에 최초 자금 100%와 10%를 배분한 매수 후 보유 결과를 함께 계산한다. 같은 평가일·시각 메타데이터·시가와 비용 모델을 사용하며, 1주도 살 수 없으면 현금으로 유지한다. 두 배분 모두 전체 초기 현금을 수익률 분모로 사용한다.
+
+`manual backtest buy-and-hold comparison` 로그에서 배분별 수량·잔여 현금, 평가금액 수익률, 최종 가정 청산비용, 보정 수익률, MDD와 SWING 대비 차이를 확인한다. 반환값의 `buyAndHoldResults`에는 전체 평가곡선도 포함된다. SWING 당시 판단 근거와 다시 읽은 저장소 시가가 달라도 실패한다.
+
+100% 배분은 백테스트 기회비용 비교이며 실제 주문 권한을 확대하지 않는다. 10% 배분 역시 SWING과 동일한 위험을 보장하지 않는다. 상세 계약은 [동일 종목 비교 문서](swing-v1-buy-and-hold-comparison.md), 원본 확대 스냅샷을 사용한 실제 결과는 [비교 관측 결과 03](validation/swing-v1-buy-and-hold-observation-03.md)에 기록한다.

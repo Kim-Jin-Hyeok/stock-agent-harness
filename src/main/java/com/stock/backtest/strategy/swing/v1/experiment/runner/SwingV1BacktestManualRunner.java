@@ -1,5 +1,6 @@
 package com.stock.backtest.strategy.swing.v1.experiment.runner;
 
+import com.stock.backtest.comparison.buyandhold.model.BuyAndHoldBacktestResult;
 import com.stock.backtest.performance.benchmark.BacktestBenchmarkPerformanceSummary;
 import com.stock.backtest.strategy.swing.v1.experiment.diagnostic.SwingV1BacktestDiagnosticSummary;
 import com.stock.backtest.strategy.swing.v1.experiment.evaluation.SwingV1BacktestExperimentEvaluation;
@@ -7,6 +8,7 @@ import com.stock.backtest.strategy.swing.v1.experiment.evaluation.SwingV1Backtes
 import com.stock.backtest.strategy.swing.v1.experiment.execution.SwingV1BacktestExperimentRequest;
 import com.stock.backtest.strategy.swing.v1.experiment.runner.config.SwingV1BacktestManualRunProperties;
 import com.stock.backtest.strategy.swing.v1.experiment.summary.SwingV1BacktestExperimentSummary;
+import com.stock.backtest.strategy.swing.v1.report.SwingV1BacktestReport;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import lombok.extern.slf4j.Slf4j;
@@ -87,6 +89,7 @@ public class SwingV1BacktestManualRunner implements ApplicationRunner {
                         report.runResult()
                 ))
                 .toList();
+        logBuyAndHoldComparisons(evaluation);
         log.info(
                 "SWING_V1 manual backtest completed. benchmarkId={}, "
                         + "valuationFromDate={}, valuationToDate={}, "
@@ -125,5 +128,47 @@ public class SwingV1BacktestManualRunner implements ApplicationRunner {
                     diagnostic.finalPositionQuantity()
             );
         });
+    }
+
+    private void logBuyAndHoldComparisons(
+            SwingV1BacktestExperimentEvaluation evaluation
+    ) {
+        for (BuyAndHoldBacktestResult comparison : evaluation.buyAndHoldResults()) {
+            SwingV1BacktestReport report = evaluation.experimentResult().reports()
+                    .stream()
+                    .filter(candidate -> candidate.request().candidateSymbol()
+                            .equals(comparison.request().symbol()))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Buy-and-hold comparison must have a matching SWING report."
+                    ));
+            log.info(
+                    "SWING_V1 manual backtest buy-and-hold comparison. symbol={}, "
+                            + "initialAllocationRatio={}, buyBudgetAmountKrw={}, "
+                            + "boughtQuantity={}, residualCashAmountKrw={}, "
+                            + "buyAndHoldMarkToMarketReturnRate={}, "
+                            + "buyAndHoldTerminalLiquidationCostAmountKrw={}, "
+                            + "buyAndHoldLiquidationAdjustedReturnRate={}, "
+                            + "buyAndHoldMaxDrawdownRate={}, "
+                            + "swingLiquidationAdjustedReturnRate={}, "
+                            + "swingMaxDrawdownRate={}, "
+                            + "swingExcessReturnRateVsBuyAndHold={}",
+                    comparison.request().symbol(),
+                    comparison.request().initialAllocationRatio(),
+                    comparison.request().buyBudgetAmountKrw(),
+                    comparison.boughtQuantity(),
+                    comparison.finalPortfolioState().cashAmountKrw(),
+                    comparison.performanceSummary().totalReturnRate(),
+                    comparison.estimatedTerminalLiquidationCostAmountKrw(),
+                    comparison.liquidationAdjustedTotalReturnRate(),
+                    comparison.performanceSummary().maxDrawdownRate(),
+                    report.terminalLiquidationEstimate()
+                            .liquidationAdjustedTotalReturnRate(),
+                    report.performanceSummary().maxDrawdownRate(),
+                    report.terminalLiquidationEstimate()
+                            .liquidationAdjustedTotalReturnRate()
+                            .subtract(comparison.liquidationAdjustedTotalReturnRate())
+            );
+        }
     }
 }
