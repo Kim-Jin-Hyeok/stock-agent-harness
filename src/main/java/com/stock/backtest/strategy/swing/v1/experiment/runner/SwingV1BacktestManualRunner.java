@@ -7,6 +7,9 @@ import com.stock.backtest.strategy.swing.v1.experiment.evaluation.SwingV1Backtes
 import com.stock.backtest.strategy.swing.v1.experiment.evaluation.SwingV1BacktestExperimentEvaluationService;
 import com.stock.backtest.strategy.swing.v1.experiment.execution.SwingV1BacktestExperimentRequest;
 import com.stock.backtest.strategy.swing.v1.experiment.runner.config.SwingV1BacktestManualRunProperties;
+import com.stock.backtest.strategy.swing.v1.experiment.sensitivity.cost.SwingV1CostSensitivityRequest;
+import com.stock.backtest.strategy.swing.v1.experiment.sensitivity.cost.SwingV1CostSensitivityResult;
+import com.stock.backtest.strategy.swing.v1.experiment.sensitivity.cost.SwingV1CostSensitivityService;
 import com.stock.backtest.strategy.swing.v1.experiment.summary.SwingV1BacktestExperimentSummary;
 import com.stock.backtest.strategy.swing.v1.report.SwingV1BacktestReport;
 import com.stock.strategy.profile.InvestmentHorizon;
@@ -36,10 +39,12 @@ public class SwingV1BacktestManualRunner implements ApplicationRunner {
             );
 
     private final SwingV1BacktestExperimentEvaluationService evaluationService;
+    private final SwingV1CostSensitivityService costSensitivityService;
     private final SwingV1BacktestManualRunProperties properties;
 
     public SwingV1BacktestManualRunner(
             SwingV1BacktestExperimentEvaluationService evaluationService,
+            SwingV1CostSensitivityService costSensitivityService,
             SwingV1BacktestManualRunProperties properties
     ) {
         this.evaluationService = Objects.requireNonNull(
@@ -49,6 +54,10 @@ public class SwingV1BacktestManualRunner implements ApplicationRunner {
         this.properties = Objects.requireNonNull(
                 properties,
                 "properties must not be null."
+        );
+        this.costSensitivityService = Objects.requireNonNull(
+                costSensitivityService,
+                "costSensitivityService must not be null."
         );
     }
 
@@ -78,8 +87,22 @@ public class SwingV1BacktestManualRunner implements ApplicationRunner {
                 request.costModel()
         );
 
-        SwingV1BacktestExperimentEvaluation evaluation =
-                evaluationService.evaluate(request);
+        if (properties.slippageSensitivityEnabled()) {
+            SwingV1CostSensitivityRequest sensitivityRequest =
+                    SwingV1CostSensitivityRequest.forSlippageStress(request);
+            log.info("SWING_V1 slippage sensitivity started. costModels={}",
+                    sensitivityRequest.costModels());
+            SwingV1CostSensitivityResult sensitivityResult =
+                    costSensitivityService.evaluate(sensitivityRequest);
+            sensitivityResult.evaluations().forEach(this::logEvaluation);
+            log.info("SWING_V1 slippage sensitivity completed. scenarioCount={}",
+                    sensitivityResult.evaluations().size());
+        } else {
+            logEvaluation(evaluationService.evaluate(request));
+        }
+    }
+
+    private void logEvaluation(SwingV1BacktestExperimentEvaluation evaluation) {
         SwingV1BacktestExperimentSummary summary = evaluation.summary();
         BacktestBenchmarkPerformanceSummary benchmark = evaluation
                 .experimentResult()
@@ -101,7 +124,7 @@ public class SwingV1BacktestManualRunner implements ApplicationRunner {
                         + "benchmarkTotalReturnRate={}, "
                         + "medianLiquidationAdjustedReturnRate={}, "
                         + "medianExcessReturnRate={}, "
-                        + "benchmarkOutperformingSymbolCount={}",
+                        + "benchmarkOutperformingSymbolCount={}, costModel={}",
                 benchmark.benchmarkId(),
                 benchmark.fromDate(),
                 benchmark.toDate(),
@@ -111,7 +134,8 @@ public class SwingV1BacktestManualRunner implements ApplicationRunner {
                 summary.benchmarkTotalReturnRate(),
                 summary.medianLiquidationAdjustedReturnRate(),
                 summary.medianExcessReturnRate(),
-                summary.benchmarkOutperformingSymbolCount()
+                summary.benchmarkOutperformingSymbolCount(),
+                evaluation.experimentResult().request().costModel()
         );
         diagnostics.forEach(diagnostic -> {
             log.info(
@@ -120,7 +144,7 @@ public class SwingV1BacktestManualRunner implements ApplicationRunner {
                             + "blockedOrderReasonCounts={}, "
                             + "rejectedTransitionReasonCounts={}, "
                             + "executedBuyCount={}, executedSellCount={}, "
-                            + "finalPositionQuantity={}",
+                            + "finalPositionQuantity={}, costModel={}",
                     diagnostic.symbol(),
                     diagnostic.stepStatusCounts(),
                     diagnostic.actionReasonCounts(),
@@ -128,7 +152,8 @@ public class SwingV1BacktestManualRunner implements ApplicationRunner {
                     diagnostic.rejectedTransitionReasonCounts(),
                     diagnostic.executedBuyCount(),
                     diagnostic.executedSellCount(),
-                    diagnostic.finalPositionQuantity()
+                    diagnostic.finalPositionQuantity(),
+                    evaluation.experimentResult().request().costModel()
             );
         });
     }
@@ -156,7 +181,9 @@ public class SwingV1BacktestManualRunner implements ApplicationRunner {
                             + "swingLiquidationAdjustedReturnRate={}, "
                             + "swingMaxDrawdownRate={}, "
                             + "swingExcessReturnRateVsBuyAndHold={}, "
-                            + "swingExposureSummary={}, buyAndHoldExposureSummary={}",
+                            + "swingExposureSummary={}, buyAndHoldExposureSummary={}, "
+                            + "swingCompletedTradeCount={}, swingFinalPositionQuantity={}, "
+                            + "costModel={}",
                     comparison.request().symbol(),
                     comparison.request().initialAllocationRatio(),
                     comparison.request().buyBudgetAmountKrw(),
@@ -173,7 +200,13 @@ public class SwingV1BacktestManualRunner implements ApplicationRunner {
                             .liquidationAdjustedTotalReturnRate()
                             .subtract(comparison.liquidationAdjustedTotalReturnRate()),
                     report.exposureSummary(),
-                    comparison.exposureSummary()
+                    comparison.exposureSummary(),
+                    report.completedTrades().size(),
+                    report.runResult().finalPortfolioState().positions().stream()
+                            .filter(position -> position.symbol().equals(comparison.request().symbol()))
+                            .mapToLong(position -> position.quantity())
+                            .sum(),
+                    comparison.request().costModel()
             );
         }
     }

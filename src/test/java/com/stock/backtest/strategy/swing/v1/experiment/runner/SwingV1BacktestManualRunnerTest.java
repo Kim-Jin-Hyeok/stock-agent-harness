@@ -14,6 +14,7 @@ import com.stock.backtest.strategy.swing.v1.experiment.evaluation.SwingV1Backtes
 import com.stock.backtest.strategy.swing.v1.experiment.execution.SwingV1BacktestExperimentRequest;
 import com.stock.backtest.strategy.swing.v1.experiment.execution.SwingV1BacktestExperimentResult;
 import com.stock.backtest.strategy.swing.v1.experiment.runner.config.SwingV1BacktestManualRunProperties;
+import com.stock.backtest.strategy.swing.v1.experiment.sensitivity.cost.SwingV1CostSensitivityService;
 import com.stock.backtest.strategy.swing.v1.experiment.summary.SwingV1BacktestExperimentSummary;
 import com.stock.backtest.strategy.swing.v1.execution.result.SwingV1BacktestStepResult;
 import com.stock.backtest.strategy.swing.v1.execution.result.SwingV1BacktestStepStatus;
@@ -51,6 +52,8 @@ import static org.mockito.Mockito.when;
 class SwingV1BacktestManualRunnerTest {
     private final SwingV1BacktestExperimentEvaluationService evaluationService =
             mock(SwingV1BacktestExperimentEvaluationService.class);
+    private final SwingV1CostSensitivityService sensitivityService =
+            mock(SwingV1CostSensitivityService.class);
 
     @Test
     void runsConfiguredExperimentOnce(CapturedOutput output) throws Exception {
@@ -76,6 +79,12 @@ class SwingV1BacktestManualRunnerTest {
         when(evaluation.experimentResult()).thenReturn(result);
         when(result.benchmarkPerformanceSummary()).thenReturn(benchmark);
         when(result.reports()).thenReturn(List.of(report));
+        when(result.request()).thenReturn(new SwingV1BacktestExperimentRequest(
+                new InvestmentStrategyIdentity("SWING_V1", 1, InvestmentHorizon.SWING),
+                properties.candidateSymbols(), properties.benchmarkId(),
+                properties.fromSignalDate(), properties.toSignalDate(),
+                properties.initialCashAmountKrwPerSymbol(), properties.costModel()
+        ));
         when(report.runResult()).thenReturn(runResult);
         when(runResult.candidateSymbol()).thenReturn("005930");
         when(runResult.steps()).thenReturn(List.of());
@@ -102,6 +111,7 @@ class SwingV1BacktestManualRunnerTest {
         when(evaluation.buyAndHoldResults()).thenReturn(comparisons);
         SwingV1BacktestManualRunner runner = new SwingV1BacktestManualRunner(
                 evaluationService,
+                sensitivityService,
                 properties
         );
 
@@ -129,6 +139,7 @@ class SwingV1BacktestManualRunnerTest {
         assertThat(request.initialCashAmountKrwPerSymbol())
                 .isEqualTo(10_000_000L);
         assertThat(request.costModel()).isSameAs(properties.costModel());
+        verifyNoInteractions(sensitivityService);
         assertThat(output.getOut()).contains("candidateSymbols=[005930]");
         assertThat(output.getOut()).contains(
                 "SWING_V1 manual backtest diagnostic. symbol=005930"
@@ -159,6 +170,7 @@ class SwingV1BacktestManualRunnerTest {
         );
         SwingV1BacktestManualRunner runner = new SwingV1BacktestManualRunner(
                 evaluationService,
+                sensitivityService,
                 properties()
         );
 
@@ -198,6 +210,7 @@ class SwingV1BacktestManualRunnerTest {
         when(step.decision()).thenReturn(mock(InvestmentDecision.class));
         SwingV1BacktestManualRunner runner = new SwingV1BacktestManualRunner(
                 evaluationService,
+                sensitivityService,
                 properties()
         );
 
@@ -213,14 +226,20 @@ class SwingV1BacktestManualRunnerTest {
     void rejectsNullDependencies() {
         assertThatThrownBy(() -> new SwingV1BacktestManualRunner(
                 null,
+                sensitivityService,
                 properties()
         )).isInstanceOf(NullPointerException.class)
                 .hasMessage("evaluationService must not be null.");
         assertThatThrownBy(() -> new SwingV1BacktestManualRunner(
                 evaluationService,
+                sensitivityService,
                 null
         )).isInstanceOf(NullPointerException.class)
                 .hasMessage("properties must not be null.");
+        assertThatThrownBy(() -> new SwingV1BacktestManualRunner(
+                evaluationService, null, properties()
+        )).isInstanceOf(NullPointerException.class)
+                .hasMessage("costSensitivityService must not be null.");
         verifyNoInteractions(evaluationService);
     }
 
@@ -260,7 +279,8 @@ class SwingV1BacktestManualRunnerTest {
                         new BigDecimal("0.0018"),
                         new BigDecimal("0.001"),
                         new BigDecimal("0.001")
-                )
+                ),
+                false
         );
     }
 }

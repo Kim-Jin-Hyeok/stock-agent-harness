@@ -2,6 +2,7 @@ package com.stock.backtest.strategy.swing.v1.experiment.runner.config;
 
 import com.stock.backtest.strategy.swing.v1.experiment.evaluation.SwingV1BacktestExperimentEvaluationService;
 import com.stock.backtest.strategy.swing.v1.experiment.runner.SwingV1BacktestManualRunner;
+import com.stock.backtest.strategy.swing.v1.experiment.sensitivity.cost.SwingV1CostSensitivityService;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import com.stock.strategy.universe.StrategyStockUniverseRegistry;
@@ -24,7 +25,9 @@ class SwingV1BacktestManualRunnerContextTest {
                             () -> mock(
                                     SwingV1BacktestExperimentEvaluationService.class
                             )
-                    );
+                    )
+                    .withBean(SwingV1CostSensitivityService.class,
+                            () -> mock(SwingV1CostSensitivityService.class));
 
     @Test
     void doesNotRegisterRunnerWhenDisabledByDefault() {
@@ -35,6 +38,8 @@ class SwingV1BacktestManualRunnerContextTest {
             );
             assertThat(context.getBean(SwingV1BacktestManualRunProperties.class)
                     .candidateSymbols()).isEmpty();
+            assertThat(context.getBean(SwingV1BacktestManualRunProperties.class)
+                    .slippageSensitivityEnabled()).isFalse();
         });
     }
 
@@ -63,6 +68,7 @@ class SwingV1BacktestManualRunnerContextTest {
                     SwingV1BacktestManualRunProperties.class
             );
             assertThat(properties.enabled()).isTrue();
+            assertThat(properties.slippageSensitivityEnabled()).isFalse();
             assertThat(properties.candidateSymbols()).containsExactly("000660", "005930");
             assertThat(properties.costModel().modelId())
                     .isEqualTo("TEST_COST_V1");
@@ -84,6 +90,18 @@ class SwingV1BacktestManualRunnerContextTest {
             assertThat(context).hasFailed();
             assertThat(context.getStartupFailure())
                     .hasRootCauseMessage("costModel must not be null.");
+        });
+    }
+
+    @Test
+    void enablesSlippageSensitivityOnlyWhenExplicitlyConfigured() {
+        enabledContextRunner().withPropertyValues(
+                "backtest.swing-v1.experiment.manual.candidate-symbols=005930",
+                "backtest.swing-v1.experiment.manual.slippage-sensitivity-enabled=true"
+        ).run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context.getBean(SwingV1BacktestManualRunProperties.class)
+                    .slippageSensitivityEnabled()).isTrue();
         });
     }
 

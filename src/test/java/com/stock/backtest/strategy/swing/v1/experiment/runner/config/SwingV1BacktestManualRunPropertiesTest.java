@@ -29,7 +29,8 @@ class SwingV1BacktestManualRunPropertiesTest {
                         null,
                         null,
                         null,
-                        null
+                        null,
+                        false
                 );
 
         assertThat(properties.enabled()).isFalse();
@@ -46,7 +47,8 @@ class SwingV1BacktestManualRunPropertiesTest {
                         TO_SIGNAL_DATE,
                         "KOSPI",
                         10_000_000L,
-                        costModel()
+                        costModel(),
+                        false
                 ))
                 .withMessage("fromSignalDate must not be null.");
         assertThatThrownBy(() -> new SwingV1BacktestManualRunProperties(
@@ -56,7 +58,8 @@ class SwingV1BacktestManualRunPropertiesTest {
                 FROM_SIGNAL_DATE,
                 "KOSPI",
                 10_000_000L,
-                costModel()
+                costModel(),
+                false
         )).isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("fromSignalDate must not be after toSignalDate.");
         assertThatThrownBy(() -> new SwingV1BacktestManualRunProperties(
@@ -66,7 +69,8 @@ class SwingV1BacktestManualRunPropertiesTest {
                 TO_SIGNAL_DATE,
                 " ",
                 10_000_000L,
-                costModel()
+                costModel(),
+                false
         )).isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("benchmarkId must not be blank.");
         assertThatThrownBy(() -> new SwingV1BacktestManualRunProperties(
@@ -76,7 +80,8 @@ class SwingV1BacktestManualRunPropertiesTest {
                 TO_SIGNAL_DATE,
                 "KOSPI",
                 null,
-                costModel()
+                costModel(),
+                false
         )).isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
                         "initialCashAmountKrwPerSymbol must be positive."
@@ -89,7 +94,8 @@ class SwingV1BacktestManualRunPropertiesTest {
                         TO_SIGNAL_DATE,
                         "KOSPI",
                         10_000_000L,
-                        null
+                        null,
+                        false
                 ))
                 .withMessage("costModel must not be null.");
     }
@@ -135,7 +141,8 @@ class SwingV1BacktestManualRunPropertiesTest {
                 TO_SIGNAL_DATE,
                 "KOSPI",
                 10_000_000L,
-                costModel()
+                costModel(),
+                false
         );
     }
 

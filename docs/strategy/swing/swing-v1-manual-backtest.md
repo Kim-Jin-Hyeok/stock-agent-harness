@@ -82,6 +82,29 @@ $runArgs = @(
 
 시작 로그의 `candidateSymbols`, 신호 기간·초기 현금·비용 모델 전체 값을 확인한다. 완료 로그에서 실제 지수 관측 시작일·종료일·건수, 종목 수, 거래 수, 지수 수익률, 청산비용 반영 중앙값, 중앙값 초과수익률과 초과 종목 수를 확인한다. 결과 스냅샷을 남길 때도 요청의 후보 목록과 순서를 보존한다. 실패하면 원인을 수정하기 전까지 그 실행은 성과 검증에 포함하지 않는다.
 
+## 슬리피지 민감도 비교
+
+`backtest.swing-v1.experiment.manual.slippage-sensitivity-enabled`의 기본값은 `false`다. 기본 수동 실행은 기존처럼 지정한 비용 모델로 한 번만 평가한다. 같은 종목·기간을 기준, 2배, 3배 슬리피지로 비교하려면 위 실행 예시의 `$runArgs`에 다음 인수를 추가한다. 수동 Runner 자체의 `enabled=true`도 필요하다.
+
+```powershell
+'--backtest.swing-v1.experiment.manual.slippage-sensitivity-enabled=true'
+```
+
+- 기준 모델은 `cost-model` 설정 전체를 그대로 사용한다. 두 스트레스 모델은 매수·매도 슬리피지만 각각 2배와 3배로 곱하며 수수료·세금·모델 버전은 유지한다. 예시의 각각 0.001은 0.002와 0.003이 된다. 실제 계좌 비용 또는 예상 체결 품질로 검증된 값은 아니다.
+- 스트레스 모델 ID는 기준 ID 뒤에 `_SLIPPAGE_X2`, `_SLIPPAGE_X3`를 붙인다. 적어도 한쪽 기준 슬리피지가 양수여야 하고 곱한 비율도 1 미만이어야 한다. 잘못된 조건은 평가 전에 거부한다.
+- 후보 목록과 순서, 신호 기간, 종목별 초기 현금, 벤치마크 및 전략·Risk 설정은 고정한다. 각 시나리오가 초기 현금과 보유 없음에서 전체 전략을 다시 실행한다. 기존 거래에서 추가 비용만 차감하거나 앞 시나리오의 포트폴리오를 이어받지 않는다.
+- 기존 평가 서비스가 SWING, 최초 자금 100%·10% 매수 후 보유, 최종 가정 청산에 해당 시나리오 비용 모델을 적용한다. 세 시나리오는 순서대로 실행하며 기준 평가를 별도로 중복 실행하지 않는다.
+- `SwingV1CostSensitivityResult.evaluations`는 요청 순서대로 전체 평가 결과를 보존한다. 성공한 종목이나 시나리오만 골라 반환하지 않는다. 하나라도 실패하면 예외를 전파하며 Runner는 부분 성과 표나 비교 완료 로그를 출력하지 않는다.
+- 결과를 묶을 때 요청 조건과 벤치마크 성과, 종목별 평가 시각, 신호·판단 날짜, 판단 근거의 현재가·출처·기술 분석을 대조한다. 비용에 따라 달라질 수 있는 행동, 수량, 현금, 보유, 수익률과 노출은 같을 필요가 없다. 이 검증은 원본 종목·지수 일봉 전체의 해시 검증을 대체하지 않으므로 실행 중 데이터 수집·수정과 전략 설정 변경을 하지 않는다.
+
+각 `manual backtest completed`, `manual backtest diagnostic`, `manual backtest buy-and-hold comparison` 로그의 `costModel`로 시나리오를 식별한다. 보유 비교 로그에는 수익률·MDD·노출 외에 `swingCompletedTradeCount`와 `swingFinalPositionQuantity`도 포함된다. 모든 평가가 성공해야 `slippage sensitivity completed. scenarioCount=3`이 출력된다.
+
+결과를 보기 전에 세 가정을 고정하고 손실·무거래를 포함해 기록한다. 비용 증가로 최종 주문 수량과 이후 경로가 달라질 수 있으므로 전체 전략 수익률이 항상 단조 감소한다고 가정하지 않는다. 무거래의 0% 수익률이나 스트레스 가정의 양수 결과만으로 전략 검증 게이트를 통과시키지 않는다. 실제 KIS 비용 확인, 미사용 구간 및 모의투자 검증은 별도다.
+
+현재는 비교 기능과 합성 일봉을 사용한 테스트가 추가된 상태다. 관측 05의 A·B·C 실데이터 재실행 결과를 새로 기록한 것은 아니며 기존 관측 문서와 스냅샷은 보존한다. 슬리피지 비교도 저장된 일봉을 반복 조회하므로 기본 실행보다 DB 조회량이 늘어난다. Broker·OpenAI 호출, Scheduler 활성화나 결과 DB 저장 기능을 추가하지 않는다.
+
+## 실행 결과 해석
+
 종목별 `manual backtest diagnostic` 로그에서는 `stepStatusCounts`와 `actionReasonCounts`로 판단 결과를 구분한다. 진입·청산 신호가 있었지만 수량을 산정하지 못해 최종 `HOLD`가 된 경우는 `blockedOrderReasonCounts`에, 주문 근사 후 포트폴리오 적용이 거절된 경우는 `rejectedTransitionReasonCounts`에 기록된다. `executedBuyCount`와 `executedSellCount`는 각각 적용된 매수·매도 횟수이고, `finalPositionQuantity`는 구간 종료 시 미청산 보유 수량이다. `NO_NEXT_DAILY_BAR`에는 판단 근거가 없으므로 행동 사유 건수에 포함하지 않는다.
 
 `totalCompletedTradeCount=0`만으로 매수 신호가 없었다고 단정하지 않는다. 매수 후 미청산, 수량 산정 실패, 포트폴리오 적용 거절 여부를 진단 로그와 함께 확인한다. 이 진단은 사유를 설명할 뿐 거래를 강제로 생성하거나 전략 성과를 보증하지 않는다.

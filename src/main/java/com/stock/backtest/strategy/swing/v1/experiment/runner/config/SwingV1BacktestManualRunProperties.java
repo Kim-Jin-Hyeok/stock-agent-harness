@@ -17,7 +17,8 @@ public record SwingV1BacktestManualRunProperties(
         LocalDate toSignalDate,
         String benchmarkId,
         Long initialCashAmountKrwPerSymbol,
-        TradeCostModel costModel
+        TradeCostModel costModel,
+        boolean slippageSensitivityEnabled
 ) {
     public SwingV1BacktestManualRunProperties {
         candidateSymbols = candidateSymbols == null
