@@ -10,6 +10,7 @@ import com.stock.agent.provider.ai.execution.AgentNextActionAiExecutor;
 import com.stock.agent.provider.ai.prompt.AgentNextActionAiPromptFactory;
 import com.stock.agent.provider.ai.request.AgentNextActionAiRequestFactory;
 import com.stock.agent.provider.rulebased.StrategyRuleBasedAgentNextActionProvider;
+import com.stock.market.calendar.MarketTradingDayPolicy;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -101,6 +102,10 @@ class AgentNextActionProviderConfigurationTest {
                 .withBean(
                         SwingV1DecisionService.class,
                         () -> mock(SwingV1DecisionService.class)
+                )
+                .withBean(
+                        MarketTradingDayPolicy.class,
+                        () -> mock(MarketTradingDayPolicy.class)
                 )
                 .withBean(Clock.class, Clock::systemUTC)
                 .withBean(

@@ -17,6 +17,7 @@ import com.stock.agent.provider.ai.request.AgentNextActionAiRequestFactory;
 import com.stock.agent.provider.config.AgentNextActionProviderConfiguration;
 import com.stock.agent.provider.config.AgentNextActionProviderProperties;
 import com.stock.agent.provider.config.AgentNextActionProviderType;
+import com.stock.market.calendar.MarketTradingDayPolicy;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
@@ -131,6 +132,10 @@ class OpenAiAgentNextActionConfigurationTest {
                 .withBean(
                         SwingV1DecisionService.class,
                         () -> mock(SwingV1DecisionService.class)
+                )
+                .withBean(
+                        MarketTradingDayPolicy.class,
+                        () -> mock(MarketTradingDayPolicy.class)
                 )
                 .withBean(Clock.class, Clock::systemUTC)
                 .withBean(

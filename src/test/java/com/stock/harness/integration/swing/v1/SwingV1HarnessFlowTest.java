@@ -15,6 +15,8 @@ import com.stock.harness.HarnessProperties;
 import com.stock.harness.HarnessRunHistoryService;
 import com.stock.harness.HarnessRunResult;
 import com.stock.harness.HarnessRunStatus;
+import com.stock.harness.HarnessStepStatus;
+import com.stock.harness.HarnessStepType;
 import com.stock.harness.InvestmentHarness;
 import com.stock.harness.agent.validation.HarnessAgentActionValidator;
 import com.stock.harness.execution.retry.HarnessRetryWaiter;
@@ -113,9 +115,9 @@ class SwingV1HarnessFlowTest {
                     InvestmentHorizon.SWING
             );
     private static final Instant OBSERVED_AT =
-            Instant.parse("2026-09-29T06:00:00Z");
+            Instant.parse("2026-09-29T00:10:00Z");
     private static final Instant EVALUATED_AT =
-            Instant.parse("2026-09-29T06:01:00Z");
+            Instant.parse("2026-09-29T00:11:00Z");
     private static final Clock CLOCK =
             Clock.fixed(EVALUATED_AT, ZoneOffset.UTC);
 
@@ -257,6 +259,40 @@ class SwingV1HarnessFlowTest {
         verifyNoInteractions(defaultProvider);
     }
 
+    @Test
+    void staleDailyHistoryFailsRunBeforeCurrentPriceOrTrade() {
+        when(dailyPriceHistoryQueryService.getLatestDailyPriceHistory(
+                CANDIDATE_SYMBOL,
+                120
+        )).thenReturn(new DailyPriceHistory(CANDIDATE_SYMBOL, List.of(
+                new DailyPriceBar(
+                        LocalDate.of(2026, 9, 25),
+                        100_000L,
+                        101_000L,
+                        99_000L,
+                        100_000L,
+                        1_000_000L
+                )
+        )));
+
+        HarnessRunResult result = investmentHarness.run(STRATEGY_IDENTITY);
+
+        assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
+        assertThat(result.decision()).isNull();
+        assertThat(result.tradeResult()).isNull();
+        assertThat(result.steps()).anySatisfy(step -> {
+            assertThat(step.type()).isEqualTo(
+                    HarnessStepType.RUN_INVESTMENT_AGENT
+            );
+            assertThat(step.status()).isEqualTo(HarnessStepStatus.FAILED);
+            assertThat(step.message()).contains(
+                    "expectedTradingDate=2026-09-28"
+            );
+        });
+        verifyNoInteractions(currentPriceProvider, observationService);
+        verifyNoInteractions(tradeRecordRepository, defaultProvider);
+    }
+
     private void verifyExternalBoundaries(HarnessRunResult result) {
         verify(dailyPriceHistoryQueryService)
                 .getLatestDailyPriceHistory(CANDIDATE_SYMBOL, 120);
@@ -325,6 +361,9 @@ class SwingV1HarnessFlowTest {
                                         capacityCalculator
                                 ),
                                 new SwingV1DecisionResolver()
+                        ),
+                        new MarketTradingDayPolicy(
+                                new MarketCalendarProperties(Set.of())
                         ),
                         CLOCK
                 );
@@ -471,7 +510,7 @@ class SwingV1HarnessFlowTest {
                             ? 100_000L
                             : 110_000L;
                     return new DailyPriceBar(
-                            LocalDate.of(2026, 7, 1).plusDays(index),
+                            LocalDate.of(2026, 7, 30).plusDays(index),
                             closePriceKrw,
                             closePriceKrw + 1_000L,
                             closePriceKrw - 1_000L,

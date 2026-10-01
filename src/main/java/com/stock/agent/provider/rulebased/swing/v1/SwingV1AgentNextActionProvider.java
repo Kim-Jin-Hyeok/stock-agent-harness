@@ -10,12 +10,15 @@ import com.stock.harness.tool.HarnessToolExecutionResult;
 import com.stock.harness.tool.HarnessToolExecutionStatus;
 import com.stock.harness.tool.HarnessToolRequest;
 import com.stock.harness.tool.HarnessToolType;
+import com.stock.market.calendar.MarketTradingDayPolicy;
 import com.stock.market.price.CurrentPriceSnapshot;
 import com.stock.market.price.history.DailyPriceHistory;
 import com.stock.portfolio.PortfolioPosition;
 import com.stock.portfolio.PortfolioSnapshot;
 
 import java.time.Clock;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -24,16 +27,24 @@ import java.util.Set;
 
 public class SwingV1AgentNextActionProvider
         implements AgentNextActionProvider {
+    private static final ZoneId MARKET_ZONE = ZoneId.of("Asia/Seoul");
+
     private final SwingV1DecisionService decisionService;
+    private final MarketTradingDayPolicy marketTradingDayPolicy;
     private final Clock clock;
 
     public SwingV1AgentNextActionProvider(
             SwingV1DecisionService decisionService,
+            MarketTradingDayPolicy marketTradingDayPolicy,
             Clock clock
     ) {
         this.decisionService = Objects.requireNonNull(
                 decisionService,
                 "decisionService must not be null."
+        );
+        this.marketTradingDayPolicy = Objects.requireNonNull(
+                marketTradingDayPolicy,
+                "marketTradingDayPolicy must not be null."
         );
         this.clock = Objects.requireNonNull(
                 clock,
@@ -52,6 +63,11 @@ public class SwingV1AgentNextActionProvider
             );
         }
 
+        DailyPriceHistory history = historyResult.get()
+                .output()
+                .dailyPriceHistory();
+        validateDailyPriceHistory(history);
+
         List<String> requiredPriceSymbols = requiredPriceSymbols(
                 context.portfolioSnapshot(),
                 candidateSymbol
@@ -69,9 +85,6 @@ public class SwingV1AgentNextActionProvider
             );
         }
 
-        DailyPriceHistory history = historyResult.get()
-                .output()
-                .dailyPriceHistory();
         InvestmentDecision decision = delegateDecision(
                 context,
                 candidateSymbol,
@@ -79,6 +92,35 @@ public class SwingV1AgentNextActionProvider
                 history
         );
         return AgentNextAction.finalDecision(decision);
+    }
+
+    private void validateDailyPriceHistory(DailyPriceHistory history) {
+        LocalDate evaluationDate = LocalDate.ofInstant(
+                clock.instant(),
+                MARKET_ZONE
+        );
+        if (!marketTradingDayPolicy.isTradingDay(evaluationDate)) {
+            throw new IllegalStateException(
+                    "SWING_V1 evaluation date must be a trading day. date="
+                            + evaluationDate
+            );
+        }
+
+        LocalDate expectedTradingDate = evaluationDate.minusDays(1);
+        while (!marketTradingDayPolicy.isTradingDay(expectedTradingDate)) {
+            expectedTradingDate = expectedTradingDate.minusDays(1);
+        }
+        LocalDate actualTradingDate = history.bars().isEmpty()
+                ? null
+                : history.bars().getLast().tradingDate();
+        if (!expectedTradingDate.equals(actualTradingDate)) {
+            throw new IllegalStateException(
+                    "SWING_V1 daily price history must end on the previous "
+                            + "trading day. symbol=" + history.symbol()
+                            + ", expectedTradingDate=" + expectedTradingDate
+                            + ", actualTradingDate=" + actualTradingDate
+            );
+        }
     }
 
     private InvestmentDecision delegateDecision(

@@ -207,8 +207,8 @@ harness:
         horizon: SWING
         window:
           allowed-days: [MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY]
-          starts-at: "15:00"
-          ends-at: "15:30"
+          starts-at: "09:10"
+          ends-at: "09:20"
       - enabled: true
         strategy-id: LONG_TERM_V1
         strategy-version: 1

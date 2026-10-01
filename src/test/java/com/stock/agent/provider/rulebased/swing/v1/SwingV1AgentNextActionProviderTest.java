@@ -13,7 +13,10 @@ import com.stock.harness.tool.HarnessToolExecutionResult;
 import com.stock.harness.tool.HarnessToolOutput;
 import com.stock.harness.tool.HarnessToolRequest;
 import com.stock.market.MarketSnapshot;
+import com.stock.market.calendar.MarketCalendarProperties;
+import com.stock.market.calendar.MarketTradingDayPolicy;
 import com.stock.market.price.CurrentPriceSnapshot;
+import com.stock.market.price.history.DailyPriceBar;
 import com.stock.market.price.history.DailyPriceHistory;
 import com.stock.market.price.lookup.CurrentPriceLookupResult;
 import com.stock.market.price.lookup.CurrentPriceLookupSource;
@@ -25,8 +28,10 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
@@ -45,15 +50,18 @@ class SwingV1AgentNextActionProviderTest {
                     InvestmentHorizon.SWING
             );
     private static final Instant OBSERVED_AT =
-            Instant.parse("2026-09-29T06:00:00Z");
+            Instant.parse("2026-09-29T00:10:00Z");
     private static final Instant EVALUATED_AT =
-            Instant.parse("2026-09-29T06:01:00Z");
+            Instant.parse("2026-09-29T00:11:00Z");
 
     private final SwingV1DecisionService decisionService =
             mock(SwingV1DecisionService.class);
     private final SwingV1AgentNextActionProvider provider =
             new SwingV1AgentNextActionProvider(
                     decisionService,
+                    new MarketTradingDayPolicy(
+                            new MarketCalendarProperties(Set.of())
+                    ),
                     Clock.fixed(EVALUATED_AT, ZoneOffset.UTC)
             );
 
@@ -86,6 +94,112 @@ class SwingV1AgentNextActionProviderTest {
         assertThat(action.toolRequest()).isEqualTo(
                 HarnessToolRequest.currentPrice(CANDIDATE_SYMBOL)
         );
+        verifyNoInteractions(decisionService);
+    }
+
+    @Test
+    void acceptsFridayHistoryOnMonday() {
+        SwingV1AgentNextActionProvider mondayProvider = providerAt(
+                Instant.parse("2026-09-21T00:11:00Z"),
+                Set.of()
+        );
+
+        AgentNextAction action = mondayProvider.next(runContext(
+                emptyPortfolio(),
+                List.of(dailyPriceHistoryResult(
+                        dailyPriceHistory(LocalDate.of(2026, 9, 18))
+                ))
+        ));
+
+        assertThat(action.toolRequest()).isEqualTo(
+                HarnessToolRequest.currentPrice(CANDIDATE_SYMBOL)
+        );
+        verifyNoInteractions(decisionService);
+    }
+
+    @Test
+    void acceptsHistoryBeforeConsecutiveHolidaysAndWeekend() {
+        SwingV1AgentNextActionProvider mondayProvider = providerAt(
+                Instant.parse("2026-09-28T00:11:00Z"),
+                Set.of(
+                        LocalDate.of(2026, 9, 24),
+                        LocalDate.of(2026, 9, 25)
+                )
+        );
+
+        AgentNextAction action = mondayProvider.next(runContext(
+                emptyPortfolio(),
+                List.of(dailyPriceHistoryResult(
+                        dailyPriceHistory(LocalDate.of(2026, 9, 23))
+                ))
+        ));
+
+        assertThat(action.toolRequest()).isEqualTo(
+                HarnessToolRequest.currentPrice(CANDIDATE_SYMBOL)
+        );
+        verifyNoInteractions(decisionService);
+    }
+
+    @Test
+    void rejectsMissingPreviousTradingDayHistoryBeforeCurrentPriceRequest() {
+        assertThatIllegalStateException()
+                .isThrownBy(() -> provider.next(runContext(
+                        emptyPortfolio(),
+                        List.of(dailyPriceHistoryResult(
+                                dailyPriceHistory(LocalDate.of(2026, 9, 25))
+                        ))
+                )))
+                .withMessageContaining("expectedTradingDate=2026-09-28")
+                .withMessageContaining("actualTradingDate=2026-09-25");
+        verifyNoInteractions(decisionService);
+    }
+
+    @Test
+    void rejectsCurrentDayHistoryBeforeCurrentPriceRequest() {
+        assertThatIllegalStateException()
+                .isThrownBy(() -> provider.next(runContext(
+                        emptyPortfolio(),
+                        List.of(dailyPriceHistoryResult(
+                                dailyPriceHistory(LocalDate.of(2026, 9, 29))
+                        ))
+                )))
+                .withMessageContaining("expectedTradingDate=2026-09-28")
+                .withMessageContaining("actualTradingDate=2026-09-29");
+        verifyNoInteractions(decisionService);
+    }
+
+    @Test
+    void rejectsEmptyDailyPriceHistory() {
+        assertThatIllegalStateException()
+                .isThrownBy(() -> provider.next(runContext(
+                        emptyPortfolio(),
+                        List.of(dailyPriceHistoryResult(
+                                new DailyPriceHistory(
+                                        CANDIDATE_SYMBOL,
+                                        List.of()
+                                )
+                        ))
+                )))
+                .withMessageContaining("actualTradingDate=null");
+        verifyNoInteractions(decisionService);
+    }
+
+    @Test
+    void rejectsEvaluationOnNonTradingDay() {
+        SwingV1AgentNextActionProvider sundayProvider = providerAt(
+                Instant.parse("2026-09-27T00:11:00Z"),
+                Set.of()
+        );
+
+        assertThatIllegalStateException()
+                .isThrownBy(() -> sundayProvider.next(runContext(
+                        emptyPortfolio(),
+                        List.of(dailyPriceHistoryResult(
+                                dailyPriceHistory(LocalDate.of(2026, 9, 25))
+                        ))
+                )))
+                .withMessage("SWING_V1 evaluation date must be a trading day. "
+                        + "date=2026-09-27");
         verifyNoInteractions(decisionService);
     }
 
@@ -244,7 +358,33 @@ class SwingV1AgentNextActionProviderTest {
     }
 
     private DailyPriceHistory dailyPriceHistory() {
-        return new DailyPriceHistory(CANDIDATE_SYMBOL, List.of());
+        return dailyPriceHistory(LocalDate.of(2026, 9, 28));
+    }
+
+    private DailyPriceHistory dailyPriceHistory(LocalDate tradingDate) {
+        return new DailyPriceHistory(CANDIDATE_SYMBOL, List.of(
+                new DailyPriceBar(
+                        tradingDate,
+                        70_000L,
+                        71_000L,
+                        69_000L,
+                        70_000L,
+                        1_000_000L
+                )
+        ));
+    }
+
+    private SwingV1AgentNextActionProvider providerAt(
+            Instant evaluatedAt,
+            Set<LocalDate> closedDates
+    ) {
+        return new SwingV1AgentNextActionProvider(
+                decisionService,
+                new MarketTradingDayPolicy(
+                        new MarketCalendarProperties(closedDates)
+                ),
+                Clock.fixed(evaluatedAt, ZoneOffset.UTC)
+        );
     }
 
     private CurrentPriceSnapshot currentPrice(

@@ -12,6 +12,7 @@ import com.stock.agent.provider.ai.prompt.AgentNextActionAiPromptFactory;
 import com.stock.agent.provider.ai.request.AgentNextActionAiRequestFactory;
 import com.stock.agent.provider.rulebased.StrategyRuleBasedAgentNextActionProvider;
 import com.stock.agent.provider.rulebased.swing.v1.SwingV1AgentNextActionProvider;
+import com.stock.market.calendar.MarketTradingDayPolicy;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisService;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
@@ -30,6 +31,7 @@ public class AgentNextActionProviderConfiguration {
             MovingAverageOrderDecisionProvider decisionProvider,
             MovingAverageOrderDecisionResolver decisionResolver,
             SwingV1DecisionService swingDecisionService,
+            MarketTradingDayPolicy marketTradingDayPolicy,
             Clock clock,
             AgentNextActionAiRequestFactory requestFactory,
             AgentNextActionAiPromptFactory promptFactory,
@@ -42,6 +44,7 @@ public class AgentNextActionProviderConfiguration {
                     decisionProvider,
                     decisionResolver,
                     swingDecisionService,
+                    marketTradingDayPolicy,
                     clock
             );
             case AI -> new AiAgentNextActionProvider(
@@ -58,6 +61,7 @@ public class AgentNextActionProviderConfiguration {
             MovingAverageOrderDecisionProvider decisionProvider,
             MovingAverageOrderDecisionResolver decisionResolver,
             SwingV1DecisionService swingDecisionService,
+            MarketTradingDayPolicy marketTradingDayPolicy,
             Clock clock
     ) {
         InvestmentAgent defaultProvider = new InvestmentAgent(
@@ -69,6 +73,7 @@ public class AgentNextActionProviderConfiguration {
         SwingV1AgentNextActionProvider swingV1Provider =
                 new SwingV1AgentNextActionProvider(
                         swingDecisionService,
+                        marketTradingDayPolicy,
                         clock
                 );
         return new StrategyRuleBasedAgentNextActionProvider(
