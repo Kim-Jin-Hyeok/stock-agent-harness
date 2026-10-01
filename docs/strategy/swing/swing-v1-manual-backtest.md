@@ -129,4 +129,8 @@ $runArgs = @(
 
 `manual backtest buy-and-hold comparison` 로그에서 배분별 수량·잔여 현금, 평가금액 수익률, 최종 가정 청산비용, 보정 수익률, MDD와 SWING 대비 차이를 확인한다. 반환값의 `buyAndHoldResults`에는 전체 평가곡선도 포함된다. SWING 당시 판단 근거와 다시 읽은 저장소 시가가 달라도 실패한다.
 
+반환 보고서와 보유 비교 결과의 `exposureSummary`, 같은 로그의 `swingExposureSummary`·`buyAndHoldExposureSummary`에서 전체 평가일 수, 보유 평가일 수·비율, 평균·최대 투자 비중도 확인한다. 평균에는 현금만 보유한 평가일이 포함되며 최초 배분 비율을 그대로 사용하지 않는다. 세부 계산은 [전략 계약](swing-v1-strategy-contract.md)의 Benchmark And Validation을 따른다.
+
+관측 05의 저장 평가곡선만으로 새 계산을 검산한 결과는 [SWING_V1 노출 관측 결과 06](validation/swing-v1-exposure-observation-06.md)에 기록한다. 기존 스냅샷은 수정하지 않고 새 노출 요약을 별도 증거로 보존한다. 과거 JSON에 새 필드가 없다고 0으로 보완하거나 원본 전체 결과 해시를 덮어쓰지 않는다.
+
 100% 배분은 백테스트 기회비용 비교이며 실제 주문 권한을 확대하지 않는다. 10% 배분 역시 SWING과 동일한 위험을 보장하지 않는다. 상세 계약은 [동일 종목 비교 문서](swing-v1-buy-and-hold-comparison.md), 원본 확대 스냅샷을 사용한 실제 결과는 [비교 관측 결과 03](validation/swing-v1-buy-and-hold-observation-03.md)에 기록한다.

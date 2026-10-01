@@ -112,6 +112,10 @@ class SwingV1BacktestReportServiceTest {
         assertThat(report.completedTrades()).isEmpty();
         assertThat(report.tradePerformanceSummary())
                 .isSameAs(tradePerformanceSummary);
+        assertThat(report.exposureSummary().observationCount()).isEqualTo(1);
+        assertThat(report.exposureSummary().investedObservationCount()).isZero();
+        assertThat(report.exposureSummary().averagePositionRatio())
+                .isEqualByComparingTo("0");
         assertThat(report.request().costModel())
                 .isSameAs(request.costModel());
         verify(runService).execute(request);

@@ -1,5 +1,6 @@
 package com.stock.backtest.strategy.swing.v1.report;
 
+import com.stock.backtest.performance.exposure.BacktestExposureCalculator;
 import com.stock.backtest.performance.metric.BacktestPerformanceCalculator;
 import com.stock.backtest.performance.metric.BacktestPerformanceSummary;
 import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunRequest;
@@ -90,7 +91,8 @@ public class SwingV1BacktestReportService {
                 performanceSummary,
                 terminalEstimate,
                 completedTrades,
-                tradePerformanceSummary
+                tradePerformanceSummary,
+                BacktestExposureCalculator.calculate(runResult.equityCurve())
         );
     }
 }

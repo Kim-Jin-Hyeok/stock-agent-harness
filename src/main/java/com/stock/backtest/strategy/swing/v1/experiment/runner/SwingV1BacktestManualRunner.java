@@ -155,7 +155,8 @@ public class SwingV1BacktestManualRunner implements ApplicationRunner {
                             + "buyAndHoldMaxDrawdownRate={}, "
                             + "swingLiquidationAdjustedReturnRate={}, "
                             + "swingMaxDrawdownRate={}, "
-                            + "swingExcessReturnRateVsBuyAndHold={}",
+                            + "swingExcessReturnRateVsBuyAndHold={}, "
+                            + "swingExposureSummary={}, buyAndHoldExposureSummary={}",
                     comparison.request().symbol(),
                     comparison.request().initialAllocationRatio(),
                     comparison.request().buyBudgetAmountKrw(),
@@ -170,7 +171,9 @@ public class SwingV1BacktestManualRunner implements ApplicationRunner {
                     report.performanceSummary().maxDrawdownRate(),
                     report.terminalLiquidationEstimate()
                             .liquidationAdjustedTotalReturnRate()
-                            .subtract(comparison.liquidationAdjustedTotalReturnRate())
+                            .subtract(comparison.liquidationAdjustedTotalReturnRate()),
+                    report.exposureSummary(),
+                    comparison.exposureSummary()
             );
         }
     }

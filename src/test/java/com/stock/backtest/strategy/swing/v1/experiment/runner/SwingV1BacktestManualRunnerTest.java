@@ -5,6 +5,7 @@ import com.stock.backtest.comparison.buyandhold.calculation.BuyAndHoldBacktestCa
 import com.stock.backtest.comparison.buyandhold.model.BuyAndHoldBacktestRequest;
 import com.stock.backtest.comparison.buyandhold.model.BuyAndHoldBacktestResult;
 import com.stock.backtest.performance.benchmark.BacktestBenchmarkPerformanceSummary;
+import com.stock.backtest.performance.exposure.BacktestExposureSummary;
 import com.stock.backtest.performance.metric.BacktestPerformanceCalculator;
 import com.stock.backtest.performance.metric.BacktestPerformanceSummary;
 import com.stock.backtest.portfolio.BacktestPortfolioState;
@@ -89,6 +90,10 @@ class SwingV1BacktestManualRunnerTest {
         ));
         BacktestPerformanceSummary performance = mock(BacktestPerformanceSummary.class);
         when(report.performanceSummary()).thenReturn(performance);
+        BacktestExposureSummary swingExposure = new BacktestExposureSummary(
+                1, 0, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO
+        );
+        when(report.exposureSummary()).thenReturn(swingExposure);
         when(performance.maxDrawdownRate()).thenReturn(new BigDecimal("0.03"));
         SwingV1TerminalLiquidationEstimate terminal = mock(SwingV1TerminalLiquidationEstimate.class);
         when(report.terminalLiquidationEstimate()).thenReturn(terminal);
@@ -140,7 +145,9 @@ class SwingV1BacktestManualRunnerTest {
                     "swingExcessReturnRateVsBuyAndHold="
                             + new BigDecimal("0.02").subtract(
                                     comparison.liquidationAdjustedTotalReturnRate()
-                            )
+                            ),
+                    "swingExposureSummary=" + swingExposure,
+                    "buyAndHoldExposureSummary=" + comparison.exposureSummary()
             );
         }
     }

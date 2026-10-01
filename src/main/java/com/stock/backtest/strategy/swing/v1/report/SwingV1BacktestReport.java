@@ -3,6 +3,7 @@ package com.stock.backtest.strategy.swing.v1.report;
 import com.stock.agent.InvestmentAction;
 import com.stock.backtest.execution.fill.daily.DailyOpenFillApproximation;
 import com.stock.backtest.performance.equity.BacktestEquitySnapshot;
+import com.stock.backtest.performance.exposure.BacktestExposureSummary;
 import com.stock.backtest.performance.metric.BacktestPerformanceSummary;
 import com.stock.backtest.strategy.swing.v1.execution.result.SwingV1BacktestStepStatus;
 import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunRequest;
@@ -20,7 +21,8 @@ public record SwingV1BacktestReport(
         BacktestPerformanceSummary performanceSummary,
         SwingV1TerminalLiquidationEstimate terminalLiquidationEstimate,
         List<SwingV1CompletedTrade> completedTrades,
-        SwingV1TradePerformanceSummary tradePerformanceSummary
+        SwingV1TradePerformanceSummary tradePerformanceSummary,
+        BacktestExposureSummary exposureSummary
 ) {
     public SwingV1BacktestReport {
         Objects.requireNonNull(request, "request must not be null.");
@@ -56,6 +58,8 @@ public record SwingV1BacktestReport(
                 completedTrades,
                 tradePerformanceSummary
         );
+        Objects.requireNonNull(exposureSummary, "exposureSummary must not be null.")
+                .validateAgainst(runResult.equityCurve());
     }
 
     private static void validateRunMatchesRequest(

@@ -1,10 +1,14 @@
 package com.stock.backtest.strategy.swing.v1.report;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.agent.InvestmentAction;
 import com.stock.agent.InvestmentDecision;
 import com.stock.backtest.execution.fill.BacktestFillType;
 import com.stock.backtest.execution.fill.daily.DailyOpenFillApproximation;
 import com.stock.backtest.performance.equity.BacktestEquitySnapshot;
+import com.stock.backtest.performance.exposure.BacktestExposureCalculator;
+import com.stock.backtest.performance.exposure.BacktestExposureSummary;
 import com.stock.backtest.performance.metric.BacktestPerformanceCalculator;
 import com.stock.backtest.performance.metric.BacktestPerformanceSummary;
 import com.stock.backtest.portfolio.BacktestPortfolioState;
@@ -63,7 +67,8 @@ class SwingV1BacktestReportTest {
                 performanceSummary,
                 terminalEstimate(INITIAL_CASH_AMOUNT_KRW),
                 List.of(),
-                noTradePerformanceSummary()
+                noTradePerformanceSummary(),
+                cashOnlyExposure(1)
         );
 
         assertThat(report.request()).isSameAs(request);
@@ -89,7 +94,8 @@ class SwingV1BacktestReportTest {
                 summary(1),
                 terminalEstimate(INITIAL_CASH_AMOUNT_KRW),
                 List.of(),
-                noTradePerformanceSummary()
+                noTradePerformanceSummary(),
+                cashOnlyExposure(1)
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
@@ -105,7 +111,8 @@ class SwingV1BacktestReportTest {
                 summary(1),
                 terminalEstimate(INITIAL_CASH_AMOUNT_KRW),
                 List.of(),
-                noTradePerformanceSummary()
+                noTradePerformanceSummary(),
+                cashOnlyExposure(1)
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("runResult equityCurve must not be empty.");
@@ -119,7 +126,8 @@ class SwingV1BacktestReportTest {
                 summary(2),
                 terminalEstimate(INITIAL_CASH_AMOUNT_KRW),
                 List.of(),
-                noTradePerformanceSummary()
+                noTradePerformanceSummary(),
+                cashOnlyExposure(1)
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
@@ -136,7 +144,8 @@ class SwingV1BacktestReportTest {
                 summary(1),
                 terminalEstimate(900_000L),
                 List.of(),
-                noTradePerformanceSummary()
+                noTradePerformanceSummary(),
+                cashOnlyExposure(1)
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
@@ -172,7 +181,8 @@ class SwingV1BacktestReportTest {
                 summary(1),
                 terminalEstimate(INITIAL_CASH_AMOUNT_KRW),
                 List.of(),
-                oneBreakEvenTradeSummary
+                oneBreakEvenTradeSummary,
+                cashOnlyExposure(1)
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
@@ -194,6 +204,53 @@ class SwingV1BacktestReportTest {
                 ));
         assertThat(report.tradePerformanceSummary()
                 .netProfitLossExcludingLargestWinningTradeAmountKrw()).isZero();
+    }
+
+    @Test
+    void includesOnlyPostTradeValuationsInExposureSummary() {
+        SwingV1BacktestReport report = reportWithCompletedTrades();
+
+        assertThat(report.exposureSummary().observationCount()).isEqualTo(6);
+        assertThat(report.exposureSummary().investedObservationCount()).isEqualTo(3);
+        assertThat(report.exposureSummary().investedObservationRate())
+                .isEqualByComparingTo("0.5");
+        assertThat(report.exposureSummary().maxPositionRatio())
+                .isEqualByComparingTo("0.01");
+        assertThat(report.runResult().equityCurve()).hasSize(6);
+        assertThat(report.completedTrades()).hasSize(3);
+        assertThat(report.performanceSummary().netProfitAmountKrw()).isEqualTo(2_000L);
+    }
+
+    @Test
+    void rejectsExposureSummaryDifferentFromEquityCurve() {
+        SwingV1BacktestReport report = reportWithCompletedTrades();
+        BacktestExposureSummary incorrect = new BacktestExposureSummary(
+                6, 3, new BigDecimal("0.5"), new BigDecimal("0.1"),
+                new BigDecimal("0.2")
+        );
+
+        assertThatThrownBy(() -> withExposureSummary(report, incorrect))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("exposureSummary must match equityCurve.");
+        assertThatThrownBy(() -> withExposureSummary(report, null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("exposureSummary must not be null.");
+    }
+
+    @Test
+    void serializesExposureSummaryAlongsideExistingReportFields() throws Exception {
+        SwingV1BacktestReport report = reportWithCompletedTrades();
+        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+
+        JsonNode json = mapper.readTree(mapper.writeValueAsString(report));
+
+        assertThat(json.path("exposureSummary").path("observationCount").intValue())
+                .isEqualTo(6);
+        assertThat(json.path("exposureSummary").path("investedObservationRate")
+                .decimalValue()).isEqualByComparingTo("0.5");
+        assertThat(json.path("performanceSummary").path("netProfitAmountKrw").longValue())
+                .isEqualTo(2_000L);
+        assertThat(json.path("completedTrades").size()).isEqualTo(3);
     }
 
     @Test
@@ -236,7 +293,19 @@ class SwingV1BacktestReportTest {
                 report.performanceSummary(),
                 report.terminalLiquidationEstimate(),
                 report.completedTrades(),
-                tradeSummary
+                tradeSummary,
+                report.exposureSummary()
+        );
+    }
+
+    private SwingV1BacktestReport withExposureSummary(
+            SwingV1BacktestReport report,
+            BacktestExposureSummary exposureSummary
+    ) {
+        return new SwingV1BacktestReport(
+                report.request(), report.runResult(), report.performanceSummary(),
+                report.terminalLiquidationEstimate(), report.completedTrades(),
+                report.tradePerformanceSummary(), exposureSummary
         );
     }
 
@@ -328,7 +397,8 @@ class SwingV1BacktestReportTest {
                 new BacktestPerformanceCalculator().calculate(portfolioState, runResult.equityCurve()),
                 terminalEstimate(state.cashAmountKrw()),
                 completedTrades,
-                new SwingV1TradePerformanceCalculator().calculate(completedTrades)
+                new SwingV1TradePerformanceCalculator().calculate(completedTrades),
+                BacktestExposureCalculator.calculate(runResult.equityCurve())
         );
     }
 
@@ -419,6 +489,12 @@ class SwingV1BacktestReportTest {
                 finalEquityAmountKrw,
                 netProfitAmountKrw,
                 totalReturnRate
+        );
+    }
+
+    private BacktestExposureSummary cashOnlyExposure(int count) {
+        return new BacktestExposureSummary(
+                count, 0, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO
         );
     }
 

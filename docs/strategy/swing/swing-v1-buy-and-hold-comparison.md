@@ -38,6 +38,8 @@ SWING_V1의 진입과 청산이 같은 종목을 단순 보유하는 것과 어�
 
 MDD는 기존 `BacktestPerformanceCalculator`로 계산한다. 최초 매수 직전 현금을 시작 고점으로 포함하며, 매수 비용 반영 후 매일의 시가 평가곡선을 사용한다. 마지막 가정 매도 비용은 일별 평가곡선과 MDD에 추가하지 않는다. 보고서에서 청산비용 보정 수익률과 시가 평가곡선 MDD를 혼동하지 않는다.
 
+SWING 보고서와 보유 비교 결과 모두 같은 평가곡선 계산 규칙의 `exposureSummary`를 포함한다. 보유 평가일 비율, 현금 유지일을 포함한 평균 투자 비중과 최대 관측 비중을 수익률·MDD와 함께 확인한다. 최초 배분 10%를 평균 투자 비중 10%로 그대로 기록하지 않으며, 비용과 정수 수량이 반영된 실제 곡선을 사용한다. 총자산 0 또는 유효하지 않은 평가일 목록은 노출 계산을 거절한다. 세부 계산 계약은 [전략 계약](swing-v1-strategy-contract.md)의 Benchmark And Validation을 따른다.
+
 ## 코드와 데이터 검증
 
 - 요청과 결과: `com.stock.backtest.comparison.buyandhold.model`의 `BuyAndHoldBacktestRequest`, `BuyAndHoldBacktestResult`.
@@ -52,6 +54,8 @@ MDD는 기존 `BacktestPerformanceCalculator`로 계산한다. 최초 매수 직
 ## 실행과 검증
 
 기존 [수동 백테스트 실행 절차](swing-v1-manual-backtest.md)를 사용한다. 별도의 배분 설정이나 외부 API 호출은 필요하지 않다. `manual backtest buy-and-hold comparison` 로그에는 배분, 예산, 수량, 잔여 현금, 평가금액 수익률, 최종 청산 비용, 보정 수익률, MDD와 SWING 대비 차이가 기록된다. 로그의 수익률은 소수 비율이며 `0.1`은 10%다.
+
+같은 로그의 `swingExposureSummary`와 `buyAndHoldExposureSummary`에는 각 결과의 노출 요약이 함께 기록된다. 실제 장중 보유 시간이나 동일 위험 조건을 뜻하지 않는다.
 
 ```powershell
 .\gradlew.bat test --tests "com.stock.backtest.comparison.buyandhold.*" --tests "com.stock.backtest.strategy.swing.v1.experiment.*" --console=plain

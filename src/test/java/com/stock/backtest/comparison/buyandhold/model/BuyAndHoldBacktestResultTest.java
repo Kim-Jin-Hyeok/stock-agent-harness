@@ -1,7 +1,10 @@
 package com.stock.backtest.comparison.buyandhold.model;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.backtest.comparison.buyandhold.calculation.BuyAndHoldBacktestCalculator;
 import com.stock.backtest.performance.equity.BacktestEquitySnapshot;
+import com.stock.backtest.performance.exposure.BacktestExposureSummary;
 import com.stock.backtest.performance.metric.BacktestPerformanceCalculator;
 import com.stock.backtest.portfolio.BacktestPortfolioState;
 import com.stock.market.price.history.DailyPriceBar;
@@ -75,6 +78,38 @@ class BuyAndHoldBacktestResultTest {
         )).isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test
+    void rejectsExposureSummaryDifferentFromCurveAndNullSummary() {
+        BuyAndHoldBacktestResult original = result();
+        BacktestExposureSummary incorrect = new BacktestExposureSummary(
+                1, 1, BigDecimal.ONE, new BigDecimal("0.5"), new BigDecimal("0.5")
+        );
+
+        assertThatThrownBy(() -> withExposure(original, incorrect))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("exposureSummary must match equityCurve.");
+        assertThatThrownBy(() -> withExposure(original, null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("exposureSummary must not be null.");
+    }
+
+    @Test
+    void serializesExposureSummaryWithoutRemovingCostEvidence() throws Exception {
+        BuyAndHoldBacktestResult result = result();
+        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+
+        JsonNode json = mapper.readTree(mapper.writeValueAsString(result));
+
+        assertThat(json.path("exposureSummary").path("observationCount").intValue())
+                .isEqualTo(1);
+        assertThat(json.path("exposureSummary").path("investedObservationRate")
+                .decimalValue()).isEqualByComparingTo("1");
+        assertThat(json.path("buyCostCalculation").path("quantity").longValue())
+                .isEqualTo(result.boughtQuantity());
+        assertThat(json.path("liquidationAdjustedNetProfitAmountKrw").longValue())
+                .isEqualTo(result.liquidationAdjustedNetProfitAmountKrw());
+    }
+
     private BuyAndHoldBacktestResult result() {
         LocalDate date = LocalDate.of(2026, 9, 1);
         return new BuyAndHoldBacktestCalculator(
@@ -94,6 +129,21 @@ class BuyAndHoldBacktestResultTest {
         );
     }
 
+    private BuyAndHoldBacktestResult withExposure(
+            BuyAndHoldBacktestResult original,
+            BacktestExposureSummary exposureSummary
+    ) {
+        return new BuyAndHoldBacktestResult(
+                original.request(), original.buyCostCalculation(),
+                original.finalPortfolioState(), original.equityCurve(),
+                original.performanceSummary(), original.terminalSellCostCalculation(),
+                original.estimatedTerminalLiquidationCostAmountKrw(),
+                original.liquidationAdjustedFinalEquityAmountKrw(),
+                original.liquidationAdjustedNetProfitAmountKrw(),
+                original.liquidationAdjustedTotalReturnRate(), exposureSummary
+        );
+    }
+
     private BuyAndHoldBacktestResult copy(
             BuyAndHoldBacktestResult original,
             BacktestPortfolioState portfolio,
@@ -106,7 +156,8 @@ class BuyAndHoldBacktestResultTest {
                 original.performanceSummary(), original.terminalSellCostCalculation(),
                 terminalCost, adjustedFinalEquity,
                 original.liquidationAdjustedNetProfitAmountKrw(),
-                original.liquidationAdjustedTotalReturnRate()
+                original.liquidationAdjustedTotalReturnRate(),
+                original.exposureSummary()
         );
     }
 }

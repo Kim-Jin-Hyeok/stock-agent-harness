@@ -3,6 +3,7 @@ package com.stock.backtest.comparison.buyandhold.calculation;
 import com.stock.agent.InvestmentAction;
 import com.stock.backtest.comparison.buyandhold.model.BuyAndHoldBacktestRequest;
 import com.stock.backtest.comparison.buyandhold.model.BuyAndHoldBacktestResult;
+import com.stock.backtest.performance.exposure.BacktestExposureCalculator;
 import com.stock.backtest.performance.metric.BacktestPerformanceCalculator;
 import com.stock.market.price.history.DailyPriceBar;
 import com.stock.market.price.history.DailyPriceHistory;
@@ -11,6 +12,7 @@ import com.stock.trade.cost.model.TradeCostModel;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.math.MathContext;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
@@ -67,6 +69,29 @@ class BuyAndHoldBacktestCalculatorTest {
     }
 
     @Test
+    void derivesObservedExposureFromActualHoldingsNotInitialAllocation() {
+        BuyAndHoldBacktestResult result = calculate(
+                1_000L, "0.1", ZERO_COST, 100L, 200L
+        );
+
+        assertThat(result.exposureSummary()).isEqualTo(
+                BacktestExposureCalculator.calculate(result.equityCurve())
+        );
+        assertThat(result.exposureSummary().observationCount()).isEqualTo(2);
+        assertThat(result.exposureSummary().investedObservationCount()).isEqualTo(2);
+        assertThat(result.exposureSummary().investedObservationRate())
+                .isEqualByComparingTo("1");
+        assertThat(result.exposureSummary().maxPositionRatio())
+                .isEqualByComparingTo(BigDecimal.valueOf(200L).divide(
+                        BigDecimal.valueOf(1_100L), MathContext.DECIMAL128
+                ));
+        assertThat(result.exposureSummary().averagePositionRatio())
+                .isGreaterThan(new BigDecimal("0.1"));
+        assertThat(result.boughtQuantity()).isEqualTo(1L);
+        assertThat(result.liquidationAdjustedNetProfitAmountKrw()).isEqualTo(100L);
+    }
+
+    @Test
     void remainsCashOnlyIfFirstPurchaseCannotAffordOneShare() {
         BuyAndHoldBacktestResult result = calculate(
                 100L, "1", costModel("0.01", "0", "0"), 100L, 1L
@@ -81,6 +106,9 @@ class BuyAndHoldBacktestCalculatorTest {
         );
         assertThat(result.estimatedTerminalLiquidationCostAmountKrw()).isZero();
         assertThat(result.liquidationAdjustedTotalReturnRate()).isEqualByComparingTo("0");
+        assertThat(result.exposureSummary().investedObservationCount()).isZero();
+        assertThat(result.exposureSummary().averagePositionRatio())
+                .isEqualByComparingTo("0");
     }
 
     @Test

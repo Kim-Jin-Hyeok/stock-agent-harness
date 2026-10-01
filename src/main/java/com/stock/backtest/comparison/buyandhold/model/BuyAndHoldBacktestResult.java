@@ -2,6 +2,7 @@ package com.stock.backtest.comparison.buyandhold.model;
 
 import com.stock.agent.InvestmentAction;
 import com.stock.backtest.performance.equity.BacktestEquitySnapshot;
+import com.stock.backtest.performance.exposure.BacktestExposureSummary;
 import com.stock.backtest.performance.metric.BacktestPerformanceSummary;
 import com.stock.backtest.portfolio.BacktestPortfolioState;
 import com.stock.backtest.portfolio.BacktestPosition;
@@ -22,7 +23,8 @@ public record BuyAndHoldBacktestResult(
         long estimatedTerminalLiquidationCostAmountKrw,
         long liquidationAdjustedFinalEquityAmountKrw,
         long liquidationAdjustedNetProfitAmountKrw,
-        BigDecimal liquidationAdjustedTotalReturnRate
+        BigDecimal liquidationAdjustedTotalReturnRate,
+        BacktestExposureSummary exposureSummary
 ) {
     public BuyAndHoldBacktestResult {
         Objects.requireNonNull(request, "request must not be null.");
@@ -83,6 +85,8 @@ public record BuyAndHoldBacktestResult(
                             + "terminal sell cost exactly once."
             );
         }
+        Objects.requireNonNull(exposureSummary, "exposureSummary must not be null.")
+                .validateAgainst(equityCurve);
     }
 
     public long boughtQuantity() {

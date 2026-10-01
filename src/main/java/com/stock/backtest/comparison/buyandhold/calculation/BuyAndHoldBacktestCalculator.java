@@ -4,6 +4,7 @@ import com.stock.agent.InvestmentAction;
 import com.stock.backtest.comparison.buyandhold.model.BuyAndHoldBacktestRequest;
 import com.stock.backtest.comparison.buyandhold.model.BuyAndHoldBacktestResult;
 import com.stock.backtest.performance.equity.BacktestEquitySnapshot;
+import com.stock.backtest.performance.exposure.BacktestExposureCalculator;
 import com.stock.backtest.performance.metric.BacktestPerformanceCalculator;
 import com.stock.backtest.performance.metric.BacktestPerformanceSummary;
 import com.stock.backtest.portfolio.BacktestPortfolioState;
@@ -117,7 +118,8 @@ public class BuyAndHoldBacktestCalculator {
                 BigDecimal.valueOf(adjustedProfit).divide(
                         BigDecimal.valueOf(request.initialCashAmountKrw()),
                         MathContext.DECIMAL128
-                )
+                ),
+                BacktestExposureCalculator.calculate(curve)
         );
     }
 
