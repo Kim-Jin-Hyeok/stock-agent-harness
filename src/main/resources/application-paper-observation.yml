@@ -24,7 +24,7 @@ market:
     history:
       collection:
         scheduler:
-          enabled: true
+          enabled: false
 
 trade:
   execution:
@@ -32,4 +32,4 @@ trade:
 
 harness:
   scheduler:
-    enabled: true
+    enabled: false
