@@ -116,6 +116,7 @@ class SwingV1BacktestManualRunnerTest {
                 )
         );
         assertThat(request.benchmarkId()).isEqualTo("KOSPI");
+        assertThat(request.candidateSymbols()).containsExactly("005930");
         assertThat(request.fromSignalDate())
                 .isEqualTo(LocalDate.of(2026, 8, 3));
         assertThat(request.toSignalDate())
@@ -123,6 +124,7 @@ class SwingV1BacktestManualRunnerTest {
         assertThat(request.initialCashAmountKrwPerSymbol())
                 .isEqualTo(10_000_000L);
         assertThat(request.costModel()).isSameAs(properties.costModel());
+        assertThat(output.getOut()).contains("candidateSymbols=[005930]");
         assertThat(output.getOut()).contains(
                 "SWING_V1 manual backtest diagnostic. symbol=005930"
         ).contains("finalPositionQuantity=0");
@@ -238,6 +240,7 @@ class SwingV1BacktestManualRunnerTest {
     private SwingV1BacktestManualRunProperties properties() {
         return new SwingV1BacktestManualRunProperties(
                 true,
+                List.of("005930"),
                 LocalDate.of(2026, 8, 3),
                 LocalDate.of(2026, 8, 28),
                 "KOSPI",

@@ -4,11 +4,27 @@
 
 `SwingV1BacktestManualRunner`는 `backtest.swing-v1.experiment.manual.enabled=true`인 애플리케이션 시작마다 한 번 실행한다. 기본값은 `false`다. 저장된 종목·지수 일봉을 조회하여 백테스트하고 원본 결과로 요약을 계산한다. 이 Runner는 Broker 주문, 일봉 수집, 결과 DB 저장을 하지 않는다.
 
-로컬 MySQL에 `005930` 일봉과 KOSPI 지수 일봉이 먼저 있어야 한다. 신호 시작일 이전의 전략 판단 이력과 종료 신호일 다음 거래일 일봉도 필요할 수 있다. 현재 `application.yml`의 `SWING_V1` 후보는 `005930` 한 종목이다. 데이터가 부족하거나 종목 평가일과 지수 관측일이 다르면 성공한 성과 표본으로 취급하지 않는다.
+실험에 지정한 모든 후보 종목의 일봉과 벤치마크 지수 일봉이 로컬 MySQL에 먼저 있어야 한다. 아래 실행 예시는 `005930`과 KOSPI를 사용한다. 신호 시작일 이전의 전략 판단 이력과 종료 신호일 다음 거래일 일봉도 필요할 수 있다. 데이터가 부족하거나 종목 평가일과 지수 관측일이 다르면 성공한 성과 표본으로 취급하지 않는다.
 
 로컬 전용 프로세스에서 `broker.kis.enabled=false` 및 다른 Scheduler 비활성 상태로 실행한다. 같은 설정을 켜둔 채 프로세스를 재시작하면 다시 실행된다. 한 번 확인한 뒤 `enabled=false`로 되돌린다.
 
 `local` 프로필은 시작할 때 Flyway 마이그레이션을 적용할 수 있다. 운영 DB에 연결하지 말고 로컬 DB 연결 대상과 적용 예정 마이그레이션을 먼저 확인한다.
+
+## 실험 후보 종목
+
+백테스트 후보는 `backtest.swing-v1.experiment.manual.candidate-symbols`로 직접 지정한다. 운영 Harness의 `strategy.universes`와 별개이며, 실험 서비스는 `StrategyStockUniverseRegistry`를 조회하지 않는다. 실험 종목을 늘리기 위해 운영 후보나 주문 대상 목록을 바꿀 필요가 없다.
+
+- 수동 실행이 활성화되어 있으면 후보 목록은 필수다. 누락하거나 비어 있으면 시작에 실패하며 운영 Universe로 대체하지 않는다.
+- 비활성 상태에서는 후보 목록 없이도 기동할 수 있다. 기본 설정은 계속 비활성이다.
+- null 원소, 공백 종목과 중복 종목은 허용하지 않는다. 종목 코드는 앞자리 0을 포함한 문자열이다.
+- 요청의 `candidateSymbols`에는 지정 순서대로 불변 목록이 담긴다. 결과 보고서는 같은 종목과 순서여야 하며 누락, 추가, 대체 또는 순서 변경을 허용하지 않는다.
+- 여러 종목은 각각 동일한 초기 현금을 가진 독립 포트폴리오로 실행한다. 현금을 공유하는 다종목 계좌 시뮬레이션이 아니다.
+
+예를 들어 `--backtest.swing-v1.experiment.manual.candidate-symbols=005930,000660`으로 두 종목을 지정할 수 있다. 두 종목의 저장 데이터와 평가일 조건이 모두 충족되어야 하며, 일부 종목이 실패했다고 제외한 채 성공한 결과만 반환하지 않는다. 후보 목록은 결과를 보기 전에 고정하고, 목록이 달라진 실행은 별도의 실험으로 기록한다.
+
+한 실험에는 `benchmark-id` 하나만 적용한다. 시장별 벤치마크 매핑은 아직 자동으로 하지 않으므로 KOSPI와 KOSDAQ 비교는 시장에 맞는 후보 및 벤치마크를 지정한 별도 실험으로 구분한다. 후보 설정은 데이터 수집을 실행하지 않는다.
+
+기존 임시 실행 도구에서 `SwingV1BacktestExperimentRequest`를 직접 생성한다면 생성자의 두 번째 인수에 당시 후보 목록을 추가해야 한다. 이전 스냅샷에 `candidateSymbols`가 없다고 현재 운영 Universe로 보완하거나 원본 관측 결과를 덮어쓰지 않는다. 이번 설정 분리 자체는 새로운 실데이터 성과 관측을 의미하지 않는다.
 
 ## 데이터 확인
 
@@ -48,6 +64,7 @@ $runArgs = @(
     '--market.index.history.collection.scheduler.enabled=false'
     '--market.index.history.collection.backfill.enabled=false'
     '--backtest.swing-v1.experiment.manual.enabled=true'
+    '--backtest.swing-v1.experiment.manual.candidate-symbols=005930'
     '--backtest.swing-v1.experiment.manual.from-signal-date=2026-08-03'
     '--backtest.swing-v1.experiment.manual.to-signal-date=2026-08-28'
     '--backtest.swing-v1.experiment.manual.benchmark-id=KOSPI'
@@ -63,13 +80,13 @@ $runArgs = @(
 .\gradlew.bat bootRun --args="$($runArgs -join ' ')"
 ```
 
-시작 로그의 신호 기간·초기 현금·비용 모델 전체 값을 확인한다. 완료 로그에서 실제 지수 관측 시작일·종료일·건수, 종목 수, 거래 수, 지수 수익률, 청산비용 반영 중앙값, 중앙값 초과수익률과 초과 종목 수를 확인한다. 실패하면 원인을 수정하기 전까지 그 실행은 성과 검증에 포함하지 않는다.
+시작 로그의 `candidateSymbols`, 신호 기간·초기 현금·비용 모델 전체 값을 확인한다. 완료 로그에서 실제 지수 관측 시작일·종료일·건수, 종목 수, 거래 수, 지수 수익률, 청산비용 반영 중앙값, 중앙값 초과수익률과 초과 종목 수를 확인한다. 결과 스냅샷을 남길 때도 요청의 후보 목록과 순서를 보존한다. 실패하면 원인을 수정하기 전까지 그 실행은 성과 검증에 포함하지 않는다.
 
 종목별 `manual backtest diagnostic` 로그에서는 `stepStatusCounts`와 `actionReasonCounts`로 판단 결과를 구분한다. 진입·청산 신호가 있었지만 수량을 산정하지 못해 최종 `HOLD`가 된 경우는 `blockedOrderReasonCounts`에, 주문 근사 후 포트폴리오 적용이 거절된 경우는 `rejectedTransitionReasonCounts`에 기록된다. `executedBuyCount`와 `executedSellCount`는 각각 적용된 매수·매도 횟수이고, `finalPositionQuantity`는 구간 종료 시 미청산 보유 수량이다. `NO_NEXT_DAILY_BAR`에는 판단 근거가 없으므로 행동 사유 건수에 포함하지 않는다.
 
 `totalCompletedTradeCount=0`만으로 매수 신호가 없었다고 단정하지 않는다. 매수 후 미청산, 수량 산정 실패, 포트폴리오 적용 거절 여부를 진단 로그와 함께 확인한다. 이 진단은 사유를 설명할 뿐 거래를 강제로 생성하거나 전략 성과를 보증하지 않는다.
 
-완료 로그도 수익성 입증은 아니다. 현재는 종목 한 개의 종가 기반 벤치마크 근사 비교이며 결과가 DB에 영속화되지 않는다. 여러 기간·종목 및 미사용 구간 검증은 별도 단계다.
+완료 로그도 수익성 입증은 아니다. 현재는 독립적인 종목별 결과와 하나의 종가 기반 벤치마크를 근사 비교하며 결과가 DB에 영속화되지 않는다. 기존 실데이터 관측은 `005930` 한 종목에 한정되어 있다. 여러 기간·종목 및 미사용 구간의 실제 검증은 별도 단계다.
 
 저장된 데이터로 수행한 첫 실행의 조건, 재현성 검사와 무거래 원인은 [SWING_V1 기준 결과 01](validation/swing-v1-baseline-observation-01.md)에 기록한다.
 

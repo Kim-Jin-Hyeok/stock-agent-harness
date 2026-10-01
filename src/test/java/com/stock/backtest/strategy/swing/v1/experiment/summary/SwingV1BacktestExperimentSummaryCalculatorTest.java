@@ -49,7 +49,7 @@ class SwingV1BacktestExperimentSummaryCalculatorTest {
 
     @Test
     void summarizesOutcomesUsingLiquidationAdjustedReturns() {
-        SwingV1BacktestExperimentRequest request = request();
+        SwingV1BacktestExperimentRequest request = request("005930", "000660", "035420");
         SwingV1BacktestExperimentResult result = result(
                 request,
                 List.of(
@@ -107,7 +107,9 @@ class SwingV1BacktestExperimentSummaryCalculatorTest {
 
     @Test
     void calculatesEvenMedianAndResolvesTiesBySymbol() {
-        SwingV1BacktestExperimentRequest request = request();
+        SwingV1BacktestExperimentRequest request = request(
+                "035420", "005930", "051910", "000660"
+        );
         SwingV1BacktestExperimentResult result = result(
                 request,
                 List.of(
@@ -160,7 +162,7 @@ class SwingV1BacktestExperimentSummaryCalculatorTest {
 
     @Test
     void countsLossThatOutperformsFallingBenchmark() {
-        SwingV1BacktestExperimentRequest request = request();
+        SwingV1BacktestExperimentRequest request = request("005930");
         SwingV1BacktestExperimentResult result =
                 new SwingV1BacktestExperimentResult(
                         request,
@@ -303,9 +305,10 @@ class SwingV1BacktestExperimentSummaryCalculatorTest {
         );
     }
 
-    private SwingV1BacktestExperimentRequest request() {
+    private SwingV1BacktestExperimentRequest request(String... symbols) {
         return new SwingV1BacktestExperimentRequest(
                 STRATEGY_IDENTITY,
+                List.of(symbols),
                 BENCHMARK_ID,
                 FROM_SIGNAL_DATE,
                 TO_SIGNAL_DATE,

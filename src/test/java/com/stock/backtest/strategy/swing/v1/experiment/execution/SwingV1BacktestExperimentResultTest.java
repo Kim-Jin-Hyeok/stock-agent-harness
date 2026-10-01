@@ -44,7 +44,7 @@ class SwingV1BacktestExperimentResultTest {
 
     @Test
     void copiesReportsAndPreservesPerSymbolConditions() {
-        SwingV1BacktestExperimentRequest request = request();
+        SwingV1BacktestExperimentRequest request = request("005930", "000660");
         SwingV1BacktestReport samsung = report(request, "005930");
         SwingV1BacktestReport skHynix = report(request, "000660");
         List<SwingV1BacktestReport> mutableReports = new ArrayList<>(
@@ -171,7 +171,7 @@ class SwingV1BacktestExperimentResultTest {
 
     @Test
     void rejectsReportsWithDifferentMiddleValuationDates() {
-        SwingV1BacktestExperimentRequest request = request();
+        SwingV1BacktestExperimentRequest request = request("005930", "000660");
 
         assertThatThrownBy(() -> new SwingV1BacktestExperimentResult(
                 request,
@@ -250,9 +250,53 @@ class SwingV1BacktestExperimentResultTest {
                 .hasMessage("Report equityCurve must not be empty.");
     }
 
+    @Test
+    void rejectsMissingExtraAndReplacedReportSymbols() {
+        SwingV1BacktestExperimentRequest request = request("005930", "000660");
+        SwingV1BacktestReport samsung = report(request, "005930");
+        SwingV1BacktestReport skHynix = report(request, "000660");
+        SwingV1BacktestReport unexpected = report(request, "035420");
+
+        for (List<SwingV1BacktestReport> reports : List.of(
+                List.of(samsung),
+                List.of(samsung, skHynix, unexpected),
+                List.of(samsung, unexpected)
+        )) {
+            assertThatThrownBy(() -> new SwingV1BacktestExperimentResult(
+                    request,
+                    reports,
+                    benchmarkSummary()
+            )).isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage(
+                            "Report symbols must exactly match requested "
+                                    + "candidateSymbols in order."
+                    );
+        }
+    }
+
+    @Test
+    void rejectsReorderedReportSymbols() {
+        SwingV1BacktestExperimentRequest request = request("005930", "000660");
+
+        assertThatThrownBy(() -> new SwingV1BacktestExperimentResult(
+                request,
+                List.of(report(request, "000660"), report(request, "005930")),
+                benchmarkSummary()
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "Report symbols must exactly match requested "
+                                + "candidateSymbols in order."
+                );
+    }
+
     private SwingV1BacktestExperimentRequest request() {
+        return request("005930");
+    }
+
+    private SwingV1BacktestExperimentRequest request(String... symbols) {
         return new SwingV1BacktestExperimentRequest(
                 STRATEGY_IDENTITY,
+                List.of(symbols),
                 BENCHMARK_ID,
                 FROM_SIGNAL_DATE,
                 TO_SIGNAL_DATE,

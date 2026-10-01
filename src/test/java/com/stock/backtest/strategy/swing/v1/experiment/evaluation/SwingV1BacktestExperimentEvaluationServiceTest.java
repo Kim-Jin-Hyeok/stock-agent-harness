@@ -95,7 +95,7 @@ class SwingV1BacktestExperimentEvaluationServiceTest {
 
     @Test
     void comparesEachSymbolWithItsOwnPricesAndIndependentCash() {
-        SwingV1BacktestExperimentRequest request = request();
+        SwingV1BacktestExperimentRequest request = request("005930", "000660");
         SwingV1BacktestExperimentResult result = result(request, List.of("005930", "000660"));
         summary(request, result);
         when(experimentService.execute(request)).thenReturn(result);
@@ -261,8 +261,13 @@ class SwingV1BacktestExperimentEvaluationServiceTest {
     }
 
     private SwingV1BacktestExperimentRequest request() {
+        return request("005930");
+    }
+
+    private SwingV1BacktestExperimentRequest request(String... symbols) {
         return new SwingV1BacktestExperimentRequest(
                 new InvestmentStrategyIdentity("SWING_V1", 1, InvestmentHorizon.SWING),
+                List.of(symbols),
                 "KOSPI", FIRST_DATE.minusDays(1), FIRST_DATE.plusDays(1), 1_000L,
                 new TradeCostModel("ZERO", 1, BigDecimal.ZERO, BigDecimal.ZERO,
                         BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO)

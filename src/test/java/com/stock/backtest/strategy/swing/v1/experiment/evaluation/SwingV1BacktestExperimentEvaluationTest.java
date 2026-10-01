@@ -164,6 +164,7 @@ class SwingV1BacktestExperimentEvaluationTest {
     private Fixture fixture() {
         SwingV1BacktestExperimentRequest request = new SwingV1BacktestExperimentRequest(
                 new InvestmentStrategyIdentity("SWING_V1", 1, InvestmentHorizon.SWING),
+                List.of("005930"),
                 "KOSPI", FIRST_DATE.minusDays(1), FIRST_DATE, 1_000L, costs
         );
         SwingV1BacktestReport report = mock(SwingV1BacktestReport.class);

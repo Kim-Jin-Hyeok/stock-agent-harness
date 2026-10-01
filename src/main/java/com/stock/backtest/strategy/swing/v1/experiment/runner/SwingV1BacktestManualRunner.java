@@ -57,6 +57,7 @@ public class SwingV1BacktestManualRunner implements ApplicationRunner {
         SwingV1BacktestExperimentRequest request =
                 new SwingV1BacktestExperimentRequest(
                         STRATEGY_IDENTITY,
+                        properties.candidateSymbols(),
                         properties.benchmarkId(),
                         properties.fromSignalDate(),
                         properties.toSignalDate(),
@@ -65,9 +66,11 @@ public class SwingV1BacktestManualRunner implements ApplicationRunner {
                 );
         log.info(
                 "SWING_V1 manual backtest started. strategyIdentity={}, "
-                        + "benchmarkId={}, fromSignalDate={}, toSignalDate={}, "
+                        + "candidateSymbols={}, benchmarkId={}, "
+                        + "fromSignalDate={}, toSignalDate={}, "
                         + "initialCashAmountKrwPerSymbol={}, costModel={}",
                 request.strategyIdentity(),
+                request.candidateSymbols(),
                 request.benchmarkId(),
                 request.fromSignalDate(),
                 request.toSignalDate(),

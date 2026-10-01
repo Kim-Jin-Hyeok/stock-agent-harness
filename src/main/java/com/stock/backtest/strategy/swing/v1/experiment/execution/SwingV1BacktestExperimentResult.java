@@ -115,5 +115,14 @@ public record SwingV1BacktestExperimentResult(
                 );
             }
         }
+        List<String> reportSymbols = reports.stream()
+                .map(report -> report.request().candidateSymbol())
+                .toList();
+        if (!experimentRequest.candidateSymbols().equals(reportSymbols)) {
+            throw new IllegalArgumentException(
+                    "Report symbols must exactly match requested candidateSymbols "
+                            + "in order."
+            );
+        }
     }
 }

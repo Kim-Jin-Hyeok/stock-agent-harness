@@ -5,10 +5,14 @@ import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import com.stock.trade.cost.model.TradeCostModel;
 
 import java.time.LocalDate;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 public record SwingV1BacktestExperimentRequest(
         InvestmentStrategyIdentity strategyIdentity,
+        List<String> candidateSymbols,
         String benchmarkId,
         LocalDate fromSignalDate,
         LocalDate toSignalDate,
@@ -29,6 +33,29 @@ public record SwingV1BacktestExperimentRequest(
             throw new IllegalArgumentException(
                     "strategyIdentity must be SWING_V1 version 1."
             );
+        }
+        candidateSymbols = List.copyOf(Objects.requireNonNull(
+                candidateSymbols,
+                "candidateSymbols must not be null."
+        ));
+        if (candidateSymbols.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "candidateSymbols must not be empty."
+            );
+        }
+        Set<String> uniqueSymbols = new HashSet<>();
+        for (String symbol : candidateSymbols) {
+            if (symbol.isBlank()) {
+                throw new IllegalArgumentException(
+                        "candidateSymbols must not contain blank symbols."
+                );
+            }
+            if (!uniqueSymbols.add(symbol)) {
+                throw new IllegalArgumentException(
+                        "candidateSymbols must not contain duplicate symbol: "
+                                + symbol
+                );
+            }
         }
         if (benchmarkId == null || benchmarkId.isBlank()) {
             throw new IllegalArgumentException(

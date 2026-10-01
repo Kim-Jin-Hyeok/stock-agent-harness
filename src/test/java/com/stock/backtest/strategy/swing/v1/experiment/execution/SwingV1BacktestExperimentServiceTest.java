@@ -13,7 +13,6 @@ import com.stock.backtest.strategy.swing.v1.report.SwingV1BacktestReport;
 import com.stock.backtest.strategy.swing.v1.report.SwingV1BacktestReportService;
 import com.stock.strategy.profile.InvestmentHorizon;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
-import com.stock.strategy.universe.StrategyStockUniverseRegistry;
 import com.stock.trade.cost.model.TradeCostModel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,8 +52,6 @@ class SwingV1BacktestExperimentServiceTest {
             LocalDate.of(2026, 7, 1);
     private static final long INITIAL_CASH_AMOUNT_KRW = 10_000_000L;
 
-    private final StrategyStockUniverseRegistry stockUniverseRegistry =
-            mock(StrategyStockUniverseRegistry.class);
     private final SwingV1BacktestReportService reportService =
             mock(SwingV1BacktestReportService.class);
     private final BacktestBenchmarkSeriesQueryService
@@ -74,7 +71,6 @@ class SwingV1BacktestExperimentServiceTest {
             benchmarkSummary();
     private final SwingV1BacktestExperimentService service =
             new SwingV1BacktestExperimentService(
-                    stockUniverseRegistry,
                     reportService,
                     benchmarkSeriesQueryService,
                     benchmarkPerformanceCalculator
@@ -95,8 +91,8 @@ class SwingV1BacktestExperimentServiceTest {
     }
 
     @Test
-    void executesEachUniverseSymbolWithIndependentEqualConditions() {
-        SwingV1BacktestExperimentRequest request = request();
+    void executesEachRequestedSymbolWithIndependentEqualConditions() {
+        SwingV1BacktestExperimentRequest request = request("005930", "000660");
         SwingV1BacktestRunRequest samsungRequest = runRequest(
                 request,
                 "005930"
@@ -107,9 +103,6 @@ class SwingV1BacktestExperimentServiceTest {
         );
         SwingV1BacktestReport samsungReport = report(samsungRequest);
         SwingV1BacktestReport skHynixReport = report(skHynixRequest);
-        when(stockUniverseRegistry.getCandidateSymbols(
-                STRATEGY_IDENTITY
-        )).thenReturn(List.of("005930", "000660"));
         when(reportService.generate(samsungRequest))
                 .thenReturn(samsungReport);
         when(reportService.generate(skHynixRequest))
@@ -159,7 +152,7 @@ class SwingV1BacktestExperimentServiceTest {
 
     @Test
     void stopsAtFirstFailedSymbol() {
-        SwingV1BacktestExperimentRequest request = request();
+        SwingV1BacktestExperimentRequest request = request("005930", "000660", "035420");
         SwingV1BacktestRunRequest samsungRequest = runRequest(
                 request,
                 "005930"
@@ -173,9 +166,6 @@ class SwingV1BacktestExperimentServiceTest {
                 "035420"
         );
         SwingV1BacktestReport samsungReport = report(samsungRequest);
-        when(stockUniverseRegistry.getCandidateSymbols(
-                STRATEGY_IDENTITY
-        )).thenReturn(List.of("005930", "000660", "035420"));
         when(reportService.generate(samsungRequest))
                 .thenReturn(samsungReport);
         when(reportService.generate(skHynixRequest))
@@ -197,7 +187,7 @@ class SwingV1BacktestExperimentServiceTest {
 
     @Test
     void rejectsMissingMiddleValuationDateBeforeLoadingBenchmark() {
-        SwingV1BacktestExperimentRequest request = request();
+        SwingV1BacktestExperimentRequest request = request("005930", "000660");
         SwingV1BacktestRunRequest samsungRequest = runRequest(
                 request,
                 "005930"
@@ -212,9 +202,6 @@ class SwingV1BacktestExperimentServiceTest {
                 FROM_VALUATION_DATE,
                 TO_VALUATION_DATE
         );
-        when(stockUniverseRegistry.getCandidateSymbols(
-                STRATEGY_IDENTITY
-        )).thenReturn(List.of("005930", "000660"));
         when(reportService.generate(samsungRequest))
                 .thenReturn(samsungReport);
         when(reportService.generate(skHynixRequest))
@@ -235,19 +222,12 @@ class SwingV1BacktestExperimentServiceTest {
     }
 
     @Test
-    void rejectsEmptyUniverse() {
-        SwingV1BacktestExperimentRequest request = request();
-        when(stockUniverseRegistry.getCandidateSymbols(
-                STRATEGY_IDENTITY
-        )).thenReturn(List.of());
-
-        assertThatThrownBy(() -> service.execute(request))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("SWING_V1 stock universe must not be empty.");
-        verify(reportService, never()).generate(
-                org.mockito.ArgumentMatchers.any()
-        );
+    void rejectsNullRequestWithoutLoadingReportsOrBenchmark() {
+        assertThatThrownBy(() -> service.execute(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("request must not be null.");
         verifyNoInteractions(
+                reportService,
                 benchmarkSeriesQueryService,
                 benchmarkPerformanceCalculator
         );
@@ -255,15 +235,12 @@ class SwingV1BacktestExperimentServiceTest {
 
     @Test
     void stopsAfterReportsWhenBenchmarkHistoryIsMissing() {
-        SwingV1BacktestExperimentRequest request = request();
+        SwingV1BacktestExperimentRequest request = request("005930");
         SwingV1BacktestRunRequest runRequest = runRequest(
                 request,
                 "005930"
         );
         SwingV1BacktestReport report = report(runRequest);
-        when(stockUniverseRegistry.getCandidateSymbols(
-                STRATEGY_IDENTITY
-        )).thenReturn(List.of("005930"));
         when(reportService.generate(runRequest))
                 .thenReturn(report);
         when(benchmarkSeriesQueryService.getSeries(
@@ -283,15 +260,12 @@ class SwingV1BacktestExperimentServiceTest {
 
     @Test
     void stopsWhenBenchmarkHasNoMiddleValuationDate() {
-        SwingV1BacktestExperimentRequest request = request();
+        SwingV1BacktestExperimentRequest request = request("005930");
         SwingV1BacktestRunRequest runRequest = runRequest(
                 request,
                 "005930"
         );
         SwingV1BacktestReport report = report(runRequest);
-        when(stockUniverseRegistry.getCandidateSymbols(
-                STRATEGY_IDENTITY
-        )).thenReturn(List.of("005930"));
         when(reportService.generate(runRequest))
                 .thenReturn(report);
         when(benchmarkSeriesQueryService.getSeries(
@@ -316,12 +290,9 @@ class SwingV1BacktestExperimentServiceTest {
 
     @Test
     void stopsWhenBenchmarkHasExtraValuationDate() {
-        SwingV1BacktestExperimentRequest request = request();
+        SwingV1BacktestExperimentRequest request = request("005930");
         SwingV1BacktestRunRequest runRequest = runRequest(request, "005930");
         SwingV1BacktestReport report = report(runRequest);
-        when(stockUniverseRegistry.getCandidateSymbols(
-                STRATEGY_IDENTITY
-        )).thenReturn(List.of("005930"));
         when(reportService.generate(runRequest)).thenReturn(report);
         when(benchmarkSeriesQueryService.getSeries(
                 BENCHMARK_ID,
@@ -346,9 +317,43 @@ class SwingV1BacktestExperimentServiceTest {
         verifyNoInteractions(benchmarkPerformanceCalculator);
     }
 
-    private SwingV1BacktestExperimentRequest request() {
+    @Test
+    void rejectsUnexpectedReportSymbolBeforeLoadingBenchmark() {
+        SwingV1BacktestExperimentRequest request = request("000660");
+        SwingV1BacktestRunRequest expected = runRequest(request, "000660");
+        SwingV1BacktestReport unexpected = report(runRequest(request, "005930"));
+        when(reportService.generate(expected)).thenReturn(unexpected);
+
+        assertThatThrownBy(() -> service.execute(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Generated report symbol must match requested candidate. "
+                        + "expected=000660, actual=005930");
+        verifyNoInteractions(benchmarkSeriesQueryService, benchmarkPerformanceCalculator);
+    }
+
+    @Test
+    void preservesRequestedOrderInsteadOfSortingSymbols() {
+        SwingV1BacktestExperimentRequest request = request("005930", "000660");
+        SwingV1BacktestRunRequest first = runRequest(request, "005930");
+        SwingV1BacktestRunRequest second = runRequest(request, "000660");
+        SwingV1BacktestReport firstReport = report(first);
+        SwingV1BacktestReport secondReport = report(second);
+        when(reportService.generate(first)).thenReturn(firstReport);
+        when(reportService.generate(second)).thenReturn(secondReport);
+
+        SwingV1BacktestExperimentResult result = service.execute(request);
+
+        assertThat(result.request().candidateSymbols()).containsExactly("005930", "000660");
+        assertThat(result.reports()).containsExactly(firstReport, secondReport);
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(reportService);
+        order.verify(reportService).generate(first);
+        order.verify(reportService).generate(second);
+    }
+
+    private SwingV1BacktestExperimentRequest request(String... symbols) {
         return new SwingV1BacktestExperimentRequest(
                 STRATEGY_IDENTITY,
+                List.of(symbols),
                 BENCHMARK_ID,
                 FROM_SIGNAL_DATE,
                 TO_SIGNAL_DATE,

@@ -8,7 +8,6 @@ import com.stock.backtest.portfolio.BacktestPortfolioState;
 import com.stock.backtest.strategy.swing.v1.execution.run.SwingV1BacktestRunRequest;
 import com.stock.backtest.strategy.swing.v1.report.SwingV1BacktestReport;
 import com.stock.backtest.strategy.swing.v1.report.SwingV1BacktestReportService;
-import com.stock.strategy.universe.StrategyStockUniverseRegistry;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -17,22 +16,16 @@ import java.util.Objects;
 
 @Service
 public class SwingV1BacktestExperimentService {
-    private final StrategyStockUniverseRegistry stockUniverseRegistry;
     private final SwingV1BacktestReportService reportService;
     private final BacktestBenchmarkSeriesQueryService benchmarkSeriesQueryService;
     private final BacktestBenchmarkPerformanceCalculator
             benchmarkPerformanceCalculator;
 
     public SwingV1BacktestExperimentService(
-            StrategyStockUniverseRegistry stockUniverseRegistry,
             SwingV1BacktestReportService reportService,
             BacktestBenchmarkSeriesQueryService benchmarkSeriesQueryService,
             BacktestBenchmarkPerformanceCalculator benchmarkPerformanceCalculator
     ) {
-        this.stockUniverseRegistry = Objects.requireNonNull(
-                stockUniverseRegistry,
-                "stockUniverseRegistry must not be null."
-        );
         this.reportService = Objects.requireNonNull(
                 reportService,
                 "reportService must not be null."
@@ -51,13 +44,7 @@ public class SwingV1BacktestExperimentService {
             SwingV1BacktestExperimentRequest request
     ) {
         Objects.requireNonNull(request, "request must not be null.");
-        List<String> candidateSymbols = stockUniverseRegistry
-                .getCandidateSymbols(request.strategyIdentity());
-        if (candidateSymbols.isEmpty()) {
-            throw new IllegalStateException(
-                    "SWING_V1 stock universe must not be empty."
-            );
-        }
+        List<String> candidateSymbols = request.candidateSymbols();
 
         List<SwingV1BacktestReport> reports = new ArrayList<>(
                 candidateSymbols.size()
@@ -74,7 +61,15 @@ public class SwingV1BacktestExperimentService {
                             ),
                             request.costModel()
                     );
-            reports.add(reportService.generate(runRequest));
+            SwingV1BacktestReport report = reportService.generate(runRequest);
+            if (!candidateSymbol.equals(report.request().candidateSymbol())) {
+                throw new IllegalArgumentException(
+                        "Generated report symbol must match requested candidate. "
+                                + "expected=" + candidateSymbol
+                                + ", actual=" + report.request().candidateSymbol()
+                );
+            }
+            reports.add(report);
         }
 
         SwingV1BacktestValuationDates valuationDates =
