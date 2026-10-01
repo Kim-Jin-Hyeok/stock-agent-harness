@@ -1,6 +1,7 @@
 package com.stock.backtest.strategy.swing.v1.experiment.runner;
 
 import com.stock.backtest.performance.benchmark.BacktestBenchmarkPerformanceSummary;
+import com.stock.backtest.strategy.swing.v1.experiment.diagnostic.SwingV1BacktestDiagnosticSummary;
 import com.stock.backtest.strategy.swing.v1.experiment.evaluation.SwingV1BacktestExperimentEvaluation;
 import com.stock.backtest.strategy.swing.v1.experiment.evaluation.SwingV1BacktestExperimentEvaluationService;
 import com.stock.backtest.strategy.swing.v1.experiment.execution.SwingV1BacktestExperimentRequest;
@@ -14,6 +15,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Objects;
 
 @Slf4j
@@ -77,6 +79,14 @@ public class SwingV1BacktestManualRunner implements ApplicationRunner {
         BacktestBenchmarkPerformanceSummary benchmark = evaluation
                 .experimentResult()
                 .benchmarkPerformanceSummary();
+        List<SwingV1BacktestDiagnosticSummary> diagnostics = evaluation
+                .experimentResult()
+                .reports()
+                .stream()
+                .map(report -> SwingV1BacktestDiagnosticSummary.from(
+                        report.runResult()
+                ))
+                .toList();
         log.info(
                 "SWING_V1 manual backtest completed. benchmarkId={}, "
                         + "valuationFromDate={}, valuationToDate={}, "
@@ -97,5 +107,23 @@ public class SwingV1BacktestManualRunner implements ApplicationRunner {
                 summary.medianExcessReturnRate(),
                 summary.benchmarkOutperformingSymbolCount()
         );
+        diagnostics.forEach(diagnostic -> {
+            log.info(
+                    "SWING_V1 manual backtest diagnostic. symbol={}, "
+                            + "stepStatusCounts={}, actionReasonCounts={}, "
+                            + "blockedOrderReasonCounts={}, "
+                            + "rejectedTransitionReasonCounts={}, "
+                            + "executedBuyCount={}, executedSellCount={}, "
+                            + "finalPositionQuantity={}",
+                    diagnostic.symbol(),
+                    diagnostic.stepStatusCounts(),
+                    diagnostic.actionReasonCounts(),
+                    diagnostic.blockedOrderReasonCounts(),
+                    diagnostic.rejectedTransitionReasonCounts(),
+                    diagnostic.executedBuyCount(),
+                    diagnostic.executedSellCount(),
+                    diagnostic.finalPositionQuantity()
+            );
+        });
     }
 }

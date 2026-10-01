@@ -62,4 +62,8 @@ $runArgs = @(
 
 시작 로그의 신호 기간·초기 현금·비용 모델 전체 값을 확인한다. 완료 로그에서 실제 지수 관측 시작일·종료일·건수, 종목 수, 거래 수, 지수 수익률, 청산비용 반영 중앙값, 중앙값 초과수익률과 초과 종목 수를 확인한다. 실패하면 원인을 수정하기 전까지 그 실행은 성과 검증에 포함하지 않는다.
 
+종목별 `manual backtest diagnostic` 로그에서는 `stepStatusCounts`와 `actionReasonCounts`로 판단 결과를 구분한다. 진입·청산 신호가 있었지만 수량을 산정하지 못해 최종 `HOLD`가 된 경우는 `blockedOrderReasonCounts`에, 주문 근사 후 포트폴리오 적용이 거절된 경우는 `rejectedTransitionReasonCounts`에 기록된다. `executedBuyCount`와 `executedSellCount`는 각각 적용된 매수·매도 횟수이고, `finalPositionQuantity`는 구간 종료 시 미청산 보유 수량이다. `NO_NEXT_DAILY_BAR`에는 판단 근거가 없으므로 행동 사유 건수에 포함하지 않는다.
+
+`totalCompletedTradeCount=0`만으로 매수 신호가 없었다고 단정하지 않는다. 매수 후 미청산, 수량 산정 실패, 포트폴리오 적용 거절 여부를 진단 로그와 함께 확인한다. 이 진단은 사유를 설명할 뿐 거래를 강제로 생성하거나 전략 성과를 보증하지 않는다.
+
 완료 로그도 수익성 입증은 아니다. 현재는 종목 한 개의 종가 기반 벤치마크 근사 비교이며 결과가 DB에 영속화되지 않는다. 여러 기간·종목 및 미사용 구간 검증은 별도 단계다.
