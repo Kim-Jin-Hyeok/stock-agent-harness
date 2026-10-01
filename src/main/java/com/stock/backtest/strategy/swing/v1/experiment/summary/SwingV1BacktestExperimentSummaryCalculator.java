@@ -35,11 +35,15 @@ public class SwingV1BacktestExperimentSummaryCalculator {
                 .stream()
                 .map(this::toMetrics)
                 .toList();
+        BigDecimal benchmarkReturnRate = experimentResult
+                .benchmarkPerformanceSummary()
+                .totalReturnRate();
         int profitableSymbolCount = 0;
         int losingSymbolCount = 0;
         int breakEvenSymbolCount = 0;
         int noCompletedTradeSymbolCount = 0;
         int totalCompletedTradeCount = 0;
+        int benchmarkOutperformingSymbolCount = 0;
 
         for (ReportMetrics metric : metrics) {
             int returnSign = metric.adjustedReturnRate().signum();
@@ -66,6 +70,12 @@ public class SwingV1BacktestExperimentSummaryCalculator {
                     totalCompletedTradeCount,
                     metric.completedTradeCount()
             );
+            if (metric.adjustedReturnRate()
+                    .compareTo(benchmarkReturnRate) > 0) {
+                benchmarkOutperformingSymbolCount = Math.incrementExact(
+                        benchmarkOutperformingSymbolCount
+                );
+            }
         }
 
         ReportMetrics worstReturn = metrics.stream()
@@ -74,6 +84,7 @@ public class SwingV1BacktestExperimentSummaryCalculator {
         ReportMetrics worstDrawdown = metrics.stream()
                 .min(DRAWDOWN_ORDER)
                 .orElseThrow();
+        BigDecimal medianReturnRate = medianAdjustedReturnRate(metrics);
         return new SwingV1BacktestExperimentSummary(
                 experimentResult.request(),
                 metrics.size(),
@@ -82,7 +93,10 @@ public class SwingV1BacktestExperimentSummaryCalculator {
                 breakEvenSymbolCount,
                 noCompletedTradeSymbolCount,
                 totalCompletedTradeCount,
-                medianAdjustedReturnRate(metrics),
+                medianReturnRate,
+                benchmarkReturnRate,
+                medianReturnRate.subtract(benchmarkReturnRate),
+                benchmarkOutperformingSymbolCount,
                 worstReturn.symbol(),
                 worstReturn.adjustedReturnRate(),
                 worstDrawdown.symbol(),

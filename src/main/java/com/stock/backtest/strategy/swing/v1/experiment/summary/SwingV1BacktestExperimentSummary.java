@@ -14,6 +14,9 @@ public record SwingV1BacktestExperimentSummary(
         int noCompletedTradeSymbolCount,
         int totalCompletedTradeCount,
         BigDecimal medianLiquidationAdjustedReturnRate,
+        BigDecimal benchmarkTotalReturnRate,
+        BigDecimal medianExcessReturnRate,
+        int benchmarkOutperformingSymbolCount,
         String worstReturnSymbol,
         BigDecimal worstLiquidationAdjustedReturnRate,
         String worstDrawdownSymbol,
@@ -30,11 +33,14 @@ public record SwingV1BacktestExperimentSummary(
                 losingSymbolCount,
                 breakEvenSymbolCount,
                 noCompletedTradeSymbolCount,
-                totalCompletedTradeCount
+                totalCompletedTradeCount,
+                benchmarkOutperformingSymbolCount
         );
         validateReturnRates(
                 medianLiquidationAdjustedReturnRate,
-                worstLiquidationAdjustedReturnRate
+                worstLiquidationAdjustedReturnRate,
+                benchmarkTotalReturnRate,
+                medianExcessReturnRate
         );
         validateSymbol("worstReturnSymbol", worstReturnSymbol);
         validateSymbol("worstDrawdownSymbol", worstDrawdownSymbol);
@@ -56,7 +62,8 @@ public record SwingV1BacktestExperimentSummary(
             int losingSymbolCount,
             int breakEvenSymbolCount,
             int noCompletedTradeSymbolCount,
-            int totalCompletedTradeCount
+            int totalCompletedTradeCount,
+            int benchmarkOutperformingSymbolCount
     ) {
         if (symbolCount < 1) {
             throw new IllegalArgumentException(
@@ -94,6 +101,13 @@ public record SwingV1BacktestExperimentSummary(
                     "totalCompletedTradeCount must not be negative."
             );
         }
+        if (benchmarkOutperformingSymbolCount < 0
+                || benchmarkOutperformingSymbolCount > symbolCount) {
+            throw new IllegalArgumentException(
+                    "benchmarkOutperformingSymbolCount must be between "
+                            + "0 and symbolCount."
+            );
+        }
         boolean allSymbolsHaveNoCompletedTrades =
                 noCompletedTradeSymbolCount == symbolCount;
         if (allSymbolsHaveNoCompletedTrades
@@ -106,7 +120,9 @@ public record SwingV1BacktestExperimentSummary(
 
     private static void validateReturnRates(
             BigDecimal medianReturnRate,
-            BigDecimal worstReturnRate
+            BigDecimal worstReturnRate,
+            BigDecimal benchmarkReturnRate,
+            BigDecimal medianExcessReturnRate
     ) {
         Objects.requireNonNull(
                 medianReturnRate,
@@ -127,6 +143,27 @@ public record SwingV1BacktestExperimentSummary(
             throw new IllegalArgumentException(
                     "worstLiquidationAdjustedReturnRate must not exceed "
                             + "the median."
+            );
+        }
+        Objects.requireNonNull(
+                benchmarkReturnRate,
+                "benchmarkTotalReturnRate must not be null."
+        );
+        if (benchmarkReturnRate.compareTo(MINIMUM_RETURN_RATE) < 0) {
+            throw new IllegalArgumentException(
+                    "benchmarkTotalReturnRate must not be less than -1."
+            );
+        }
+        Objects.requireNonNull(
+                medianExcessReturnRate,
+                "medianExcessReturnRate must not be null."
+        );
+        if (medianExcessReturnRate.compareTo(
+                medianReturnRate.subtract(benchmarkReturnRate)
+        ) != 0) {
+            throw new IllegalArgumentException(
+                    "medianExcessReturnRate must match the median "
+                            + "return minus benchmark return."
             );
         }
     }

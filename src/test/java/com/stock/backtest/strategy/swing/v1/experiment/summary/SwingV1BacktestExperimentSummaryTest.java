@@ -25,6 +25,9 @@ class SwingV1BacktestExperimentSummaryTest {
                         1,
                         3,
                         BigDecimal.ZERO,
+                        new BigDecimal("0.1"),
+                        new BigDecimal("-0.1"),
+                        1,
                         "000660",
                         new BigDecimal("-0.2"),
                         "000660",
@@ -40,6 +43,11 @@ class SwingV1BacktestExperimentSummaryTest {
         assertThat(summary.totalCompletedTradeCount()).isEqualTo(3);
         assertThat(summary.medianLiquidationAdjustedReturnRate())
                 .isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(summary.benchmarkTotalReturnRate())
+                .isEqualByComparingTo(new BigDecimal("0.1"));
+        assertThat(summary.medianExcessReturnRate())
+                .isEqualByComparingTo(new BigDecimal("-0.1"));
+        assertThat(summary.benchmarkOutperformingSymbolCount()).isEqualTo(1);
         assertThat(summary.worstReturnSymbol()).isEqualTo("000660");
         assertThat(summary.worstLiquidationAdjustedReturnRate())
                 .isEqualByComparingTo(new BigDecimal("-0.2"));
@@ -59,6 +67,9 @@ class SwingV1BacktestExperimentSummaryTest {
                 1,
                 3,
                 BigDecimal.ZERO,
+                new BigDecimal("0.1"),
+                new BigDecimal("-0.1"),
+                1,
                 "000660",
                 new BigDecimal("-0.2"),
                 "000660",
@@ -80,6 +91,9 @@ class SwingV1BacktestExperimentSummaryTest {
                 2,
                 1,
                 BigDecimal.ZERO,
+                new BigDecimal("0.1"),
+                new BigDecimal("-0.1"),
+                1,
                 "000660",
                 new BigDecimal("-0.2"),
                 "000660",
@@ -101,6 +115,9 @@ class SwingV1BacktestExperimentSummaryTest {
                 0,
                 1,
                 new BigDecimal("0.1"),
+                new BigDecimal("0.1"),
+                BigDecimal.ZERO,
+                1,
                 "005930",
                 new BigDecimal("0.2"),
                 "005930",
@@ -109,6 +126,56 @@ class SwingV1BacktestExperimentSummaryTest {
                 .hasMessage(
                         "worstLiquidationAdjustedReturnRate must not "
                                 + "exceed the median."
+                );
+    }
+
+    @Test
+    void rejectsOutperformingCountAboveSymbolCount() {
+        assertThatThrownBy(() -> new SwingV1BacktestExperimentSummary(
+                request,
+                1,
+                1,
+                0,
+                0,
+                0,
+                1,
+                new BigDecimal("0.2"),
+                new BigDecimal("0.1"),
+                new BigDecimal("0.1"),
+                2,
+                "005930",
+                new BigDecimal("0.2"),
+                "005930",
+                new BigDecimal("0.1")
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "benchmarkOutperformingSymbolCount must be "
+                                + "between 0 and symbolCount."
+                );
+    }
+
+    @Test
+    void rejectsInconsistentMedianExcessReturnRate() {
+        assertThatThrownBy(() -> new SwingV1BacktestExperimentSummary(
+                request,
+                1,
+                1,
+                0,
+                0,
+                0,
+                1,
+                new BigDecimal("0.2"),
+                new BigDecimal("0.1"),
+                BigDecimal.ZERO,
+                1,
+                "005930",
+                new BigDecimal("0.2"),
+                "005930",
+                new BigDecimal("0.1")
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "medianExcessReturnRate must match the median "
+                                + "return minus benchmark return."
                 );
     }
 }

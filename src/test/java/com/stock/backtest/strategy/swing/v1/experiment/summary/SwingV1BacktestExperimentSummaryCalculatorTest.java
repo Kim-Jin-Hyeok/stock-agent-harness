@@ -92,6 +92,11 @@ class SwingV1BacktestExperimentSummaryCalculatorTest {
         assertThat(summary.totalCompletedTradeCount()).isEqualTo(3);
         assertThat(summary.medianLiquidationAdjustedReturnRate())
                 .isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(summary.benchmarkTotalReturnRate())
+                .isEqualByComparingTo(new BigDecimal("0.1"));
+        assertThat(summary.medianExcessReturnRate())
+                .isEqualByComparingTo(new BigDecimal("-0.1"));
+        assertThat(summary.benchmarkOutperformingSymbolCount()).isZero();
         assertThat(summary.worstReturnSymbol()).isEqualTo("000660");
         assertThat(summary.worstLiquidationAdjustedReturnRate())
                 .isEqualByComparingTo(new BigDecimal("-0.2"));
@@ -146,8 +151,50 @@ class SwingV1BacktestExperimentSummaryCalculatorTest {
 
         assertThat(summary.medianLiquidationAdjustedReturnRate())
                 .isEqualByComparingTo(new BigDecimal("-0.05"));
+        assertThat(summary.medianExcessReturnRate())
+                .isEqualByComparingTo(new BigDecimal("-0.15"));
+        assertThat(summary.benchmarkOutperformingSymbolCount()).isEqualTo(1);
         assertThat(summary.worstReturnSymbol()).isEqualTo("000660");
         assertThat(summary.worstDrawdownSymbol()).isEqualTo("000660");
+    }
+
+    @Test
+    void countsLossThatOutperformsFallingBenchmark() {
+        SwingV1BacktestExperimentRequest request = request();
+        SwingV1BacktestExperimentResult result =
+                new SwingV1BacktestExperimentResult(
+                        request,
+                        List.of(report(
+                                request,
+                                "005930",
+                                new BigDecimal("-0.04"),
+                                new BigDecimal("-0.05"),
+                                new BigDecimal("0.1"),
+                                1
+                        )),
+                        new BacktestBenchmarkPerformanceSummary(
+                                request.benchmarkId(),
+                                FROM_VALUATION_DATE,
+                                TO_VALUATION_DATE,
+                                new BigDecimal("100"),
+                                new BigDecimal("90"),
+                                new BigDecimal("-0.1"),
+                                new BigDecimal("0.1"),
+                                FROM_VALUATION_DATE,
+                                TO_VALUATION_DATE,
+                                2
+                        )
+                );
+
+        SwingV1BacktestExperimentSummary summary =
+                calculator.calculate(result);
+
+        assertThat(summary.losingSymbolCount()).isEqualTo(1);
+        assertThat(summary.benchmarkTotalReturnRate())
+                .isEqualByComparingTo(new BigDecimal("-0.1"));
+        assertThat(summary.medianExcessReturnRate())
+                .isEqualByComparingTo(new BigDecimal("0.05"));
+        assertThat(summary.benchmarkOutperformingSymbolCount()).isEqualTo(1);
     }
 
     @Test
