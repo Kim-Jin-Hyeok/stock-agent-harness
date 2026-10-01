@@ -1,0 +1,33 @@
+name: Java 21 tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Gradle tests (Java 21)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      # JPA tests use H2; KIS and OpenAI HTTP tests use MockRestServiceServer.
+      # Run the wrapper through bash because gradlew is tracked without execute permission.
+      - name: Run all tests
+        run: bash ./gradlew --no-daemon --console=plain test
