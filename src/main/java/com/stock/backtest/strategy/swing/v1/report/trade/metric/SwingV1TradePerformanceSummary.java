@@ -16,7 +16,10 @@ public record SwingV1TradePerformanceSummary(
         BigDecimal averageNetProfitLossAmountKrw,
         BigDecimal averageWinningNetProfitAmountKrw,
         BigDecimal averageLosingNetLossAmountKrw,
-        SwingV1ProfitFactor profitFactor
+        SwingV1ProfitFactor profitFactor,
+        long largestWinningTradeNetProfitAmountKrw,
+        BigDecimal largestWinningTradeProfitShare,
+        long netProfitLossExcludingLargestWinningTradeAmountKrw
 ) {
     private static final MathContext RATE_MATH_CONTEXT =
             MathContext.DECIMAL128;
@@ -44,6 +47,14 @@ public record SwingV1TradePerformanceSummary(
                 losingTradeCount,
                 totalLosingNetLossAmountKrw,
                 averageLosingNetLossAmountKrw
+        );
+        validateProfitConcentration(
+                winningTradeCount,
+                totalNetProfitLossAmountKrw,
+                totalWinningNetProfitAmountKrw,
+                largestWinningTradeNetProfitAmountKrw,
+                largestWinningTradeProfitShare,
+                netProfitLossExcludingLargestWinningTradeAmountKrw
         );
         Objects.requireNonNull(
                 profitFactor,
@@ -166,6 +177,60 @@ public record SwingV1TradePerformanceSummary(
                 averageAmountKrw,
                 average(totalAmountKrw, tradeCount)
         );
+    }
+
+    private static void validateProfitConcentration(
+            int winningTradeCount,
+            long totalNetProfitLossAmountKrw,
+            long totalWinningNetProfitAmountKrw,
+            long largestWinningTradeNetProfitAmountKrw,
+            BigDecimal largestWinningTradeProfitShare,
+            long netProfitLossExcludingLargestWinningTradeAmountKrw
+    ) {
+        if (winningTradeCount == 0) {
+            if (largestWinningTradeNetProfitAmountKrw != 0
+                    || largestWinningTradeProfitShare != null) {
+                throw new IllegalArgumentException(
+                        "No winning trades require zero largest profit "
+                                + "and no profit share."
+                );
+            }
+        } else {
+            BigDecimal largestProfit = BigDecimal.valueOf(
+                    largestWinningTradeNetProfitAmountKrw
+            );
+            BigDecimal averageWinningProfit = average(
+                    totalWinningNetProfitAmountKrw,
+                    winningTradeCount
+            );
+            if (largestWinningTradeNetProfitAmountKrw <= 0
+                    || largestWinningTradeNetProfitAmountKrw
+                    > totalWinningNetProfitAmountKrw
+                    || largestProfit.compareTo(averageWinningProfit) < 0) {
+                throw new IllegalArgumentException(
+                        "Largest winning trade profit must be between "
+                                + "average winning profit and total winning profit."
+                );
+            }
+            validateRate(
+                    "largestWinningTradeProfitShare",
+                    largestWinningTradeProfitShare,
+                    largestProfit.divide(
+                            BigDecimal.valueOf(totalWinningNetProfitAmountKrw),
+                            RATE_MATH_CONTEXT
+                    )
+            );
+        }
+        if (netProfitLossExcludingLargestWinningTradeAmountKrw
+                != Math.subtractExact(
+                        totalNetProfitLossAmountKrw,
+                        largestWinningTradeNetProfitAmountKrw
+                )) {
+            throw new IllegalArgumentException(
+                    "Net profit excluding largest winning trade must match "
+                            + "total net profit minus one largest winning profit."
+            );
+        }
     }
 
     private static void validateProfitFactor(

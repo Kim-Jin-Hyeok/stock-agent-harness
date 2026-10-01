@@ -217,5 +217,28 @@ public record SwingV1BacktestReport(
                             + "completed trades."
             );
         }
+        long totalWinningNetProfitAmountKrw = completedTrades.stream()
+                .mapToLong(SwingV1CompletedTrade::netProfitLossAmountKrw)
+                .filter(amount -> amount > 0L)
+                .reduce(0L, Math::addExact);
+        if (tradePerformanceSummary.totalWinningNetProfitAmountKrw()
+                != totalWinningNetProfitAmountKrw) {
+            throw new IllegalArgumentException(
+                    "tradePerformanceSummary winning profit must match "
+                            + "completed trades."
+            );
+        }
+        long largestWinningTradeNetProfitAmountKrw = completedTrades.stream()
+                .mapToLong(SwingV1CompletedTrade::netProfitLossAmountKrw)
+                .filter(amount -> amount > 0L)
+                .max()
+                .orElse(0L);
+        if (tradePerformanceSummary.largestWinningTradeNetProfitAmountKrw()
+                != largestWinningTradeNetProfitAmountKrw) {
+            throw new IllegalArgumentException(
+                    "tradePerformanceSummary largest winning profit must "
+                            + "match completed trades."
+            );
+        }
     }
 }

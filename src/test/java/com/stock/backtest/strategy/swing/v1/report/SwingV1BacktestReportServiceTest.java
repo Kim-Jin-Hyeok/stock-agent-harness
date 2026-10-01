@@ -287,7 +287,10 @@ class SwingV1BacktestReportServiceTest {
                 null,
                 null,
                 null,
-                SwingV1ProfitFactor.noCompletedTrades()
+                SwingV1ProfitFactor.noCompletedTrades(),
+                0L,
+                null,
+                0L
         );
     }
 

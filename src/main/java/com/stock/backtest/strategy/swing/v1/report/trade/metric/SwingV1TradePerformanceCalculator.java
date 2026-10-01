@@ -30,6 +30,7 @@ public class SwingV1TradePerformanceCalculator {
         long totalNetProfitLossAmountKrw = 0L;
         long totalWinningNetProfitAmountKrw = 0L;
         long totalLosingNetLossAmountKrw = 0L;
+        long largestWinningTradeNetProfitAmountKrw = 0L;
 
         for (SwingV1CompletedTrade completedTrade : completedTrades) {
             Objects.requireNonNull(
@@ -46,6 +47,10 @@ public class SwingV1TradePerformanceCalculator {
                 winningTradeCount = Math.incrementExact(winningTradeCount);
                 totalWinningNetProfitAmountKrw = Math.addExact(
                         totalWinningNetProfitAmountKrw,
+                        netProfitLossAmountKrw
+                );
+                largestWinningTradeNetProfitAmountKrw = Math.max(
+                        largestWinningTradeNetProfitAmountKrw,
                         netProfitLossAmountKrw
                 );
             } else if (netProfitLossAmountKrw < 0) {
@@ -92,6 +97,17 @@ public class SwingV1TradePerformanceCalculator {
                         losingTradeCount,
                         totalWinningNetProfitAmountKrw,
                         totalLosingNetLossAmountKrw
+                ),
+                largestWinningTradeNetProfitAmountKrw,
+                winningTradeCount == 0
+                        ? null
+                        : average(
+                                largestWinningTradeNetProfitAmountKrw,
+                                totalWinningNetProfitAmountKrw
+                        ),
+                Math.subtractExact(
+                        totalNetProfitLossAmountKrw,
+                        largestWinningTradeNetProfitAmountKrw
                 )
         );
     }
@@ -109,7 +125,10 @@ public class SwingV1TradePerformanceCalculator {
                 null,
                 null,
                 null,
-                SwingV1ProfitFactor.noCompletedTrades()
+                SwingV1ProfitFactor.noCompletedTrades(),
+                0L,
+                null,
+                0L
         );
     }
 
