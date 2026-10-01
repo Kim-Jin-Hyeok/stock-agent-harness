@@ -24,6 +24,7 @@ import com.stock.broker.order.persistence.BrokerOrderRepository;
 import com.stock.broker.order.scheduler.BrokerOrderReconciliationScheduler;
 import com.stock.broker.order.scheduler.config.BrokerOrderReconciliationSchedulerProperties;
 import com.stock.market.index.history.collection.MarketIndexDailyHistoryCollectionService;
+import com.stock.market.index.history.collection.backfill.MarketIndexDailyHistoryBackfillService;
 import com.stock.market.index.history.collection.config.MarketIndexDailyHistoryBootstrapProperties;
 import com.stock.market.index.history.collection.config.MarketIndexDailyHistoryCollectionProperties;
 import com.stock.market.index.history.collection.policy.MarketIndexDailyHistoryCollectionDatePolicy;
@@ -183,6 +184,18 @@ public class KisConfiguration {
             MarketIndexDailyObservationRepository observationRepository
     ) {
         return new MarketIndexDailyHistoryCollectionService(
+                historyProvider,
+                observationRepository
+        );
+    }
+
+    @Bean
+    public MarketIndexDailyHistoryBackfillService
+    marketIndexDailyHistoryBackfillService(
+            MarketIndexDailyHistoryProvider historyProvider,
+            MarketIndexDailyObservationRepository observationRepository
+    ) {
+        return new MarketIndexDailyHistoryBackfillService(
                 historyProvider,
                 observationRepository
         );

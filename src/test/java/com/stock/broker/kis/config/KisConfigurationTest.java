@@ -26,6 +26,7 @@ import com.stock.broker.order.persistence.BrokerOrderRepository;
 import com.stock.broker.order.scheduler.BrokerOrderReconciliationScheduler;
 import com.stock.broker.order.scheduler.config.BrokerOrderReconciliationSchedulerProperties;
 import com.stock.market.index.history.collection.MarketIndexDailyHistoryCollectionService;
+import com.stock.market.index.history.collection.backfill.MarketIndexDailyHistoryBackfillService;
 import com.stock.market.index.history.collection.config.MarketIndexDailyHistoryBootstrapProperties;
 import com.stock.market.index.history.collection.config.MarketIndexDailyHistoryCollectionProperties;
 import com.stock.market.index.history.collection.policy.MarketIndexDailyHistoryCollectionDatePolicy;
@@ -137,6 +138,9 @@ class KisConfigurationTest {
                     );
                     assertThat(context).doesNotHaveBean(
                             MarketIndexDailyHistoryCollectionService.class
+                    );
+                    assertThat(context).doesNotHaveBean(
+                            MarketIndexDailyHistoryBackfillService.class
                     );
                     assertThat(context).doesNotHaveBean(
                             MarketIndexDailyHistoryBootstrapRunner.class
@@ -403,6 +407,9 @@ class KisConfigurationTest {
                     );
                     assertThat(context).hasSingleBean(
                             MarketIndexDailyHistoryCollectionService.class
+                    );
+                    assertThat(context).hasSingleBean(
+                            MarketIndexDailyHistoryBackfillService.class
                     );
                     assertThat(context).hasSingleBean(
                             KisMarketIndexDailyHistoryRequestWaiter.class

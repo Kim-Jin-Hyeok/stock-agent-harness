@@ -73,6 +73,8 @@ market:
         daily-bar-available-at: "20:10"
         benchmark-ids: ["KOSPI"]
         initial-lookback-years: 3
+        backfill:
+          enabled: false
         bootstrap:
           enabled: false
         scheduler:

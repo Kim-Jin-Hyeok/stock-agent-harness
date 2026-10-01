@@ -124,6 +124,21 @@ class MarketIndexDailyObservationRepositoryTest {
     }
 
     @Test
+    void findsEarliestObservationForBenchmark() {
+        repository.saveAllAndFlush(List.of(
+                entity(BENCHMARK_ID, OBSERVATION_DATE, "3421.37"),
+                entity(BENCHMARK_ID, OBSERVATION_DATE.minusDays(1), "3400.25"),
+                entity("KOSDAQ", OBSERVATION_DATE.minusDays(2), "950.75")
+        ));
+
+        var earliest = repository.findTopByBenchmarkIdOrderByObservationDateAsc(BENCHMARK_ID)
+                .orElseThrow();
+
+        assertThat(earliest.getObservationDate()).isEqualTo(OBSERVATION_DATE.minusDays(1));
+        assertThat(earliest.getCloseValue()).isEqualByComparingTo("3400.25");
+    }
+
+    @Test
     void rejectsDuplicateBenchmarkAndObservationDate() {
         repository.saveAndFlush(entity(
                 BENCHMARK_ID,

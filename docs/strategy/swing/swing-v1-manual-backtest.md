@@ -26,6 +26,8 @@ WHERE benchmark_id = 'KOSPI';
 
 이 결과는 양 끝과 건수만 보여주므로 중간 결측이 없다는 증거는 아니다. 실행 중 전체 평가일 목록과 지수 관측일 목록을 비교하는 검증이 별도로 수행된다. 처음에는 선행 일봉이 충분한 짧은 기간을 선택한다. 백테스트는 평가일마다 과거 종목 이력을 조회하므로 장기간 실행은 DB 조회가 많아질 수 있다.
 
+지수 이력이 종목 이력보다 늦게 시작하면 [지수 일봉 과거 구간 보충 수집](../../market/index/history/market-index-daily-history-backfill.md)으로 최초 저장일 앞의 이력을 별도로 확보한다. 기존 최신 구간 수집은 `initial-lookback-years`를 늘려도 과거 이력을 보충하지 않는다. 보충 수집과 백테스트는 별도 프로세스로 실행한다.
+
 ## 실행
 
 아래 비용률은 **설정 형식을 보여주는 예시**이며 실제 KIS 계좌의 수수료·세금·슬리피지로 검증된 값이 아니다. 실제 성과 평가 전에는 계좌와 적용 시점에 맞는 값을 확인하고 모델 ID·버전을 고정한다. 날짜 역시 DB에 저장된 구간에 맞게 바꾼다.
@@ -44,6 +46,7 @@ $runArgs = @(
     '--market.price.history.collection.scheduler.enabled=false'
     '--market.index.history.collection.bootstrap.enabled=false'
     '--market.index.history.collection.scheduler.enabled=false'
+    '--market.index.history.collection.backfill.enabled=false'
     '--backtest.swing-v1.experiment.manual.enabled=true'
     '--backtest.swing-v1.experiment.manual.from-signal-date=2026-08-03'
     '--backtest.swing-v1.experiment.manual.to-signal-date=2026-08-28'

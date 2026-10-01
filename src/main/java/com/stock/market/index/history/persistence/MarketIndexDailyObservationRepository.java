@@ -17,4 +17,7 @@ public interface MarketIndexDailyObservationRepository
 
     Optional<MarketIndexDailyObservationEntity>
     findTopByBenchmarkIdOrderByObservationDateDesc(String benchmarkId);
+
+    Optional<MarketIndexDailyObservationEntity>
+    findTopByBenchmarkIdOrderByObservationDateAsc(String benchmarkId);
 }
