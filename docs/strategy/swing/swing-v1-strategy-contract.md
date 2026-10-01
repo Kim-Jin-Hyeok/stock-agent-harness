@@ -248,6 +248,8 @@ RISK_GUARD_REJECTED
 
 `SwingV1BacktestExperimentEvaluationService`는 실험을 한 번 실행한 결과로 요약을 계산하고 두 결과를 함께 반환한다. 현재 이 내부 호출은 HTTP API나 스케줄러에 연결되지 않는다.
 
+저장된 일봉으로 수동 검증하는 절차는 [SWING_V1 수동 백테스트 실행](swing-v1-manual-backtest.md)을 따른다. 수동 실행은 기본적으로 비활성화하며 결과를 DB에 저장하거나 주문하지 않는다.
+
 `SWING_V1` 평가는 최소한 다음 값을 포함한다.
 
 - 비용 차감 전 수익률

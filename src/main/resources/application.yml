@@ -10,6 +10,12 @@ logging:
     root: INFO
     com.stock: DEBUG
 
+backtest:
+  swing-v1:
+    experiment:
+      manual:
+        enabled: false
+
 broker:
   order:
     validity: 5m
