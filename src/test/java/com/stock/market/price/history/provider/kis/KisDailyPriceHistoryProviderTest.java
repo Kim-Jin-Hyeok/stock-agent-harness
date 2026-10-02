@@ -3,11 +3,14 @@ package com.stock.market.price.history.provider.kis;
 import com.stock.broker.kis.auth.KisTokenProvider;
 import com.stock.market.price.history.DailyPriceHistory;
 import com.stock.market.price.history.DailyPriceHistoryRequest;
+import com.stock.market.price.history.TradingVenueScope;
 import com.stock.market.price.history.provider.error.DailyPriceHistoryProviderException;
 import com.stock.market.price.history.provider.error.DailyPriceHistoryProviderFailureType;
 import com.stock.market.price.history.provider.kis.dto.KisDailyPriceBarOutput;
 import com.stock.market.price.history.provider.kis.dto.KisDailyPriceHistoryResponse;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
@@ -56,6 +59,10 @@ class KisDailyPriceHistoryProviderTest {
         assertThat(history.bars())
                 .extracting(bar -> bar.tradingDate())
                 .containsExactly(TO_DATE.minusDays(1), TO_DATE);
+        assertThat(history.bars()).allSatisfy(bar -> {
+            assertThat(bar.tradingValueKrw()).isEqualTo(71_234_567_890L);
+            assertThat(bar.tradingVenueScope()).isEqualTo(TradingVenueScope.INTEGRATED);
+        });
         verify(tokenProvider).getAccessToken();
         verify(client).getDailyPriceHistoryPage(REQUEST, ACCESS_TOKEN);
     }
@@ -97,6 +104,10 @@ class KisDailyPriceHistoryProviderTest {
         DailyPriceHistory history = provider.getDailyPriceHistory(REQUEST);
 
         assertThat(history.bars()).hasSize(101);
+        assertThat(history.bars()).allSatisfy(bar -> {
+            assertThat(bar.tradingValueKrw()).isEqualTo(71_234_567_890L);
+            assertThat(bar.tradingVenueScope()).isEqualTo(TradingVenueScope.INTEGRATED);
+        });
         assertThat(history.bars().getFirst().tradingDate())
                 .isEqualTo(oldestDate.minusDays(1));
         assertThat(history.bars().getLast().tradingDate())
@@ -205,6 +216,32 @@ class KisDailyPriceHistoryProviderTest {
                 DailyPriceHistoryProviderFailureType.PERMANENT,
                 "KIS daily price history response is invalid."
         );
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"-1", "invalid", "1.5", "9223372036854775808"})
+    void classifiesInvalidTradingValueAsPermanentFailure(String value) {
+        KisDailyPriceHistoryResponse response = successfulResponse(List.of(
+                new KisDailyPriceBarOutput("20260930", "70000", "73000",
+                        "69000", "72000", "1000000", value)
+        ));
+
+        assertFailure(provider(response), DailyPriceHistoryProviderFailureType.PERMANENT,
+                "KIS daily price history response is invalid.");
+    }
+
+    @Test
+    void preservesUnknownTradingValueWithoutInferringItFromOhlcv() {
+        KisDailyPriceHistoryResponse response = successfulResponse(List.of(
+                new KisDailyPriceBarOutput("20260930", "70000", "73000",
+                        "69000", "72000", "1000000")
+        ));
+
+        assertThat(provider(response).getDailyPriceHistory(REQUEST).bars())
+                .singleElement().satisfies(bar -> {
+                    assertThat(bar.tradingValueKrw()).isNull();
+                    assertThat(bar.tradingVenueScope()).isEqualTo(TradingVenueScope.INTEGRATED);
+                });
     }
 
     @Test
@@ -338,6 +375,7 @@ class KisDailyPriceHistoryProviderTest {
             KisDailyPriceHistoryRequestWaiter requestWaiter,
             int maxPages
     ) {
+        when(client.tradingVenueScope()).thenReturn(TradingVenueScope.INTEGRATED);
         return new KisDailyPriceHistoryProvider(
                 client,
                 tokenProvider,
@@ -370,7 +408,8 @@ class KisDailyPriceHistoryProviderTest {
                 "73000",
                 "69000",
                 "72000",
-                "1000000"
+                "1000000",
+                "71234567890"
         );
     }
 }

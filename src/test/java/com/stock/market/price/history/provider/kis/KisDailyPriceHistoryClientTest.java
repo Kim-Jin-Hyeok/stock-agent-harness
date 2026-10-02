@@ -1,10 +1,15 @@
 package com.stock.market.price.history.provider.kis;
 
+import com.stock.broker.kis.auth.KisTokenProvider;
+import com.stock.market.price.history.DailyPriceHistory;
 import com.stock.market.price.history.DailyPriceHistoryRequest;
+import com.stock.market.price.history.TradingVenueScope;
 import com.stock.market.price.history.provider.kis.dto.KisDailyPriceHistoryResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.MediaType;
@@ -103,7 +108,8 @@ class KisDailyPriceHistoryClientTest {
                                       "stck_hgpr": "73000",
                                       "stck_lwpr": "69000",
                                       "stck_clpr": "72000",
-                                      "acml_vol": "1234567"
+                                      "acml_vol": "1234567",
+                                      "acml_tr_pbmn": "87654321000"
                                     }
                                   ]
                                 }
@@ -118,6 +124,9 @@ class KisDailyPriceHistoryClientTest {
         assertThat(response.output()).hasSize(1);
         assertThat(response.output().getFirst().tradingDate())
                 .isEqualTo("20260923");
+        assertThat(response.output().getFirst().accumulatedTradingValue())
+                .isEqualTo("87654321000");
+        assertThat(client.tradingVenueScope()).isEqualTo(TradingVenueScope.INTEGRATED);
         assertThat(output.getAll())
                 .contains(
                         "KIS daily price history request completed. "
@@ -130,6 +139,44 @@ class KisDailyPriceHistoryClientTest {
                 .doesNotContain(APP_SECRET)
                 .doesNotContain(ACCESS_TOKEN);
         server.verify();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"KRX,J,KRX", "NXT,NX,NXT", "INTEGRATED,UN,INTEGRATED"})
+    void providerPreservesActualRequestedVenueAndTradingValue(
+            KisDailyPriceHistoryMarket market,
+            String marketCode,
+            TradingVenueScope expectedScope
+    ) {
+        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
+        MockRestServiceServer localServer = MockRestServiceServer.bindTo(builder).build();
+        KisDailyPriceHistoryClient marketClient = new KisDailyPriceHistoryClient(
+                builder.build(), APP_KEY, APP_SECRET, market, clock);
+        localServer.expect(requestTo(BASE_URL
+                        + "/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice"
+                        + "?FID_COND_MRKT_DIV_CODE=" + marketCode
+                        + "&FID_INPUT_ISCD=005930&FID_INPUT_DATE_1=20260901"
+                        + "&FID_INPUT_DATE_2=20260923&FID_PERIOD_DIV_CODE=D&FID_ORG_ADJ_PRC=0"))
+                .andExpect(method(GET))
+                .andRespond(withSuccess("""
+                        {"rt_cd":"0","msg_cd":"MCA00000","msg1":"Success",
+                         "output2":[{"stck_bsop_date":"20260923","stck_oprc":"70000",
+                          "stck_hgpr":"73000","stck_lwpr":"69000","stck_clpr":"72000",
+                          "acml_vol":"1234567","acml_tr_pbmn":"87654321000"}]}
+                        """, MediaType.APPLICATION_JSON));
+        KisTokenProvider tokenProvider = mock(KisTokenProvider.class);
+        when(tokenProvider.getAccessToken()).thenReturn(ACCESS_TOKEN);
+        KisDailyPriceHistoryProvider provider = new KisDailyPriceHistoryProvider(
+                marketClient, tokenProvider,
+                mock(KisDailyPriceHistoryRequestWaiter.class), 1);
+
+        DailyPriceHistory history = provider.getDailyPriceHistory(request());
+
+        assertThat(history.bars()).singleElement().satisfies(bar -> {
+            assertThat(bar.tradingValueKrw()).isEqualTo(87_654_321_000L);
+            assertThat(bar.tradingVenueScope()).isEqualTo(expectedScope);
+        });
+        localServer.verify();
     }
 
     @Test

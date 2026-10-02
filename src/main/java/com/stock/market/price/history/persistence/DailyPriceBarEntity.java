@@ -1,8 +1,11 @@
 package com.stock.market.price.history.persistence;
 
 import com.stock.market.price.history.DailyPriceBar;
+import com.stock.market.price.history.TradingVenueScope;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -51,6 +54,13 @@ public class DailyPriceBarEntity {
     @Column(name = "volume", nullable = false)
     private long volume;
 
+    @Column(name = "trading_value_krw")
+    private Long tradingValueKrw;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "trading_venue_scope", length = 30)
+    private TradingVenueScope tradingVenueScope;
+
     public static DailyPriceBarEntity from(
             String symbol,
             DailyPriceBar bar
@@ -68,6 +78,8 @@ public class DailyPriceBarEntity {
         entity.lowPriceKrw = bar.lowPriceKrw();
         entity.closePriceKrw = bar.closePriceKrw();
         entity.volume = bar.volume();
+        entity.tradingValueKrw = bar.tradingValueKrw();
+        entity.tradingVenueScope = bar.tradingVenueScope();
         return entity;
     }
 
@@ -78,7 +90,9 @@ public class DailyPriceBarEntity {
                 highPriceKrw,
                 lowPriceKrw,
                 closePriceKrw,
-                volume
+                volume,
+                tradingValueKrw,
+                tradingVenueScope
         );
     }
 }

@@ -2,6 +2,7 @@ package com.stock.harness.persistence;
 
 import com.stock.market.price.history.DailyPriceBar;
 import com.stock.market.price.history.DailyPriceHistory;
+import com.stock.market.price.history.TradingVenueScope;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -21,7 +22,9 @@ class HarnessDailyPriceHistorySnapshotTest {
                 71_000L,
                 68_000L,
                 70_000L,
-                1_000_000L
+                1_000_000L,
+                69_123_456_789L,
+                TradingVenueScope.KRX
         );
 
         HarnessDailyPriceHistorySnapshot snapshot =
@@ -33,6 +36,19 @@ class HarnessDailyPriceHistorySnapshotTest {
         assertThat(snapshot.bars()).containsExactly(
                 HarnessDailyPriceBarSnapshot.from(bar)
         );
+        assertThat(snapshot.bars().getFirst().tradingValueKrw()).isEqualTo(69_123_456_789L);
+        assertThat(snapshot.bars().getFirst().tradingVenueScope()).isEqualTo(TradingVenueScope.KRX);
+    }
+
+    @Test
+    void snapshotDoesNotReplaceUnknownTradingMetadataWithDefaults() {
+        DailyPriceBar legacy = new DailyPriceBar(LocalDate.of(2026, 1, 2),
+                69_000L, 71_000L, 68_000L, 70_000L, 1_000_000L);
+
+        HarnessDailyPriceBarSnapshot snapshot = HarnessDailyPriceBarSnapshot.from(legacy);
+
+        assertThat(snapshot.tradingValueKrw()).isNull();
+        assertThat(snapshot.tradingVenueScope()).isNull();
     }
 
     @Test

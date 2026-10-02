@@ -3,6 +3,7 @@ package com.stock.market.price.history.collection;
 import com.stock.market.price.history.DailyPriceBar;
 import com.stock.market.price.history.DailyPriceHistory;
 import com.stock.market.price.history.DailyPriceHistoryRequest;
+import com.stock.market.price.history.TradingVenueScope;
 import com.stock.market.price.history.persistence.DailyPriceBarEntity;
 import com.stock.market.price.history.persistence.DailyPriceBarRepository;
 import com.stock.market.price.history.provider.DailyPriceHistoryProvider;
@@ -15,10 +16,12 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 class DailyPriceHistoryCollectionServiceTest {
@@ -84,6 +87,27 @@ class DailyPriceHistoryCollectionServiceTest {
         verify(dependencies.provider()).getDailyPriceHistory(
                 incrementalRequest
         );
+    }
+
+    @Test
+    void savesProviderTradingMetadataWithoutAdditionalRequests() {
+        Dependencies dependencies = dependencies();
+        DailyPriceBar known = new DailyPriceBar(FROM_DATE, 70_000L, 73_000L,
+                69_000L, 72_000L, 1_000_000L, 71_234_567_890L, TradingVenueScope.INTEGRATED);
+        DailyPriceBar unknown = bar(TO_DATE);
+        when(dependencies.repository().findTopBySymbolOrderByTradingDateDesc(SYMBOL))
+                .thenReturn(Optional.empty());
+        when(dependencies.provider().getDailyPriceHistory(REQUEST))
+                .thenReturn(new DailyPriceHistory(SYMBOL, List.of(known, unknown)));
+
+        dependencies.service().collect(REQUEST);
+
+        verify(dependencies.repository()).saveAll(argThat(
+                (List<DailyPriceBarEntity> entities) -> entities.stream()
+                        .map(DailyPriceBarEntity::toBar).toList().equals(List.of(known, unknown))
+        ));
+        verify(dependencies.provider()).getDailyPriceHistory(REQUEST);
+        verifyNoMoreInteractions(dependencies.provider());
     }
 
     @Test

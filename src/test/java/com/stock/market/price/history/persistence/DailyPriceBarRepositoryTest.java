@@ -1,9 +1,13 @@
 package com.stock.market.price.history.persistence;
 
 import com.stock.market.price.history.DailyPriceBar;
+import com.stock.market.price.history.TradingVenueScope;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 
@@ -22,6 +26,9 @@ class DailyPriceBarRepositoryTest {
     @Autowired
     private DailyPriceBarRepository repository;
 
+    @Autowired
+    private TestEntityManager entityManager;
+
     @Test
     void savesAndRestoresDailyPriceBar() {
         DailyPriceBar expected = bar(TRADING_DATE, 72_000L);
@@ -29,11 +36,63 @@ class DailyPriceBarRepositoryTest {
         DailyPriceBarEntity saved = repository.saveAndFlush(
                 DailyPriceBarEntity.from(SYMBOL, expected)
         );
+        entityManager.clear();
         DailyPriceBarEntity restored = repository.findById(saved.getId())
                 .orElseThrow();
 
         assertThat(restored.getSymbol()).isEqualTo(SYMBOL);
         assertThat(restored.toBar()).isEqualTo(expected);
+        assertThat(restored.getTradingValueKrw()).isNull();
+        assertThat(restored.getTradingVenueScope()).isNull();
+    }
+
+    @ParameterizedTest
+    @EnumSource(TradingVenueScope.class)
+    void persistsTradingValueAndVenueAsString(TradingVenueScope scope) {
+        DailyPriceBar expected = barWithTradingValue(71_234_567_890L, scope);
+        DailyPriceBarEntity saved = repository.saveAndFlush(
+                DailyPriceBarEntity.from(SYMBOL, expected)
+        );
+        entityManager.clear();
+
+        DailyPriceBarEntity restored = repository.findById(saved.getId()).orElseThrow();
+
+        assertThat(restored.getTradingValueKrw()).isEqualTo(71_234_567_890L);
+        assertThat(restored.getTradingVenueScope()).isEqualTo(scope);
+        assertThat(restored.toBar()).isEqualTo(expected);
+        Object storedScope = entityManager.getEntityManager().createNativeQuery(
+                        "SELECT trading_venue_scope FROM daily_price_bar WHERE id = :id")
+                .setParameter("id", saved.getId()).getSingleResult();
+        assertThat(storedScope).isEqualTo(scope.name());
+    }
+
+    @Test
+    void persistsConfirmedZeroAndUnknownVenueWithoutDefaults() {
+        DailyPriceBar expected = barWithTradingValue(0L, null);
+        DailyPriceBarEntity saved = repository.saveAndFlush(
+                DailyPriceBarEntity.from(SYMBOL, expected)
+        );
+        entityManager.clear();
+
+        assertThat(repository.findById(saved.getId()).orElseThrow().toBar())
+                .isEqualTo(expected);
+    }
+
+    @Test
+    void persistsUnknownTradingValueWithKnownVenue() {
+        DailyPriceBar expected = barWithTradingValue(null, TradingVenueScope.NXT);
+        DailyPriceBarEntity saved = repository.saveAndFlush(
+                DailyPriceBarEntity.from(SYMBOL, expected)
+        );
+        entityManager.clear();
+
+        assertThat(repository.findById(saved.getId()).orElseThrow().toBar())
+                .isEqualTo(expected);
+    }
+
+    private DailyPriceBar barWithTradingValue(Long value, TradingVenueScope scope) {
+        return new DailyPriceBar(TRADING_DATE, 71_000L, 73_000L, 70_000L,
+                72_000L, 1_000_000L, value, scope);
     }
 
     @Test

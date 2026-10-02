@@ -5,8 +5,12 @@ import com.stock.backtest.portfolio.BacktestPortfolioState;
 import com.stock.backtest.strategy.swing.v1.experiment.evaluation.SwingV1BacktestExperimentEvaluation;
 import com.stock.backtest.strategy.swing.v1.experiment.evaluation.SwingV1BacktestExperimentEvaluationService;
 import com.stock.backtest.strategy.swing.v1.experiment.execution.SwingV1BacktestExperimentRequest;
+import com.stock.market.price.history.DailyPriceBar;
+import com.stock.market.price.history.TradingVenueScope;
 import com.stock.trade.cost.model.TradeCostModel;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
@@ -93,6 +97,30 @@ class SwingV1CostSensitivityServiceTest {
         assertThat(first.evaluations().getFirst()).isEqualTo(direct);
         assertThat(second).isEqualTo(first);
         assertThat(sensitivity.baseRequest()).isEqualTo(request());
+    }
+
+    @ParameterizedTest
+    @EnumSource(TradingVenueScope.class)
+    void tradingMetadataDoesNotChangeDecisionsCostsOrBacktestResults(TradingVenueScope scope) {
+        SwingV1CostSensitivityFixtures legacy = new SwingV1CostSensitivityFixtures();
+        SwingV1CostSensitivityFixtures withMetadata = new SwingV1CostSensitivityFixtures(
+                bar -> new DailyPriceBar(bar.tradingDate(), bar.openPriceKrw(),
+                        bar.highPriceKrw(), bar.lowPriceKrw(), bar.closePriceKrw(),
+                        bar.volume(), 9_999_999_999L, scope)
+        );
+        SwingV1CostSensitivityRequest sensitivity = SwingV1CostSensitivityRequest.forSlippageStress(request());
+        SwingV1CostSensitivityResult expected = new SwingV1CostSensitivityService(legacy.evaluationService)
+                .evaluate(sensitivity);
+
+        SwingV1CostSensitivityResult actual = new SwingV1CostSensitivityService(withMetadata.evaluationService)
+                .evaluate(sensitivity);
+
+        assertThat(actual).isEqualTo(expected);
+        assertThat(actual.evaluations()).allSatisfy(evaluation -> {
+            assertThat(evaluation.experimentResult().reports()).allSatisfy(report ->
+                    assertThat(report.completedTrades()).hasSize(1));
+            assertThat(evaluation.summary().losingSymbolCount()).isEqualTo(2);
+        });
     }
 
     @Test

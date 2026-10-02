@@ -9,8 +9,22 @@ public record DailyPriceBar(
         long highPriceKrw,
         long lowPriceKrw,
         long closePriceKrw,
-        long volume
+        long volume,
+        Long tradingValueKrw,
+        TradingVenueScope tradingVenueScope
 ) {
+    public DailyPriceBar(
+            LocalDate tradingDate,
+            long openPriceKrw,
+            long highPriceKrw,
+            long lowPriceKrw,
+            long closePriceKrw,
+            long volume
+    ) {
+        this(tradingDate, openPriceKrw, highPriceKrw, lowPriceKrw,
+                closePriceKrw, volume, null, null);
+    }
+
     public DailyPriceBar {
         Objects.requireNonNull(tradingDate, "tradingDate must not be null.");
         if (openPriceKrw <= 0) {
@@ -41,6 +55,11 @@ public record DailyPriceBar(
         }
         if (volume < 0) {
             throw new IllegalArgumentException("volume must not be negative.");
+        }
+        if (tradingValueKrw != null && tradingValueKrw < 0) {
+            throw new IllegalArgumentException(
+                    "tradingValueKrw must not be negative."
+            );
         }
     }
 }

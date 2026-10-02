@@ -162,7 +162,9 @@ public class KisDailyPriceHistoryProvider implements DailyPriceHistoryProvider {
             );
         }
 
-        DailyPriceBar bar = output.toBar();
+        DailyPriceBar bar = output.toBar(
+                dailyPriceHistoryClient.tradingVenueScope()
+        );
         if (bar.tradingDate().isBefore(request.fromDate())
                 || bar.tradingDate().isAfter(request.toDate())) {
             throw new IllegalStateException(

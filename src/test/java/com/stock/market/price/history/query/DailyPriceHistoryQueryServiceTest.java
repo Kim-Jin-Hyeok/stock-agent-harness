@@ -3,6 +3,7 @@ package com.stock.market.price.history.query;
 import com.stock.market.price.history.DailyPriceBar;
 import com.stock.market.price.history.DailyPriceHistory;
 import com.stock.market.price.history.DailyPriceHistoryRequest;
+import com.stock.market.price.history.TradingVenueScope;
 import com.stock.market.price.history.persistence.DailyPriceBarEntity;
 import com.stock.market.price.history.persistence.DailyPriceBarRepository;
 import org.junit.jupiter.api.Test;
@@ -77,6 +78,35 @@ class DailyPriceHistoryQueryServiceTest {
 
         assertThat(history.symbol()).isEqualTo(SYMBOL);
         assertThat(history.bars()).isEmpty();
+    }
+
+    @Test
+    void preservesTradingMetadataThroughEveryStoredHistoryQuery() {
+        DailyPriceBarRepository repository = mock(DailyPriceBarRepository.class);
+        DailyPriceHistoryQueryService service = new DailyPriceHistoryQueryService(repository);
+        DailyPriceBar known = new DailyPriceBar(FROM_DATE, 72_000L, 73_000L,
+                71_000L, 72_000L, 1_000_000L, 71_234_567_890L, TradingVenueScope.KRX);
+        DailyPriceBar unknown = bar(TO_DATE, 73_000L);
+        DailyPriceBarEntity knownEntity = DailyPriceBarEntity.from(SYMBOL, known);
+        DailyPriceBarEntity unknownEntity = DailyPriceBarEntity.from(SYMBOL, unknown);
+        when(repository.findAllBySymbolAndTradingDateBetweenOrderByTradingDateAsc(
+                SYMBOL, FROM_DATE, TO_DATE)).thenReturn(List.of(knownEntity, unknownEntity));
+        when(repository.findAllBySymbolOrderByTradingDateDesc(
+                SYMBOL, PageRequest.of(0, 2))).thenReturn(List.of(unknownEntity, knownEntity));
+        when(repository.findAllBySymbolAndTradingDateLessThanEqualOrderByTradingDateDesc(
+                SYMBOL, TO_DATE, PageRequest.of(0, 2)))
+                .thenReturn(List.of(unknownEntity, knownEntity));
+        when(repository.findTopBySymbolAndTradingDateAfterOrderByTradingDateAsc(
+                SYMBOL, FROM_DATE.minusDays(1))).thenReturn(Optional.of(knownEntity));
+
+        assertThat(service.getDailyPriceHistory(REQUEST).bars())
+                .containsExactly(known, unknown);
+        assertThat(service.getLatestDailyPriceHistory(SYMBOL, 2).bars())
+                .containsExactly(known, unknown);
+        assertThat(service.getLatestDailyPriceHistoryAtOrBefore(SYMBOL, TO_DATE, 2).bars())
+                .containsExactly(known, unknown);
+        assertThat(service.getFirstDailyPriceBarAfter(SYMBOL, FROM_DATE.minusDays(1)))
+                .contains(known);
     }
 
     @Test

@@ -7,6 +7,7 @@ import com.stock.harness.tool.HarnessToolExecutionReasonCode;
 import com.stock.harness.tool.HarnessToolExecutionStatus;
 import com.stock.harness.tool.HarnessToolType;
 import com.stock.market.price.lookup.CurrentPriceLookupSource;
+import com.stock.market.price.history.TradingVenueScope;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.risk.RiskReasonCode;
 import com.stock.strategy.analysis.movingaverage.MovingAverageAnalysisStatus;
@@ -280,6 +281,10 @@ class HarnessRunSnapshotJsonConverterTest {
                 );
         assertThat(restored.get(2).dailyPriceHistorySnapshot())
                 .isEqualTo(dailyPriceHistorySnapshot());
+        assertThat(restored.get(2).dailyPriceHistorySnapshot().bars().getFirst()
+                .tradingValueKrw()).isEqualTo(69_123_456_789L);
+        assertThat(restored.get(2).dailyPriceHistorySnapshot().bars().getFirst()
+                .tradingVenueScope()).isEqualTo(TradingVenueScope.KRX);
         assertThat(restored.getLast().request()).isEqualTo(
                 new HarnessToolRequestSnapshot(HarnessToolType.GET_CURRENT_PRICE, "005930")
         );
@@ -316,6 +321,31 @@ class HarnessRunSnapshotJsonConverterTest {
             assertThat(snapshot.currentPriceSnapshot().observedAt()).isNull();
             assertThat(snapshot.currentPriceSource()).isNull();
         });
+    }
+
+    @Test
+    void restoresLegacyDailyHistoryJsonWithoutTradingMetadata() {
+        String json = """
+                [{
+                  "status":"EXECUTED", "type":"GET_DAILY_PRICE_HISTORY",
+                  "reasonCode":"TOOL_EXECUTED", "reason":"Success",
+                  "dailyPriceHistorySnapshot":{
+                    "symbol":"005930", "bars":[{
+                      "tradingDate":"2026-01-02", "openPriceKrw":69000,
+                      "highPriceKrw":71000, "lowPriceKrw":68000,
+                      "closePriceKrw":70000, "volume":1000000
+                    }]
+                  }
+                }]
+                """;
+
+        HarnessDailyPriceBarSnapshot bar = converter.toToolExecutionSnapshots(json)
+                .getFirst().dailyPriceHistorySnapshot().bars().getFirst();
+
+        assertThat(bar).isEqualTo(new HarnessDailyPriceBarSnapshot(
+                LocalDate.of(2026, 1, 2), 69_000L, 71_000L, 68_000L, 70_000L, 1_000_000L));
+        assertThat(bar.tradingValueKrw()).isNull();
+        assertThat(bar.tradingVenueScope()).isNull();
     }
 
     @Test
@@ -442,7 +472,9 @@ class HarnessRunSnapshotJsonConverterTest {
                         71_000L,
                         68_000L,
                         70_000L,
-                        1_000_000L
+                        1_000_000L,
+                        69_123_456_789L,
+                        TradingVenueScope.KRX
                 ))
         );
     }

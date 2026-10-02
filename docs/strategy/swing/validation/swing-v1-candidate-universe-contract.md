@@ -22,12 +22,24 @@ runtimeSelectionImplemented: false
 | `StrategyStockUniverseRegistry` | 운영 설정의 전략별 종목 목록을 반환한다. 시장 전체 검색이나 유동성 선정을 하지 않는다. |
 | `SwingV1BacktestExperimentRequest.candidateSymbols` | 백테스트에 사용할 명시적인 후보와 순서를 받는다. 운영 후보를 자동으로 가져오지 않는다. |
 | `SwingV1BacktestExperimentService` | 후보마다 같은 초기 현금의 독립 포트폴리오를 평가한다. 하나라도 실패하면 성공한 종목만 남기지 않는다. |
-| `DailyPriceBar`, `DailyPriceBarEntity` | OHLCV를 보관한다. 실제 일별 거래대금·과거 상장 상태·종목 유형 이력은 이 모델에 없다. |
+| `DailyPriceBar`, `DailyPriceBarEntity` | OHLCV와 nullable 거래대금·조회 시장 범위를 보관한다. 기존 행은 새 값이 `null`이며 과거 상장 상태·종목 유형·제공 시점 이력은 없다. |
 | 현재 관측 원본 | 소규모 고정 표본이다. 과거 시장 전체 구성이나 당시 제공된 데이터 버전의 증거를 대신하지 않는다. |
 
-이번 변경은 문서만 추가한다. 신규 Java 패키지, 종목 마스터 저장소, 선정 서비스, 수집 API, 마이그레이션과 자동 실행 설정은 추가하지 않는다. 운영 후보·주문·스케줄·Risk·AI Prompt도 바꾸지 않는다.
+후보 선정 계약은 여전히 문서 설계 단계다. 일봉 거래대금 저장 경로가 추가되어도 종목 마스터·선정 서비스·평균 계산·자동 선정은 구현되지 않았다. 운영 후보·주문·스케줄·Risk·AI Prompt는 바꾸지 않는다.
 
 검증 표본을 선정하는 Universe와 거래마다 신호를 거르는 전략 Screener는 구분한다. 이 계약은 첫 평가 전 표본을 정하는 전자만 다룬다. 골든크로스·ATR·과거 전략 수익률로 후보를 선정하거나 운영 BUY 조건에 유동성 필터를 삽입하지 않는다.
+
+### 일봉 거래대금 저장 경로
+
+- `KisDailyPriceBarOutput.accumulatedTradingValue`는 기간별 시세 응답 `output2`의 `acml_tr_pbmn`을 읽는다. 기존 일봉 API 응답을 사용하며 거래대금 전용 호출을 추가하지 않는다.
+- `DailyPriceBar.tradingValueKrw`와 DB `trading_value_krw`는 nullable `Long`/`BIGINT`다. 숫자 `0`은 확인된 0으로 보존하고, 필드 누락·`null`·공백은 미확인 `null`로 보존한다. 음수·숫자가 아닌 값·`Long` 범위 초과는 Provider의 영구 입력 실패로 처리한다. 종가 × 거래량으로 대체하지 않는다.
+- 저장 계약은 응답 정수를 배율 적용 없이 `tradingValueKrw`에 보존한다. **공식 명세에서 누적 거래대금 필드·일봉 주기·시장 코드는 확인했지만 이 필드의 원 단위 배율과 시간외 포함 범위는 명시적으로 확인하지 못했다.** `Krw`라는 필드명이나 테스트 성공이 원천 단위 검증을 대신하지 않는다. 실제 유동성 계산에 사용하기 전에 동일 종목·일자·시장 범위의 공식 거래대금과 대조하고, 검증 결과·배율·세션 범위를 실험 원천 계약에 고정해야 한다.
+- `TradingVenueScope`는 Broker에 의존하지 않는 `com.stock.market.price.history`의 enum이다. `KRX`, `NXT`, `INTEGRATED`를 사용한다. KIS Client가 실제 요청하는 `J`, `NX`, `UN`과 명시적으로 대응하며 DB에는 enum 이름을 문자열로 저장한다. 이 값은 **요청한 조회 범위**이며 KOSPI/KOSDAQ 소속, 과거 시장의 구성이나 세션 확정 여부를 증명하지 않는다.
+- `DailyPriceBarEntity.toBar()`, 기존 DB 조회 서비스와 `HarnessDailyPriceBarSnapshot.from()`은 거래대금과 범위를 그대로 전달한다. 구 생성자와 구 JSON에서 새 필드가 없으면 두 값 모두 `null`이다. 새 스냅샷도 이 구분을 보존한다. 현재 설정을 과거 행에 대입하지 않는다.
+- `V4__add_daily_price_trading_value.sql`은 두 nullable 컬럼만 추가한다. 기존 OHLCV·고유키는 유지한다. 저장 단위는 아직 `(symbol, trading_date)`이므로 같은 날짜의 여러 시장 범위를 동시에 저장하는 구조가 아니며 범위가 다른 기간을 검증 없이 합산하지 않는다.
+- 증분 수집 서비스는 최신 저장일 이후만 조회한다. 이미 저장된 과거 거래대금이 `null`이어도 자동 재조회하지 않는다. 과거 데이터 보충은 호출 예산·범위·기존 값 충돌 정책을 확정한 별도 작업이다. 이 저장 변경은 과거 재수집, 실 DB 마이그레이션 적용이나 모의투자 서버 재시작을 포함하지 않는다.
+
+원천 확인: [KIS 기간별 시세 공식 명세](https://apiportal.koreainvestment.com/apiservice-apiservice?/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice), [KIS 공식 요청 예제](https://github.com/koreainvestment/open-trading-api/blob/main/examples_llm/domestic_stock/inquire_daily_itemchartprice/inquire_daily_itemchartprice.py), [KIS 공식 응답 필드 예제](https://github.com/koreainvestment/open-trading-api/blob/main/examples_llm/domestic_stock/inquire_daily_itemchartprice/chk_inquire_daily_itemchartprice.py). 확인일은 `2026-10-03`이며 실 Broker 호출 없이 공개 명세를 열람했다.
 
 ## 선정 시점과 대상
 

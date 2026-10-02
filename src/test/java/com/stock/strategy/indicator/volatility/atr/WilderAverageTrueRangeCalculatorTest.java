@@ -2,7 +2,10 @@ package com.stock.strategy.indicator.volatility.atr;
 
 import com.stock.market.price.history.DailyPriceBar;
 import com.stock.market.price.history.DailyPriceHistory;
+import com.stock.market.price.history.TradingVenueScope;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -54,6 +57,26 @@ class WilderAverageTrueRangeCalculatorTest {
                 .isEqualByComparingTo("12.44");
         assertThat(result.toTradingDate())
                 .isEqualTo(LocalDate.of(2026, 9, 5));
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {0L, 99_999_999_999L})
+    void tradingMetadataDoesNotChangeWilderAtr(Long value) {
+        DailyPriceHistory legacy = history(
+                bar(1, 100L, 100L, 100L, 100L),
+                bar(2, 100L, 110L, 95L, 105L),
+                bar(3, 105L, 112L, 100L, 110L),
+                bar(4, 110L, 115L, 104L, 108L),
+                bar(5, 108L, 120L, 108L, 118L)
+        );
+        DailyPriceHistory withMetadata = new DailyPriceHistory(legacy.symbol(),
+                legacy.bars().stream().map(bar -> new DailyPriceBar(
+                        bar.tradingDate(), bar.openPriceKrw(), bar.highPriceKrw(),
+                        bar.lowPriceKrw(), bar.closePriceKrw(), bar.volume(),
+                        value, TradingVenueScope.NXT)).toList());
+
+        assertThat(calculator.calculate(withMetadata, 3))
+                .isEqualTo(calculator.calculate(legacy, 3));
     }
 
     @Test

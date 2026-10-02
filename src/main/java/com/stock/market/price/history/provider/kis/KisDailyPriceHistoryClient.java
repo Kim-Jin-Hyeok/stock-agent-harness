@@ -1,6 +1,7 @@
 package com.stock.market.price.history.provider.kis;
 
 import com.stock.market.price.history.DailyPriceHistoryRequest;
+import com.stock.market.price.history.TradingVenueScope;
 import com.stock.market.price.history.provider.kis.dto.KisDailyPriceHistoryResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -50,6 +51,10 @@ public class KisDailyPriceHistoryClient {
                 clock,
                 "clock must not be null."
         );
+    }
+
+    public TradingVenueScope tradingVenueScope() {
+        return market.toTradingVenueScope();
     }
 
     public KisDailyPriceHistoryResponse getDailyPriceHistoryPage(

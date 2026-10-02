@@ -2,7 +2,10 @@ package com.stock.strategy.indicator.movingaverage;
 
 import com.stock.market.price.history.DailyPriceBar;
 import com.stock.market.price.history.DailyPriceHistory;
+import com.stock.market.price.history.TradingVenueScope;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -53,6 +56,20 @@ class SimpleMovingAverageCalculatorTest {
 
         assertThat(result.averagePriceKrw())
                 .isEqualByComparingTo("100.67");
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {0L, 99_999_999_999L})
+    void tradingMetadataDoesNotChangeMovingAverage(Long value) {
+        DailyPriceHistory legacy = history(bar(1, 10_000L), bar(2, 20_000L), bar(3, 30_000L));
+        DailyPriceHistory withMetadata = new DailyPriceHistory(legacy.symbol(),
+                legacy.bars().stream().map(bar -> new DailyPriceBar(
+                        bar.tradingDate(), bar.openPriceKrw(), bar.highPriceKrw(),
+                        bar.lowPriceKrw(), bar.closePriceKrw(), bar.volume(),
+                        value, TradingVenueScope.INTEGRATED)).toList());
+
+        assertThat(calculator.calculate(withMetadata, 3))
+                .isEqualTo(calculator.calculate(legacy, 3));
     }
 
     @Test

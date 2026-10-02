@@ -55,6 +55,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.function.UnaryOperator;
 import java.util.stream.IntStream;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -71,9 +72,14 @@ final class SwingV1CostSensitivityFixtures {
     final SwingV1BacktestExperimentEvaluationService evaluationService;
 
     SwingV1CostSensitivityFixtures() {
+        this(UnaryOperator.identity());
+    }
+
+    SwingV1CostSensitivityFixtures(UnaryOperator<DailyPriceBar> barTransform) {
+        List<DailyPriceBar> bars = bars().stream().map(barTransform).toList();
         when(queryService.getDailyPriceHistory(any())).thenAnswer(invocation -> {
             DailyPriceHistoryRequest request = invocation.getArgument(0);
-            return new DailyPriceHistory(request.symbol(), bars().stream()
+            return new DailyPriceHistory(request.symbol(), bars.stream()
                     .filter(bar -> !bar.tradingDate().isBefore(request.fromDate())
                             && !bar.tradingDate().isAfter(request.toDate())).toList());
         });
@@ -82,14 +88,14 @@ final class SwingV1CostSensitivityFixtures {
                     String symbol = invocation.getArgument(0);
                     LocalDate date = invocation.getArgument(1);
                     int limit = invocation.getArgument(2);
-                    List<DailyPriceBar> history = bars().stream()
+                    List<DailyPriceBar> history = bars.stream()
                             .filter(bar -> !bar.tradingDate().isAfter(date)).toList();
                     return new DailyPriceHistory(symbol,
                             history.subList(Math.max(0, history.size() - limit), history.size()));
                 });
         when(queryService.getFirstDailyPriceBarAfter(anyString(), any())).thenAnswer(invocation -> {
             LocalDate date = invocation.getArgument(1);
-            return bars().stream().filter(bar -> bar.tradingDate().isAfter(date)).findFirst();
+            return bars.stream().filter(bar -> bar.tradingDate().isAfter(date)).findFirst();
         });
         StrategyDailyPriceHistoryPolicy historyPolicy = mock(StrategyDailyPriceHistoryPolicy.class);
         when(historyPolicy.getLatestBarCount(IDENTITY)).thenReturn(120);

@@ -1,6 +1,8 @@
 package com.stock.market.price.history;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import java.time.LocalDate;
 
@@ -27,6 +29,46 @@ class DailyPriceBarTest {
         assertThat(bar.lowPriceKrw()).isEqualTo(95_000L);
         assertThat(bar.closePriceKrw()).isEqualTo(105_000L);
         assertThat(bar.volume()).isEqualTo(1_000_000L);
+        assertThat(bar.tradingValueKrw()).isNull();
+        assertThat(bar.tradingVenueScope()).isNull();
+    }
+
+    @ParameterizedTest
+    @EnumSource(TradingVenueScope.class)
+    void preservesTradingValueAndVenueScope(TradingVenueScope scope) {
+        DailyPriceBar bar = barWithTradingValue(100_500_000_000L, scope);
+
+        assertThat(bar.tradingValueKrw()).isEqualTo(100_500_000_000L);
+        assertThat(bar.tradingVenueScope()).isEqualTo(scope);
+    }
+
+    @Test
+    void distinguishesUnknownTradingValueFromConfirmedZero() {
+        DailyPriceBar unknown = barWithTradingValue(null, TradingVenueScope.KRX);
+        DailyPriceBar zero = barWithTradingValue(0L, TradingVenueScope.KRX);
+
+        assertThat(unknown.tradingValueKrw()).isNull();
+        assertThat(unknown.tradingVenueScope()).isEqualTo(TradingVenueScope.KRX);
+        assertThat(zero.tradingValueKrw()).isZero();
+        assertThat(unknown).isNotEqualTo(zero);
+    }
+
+    @Test
+    void doesNotInferUnknownVenueFromKnownTradingValue() {
+        assertThat(barWithTradingValue(100_500_000_000L, null)
+                .tradingVenueScope()).isNull();
+    }
+
+    @Test
+    void rejectsNegativeTradingValue() {
+        assertThatThrownBy(() -> barWithTradingValue(-1L, TradingVenueScope.KRX))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("tradingValueKrw must not be negative.");
+    }
+
+    private DailyPriceBar barWithTradingValue(Long value, TradingVenueScope scope) {
+        return new DailyPriceBar(TRADING_DATE, 100_000L, 110_000L, 95_000L,
+                105_000L, 1_000_000L, value, scope);
     }
 
     @Test
