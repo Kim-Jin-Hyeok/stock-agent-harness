@@ -95,4 +95,51 @@ public class DailyPriceBarEntity {
                 tradingVenueScope
         );
     }
+
+    public boolean hasMissingTradingValueMetadata() {
+        return tradingValueKrw == null || tradingVenueScope == null;
+    }
+
+    public void validateOhlcv(DailyPriceBar bar) {
+        Objects.requireNonNull(bar, "bar must not be null.");
+        if (!tradingDate.equals(bar.tradingDate())
+                || openPriceKrw != bar.openPriceKrw()
+                || highPriceKrw != bar.highPriceKrw()
+                || lowPriceKrw != bar.lowPriceKrw()
+                || closePriceKrw != bar.closePriceKrw()
+                || volume != bar.volume()) {
+            throw new IllegalStateException(
+                    "Backfill OHLCV must match stored bar. date=" + tradingDate
+            );
+        }
+    }
+
+    public void validateTradingValueBackfill(DailyPriceBar bar) {
+        validateOhlcv(bar);
+        if (bar.tradingValueKrw() == null || bar.tradingVenueScope() == null) {
+            throw new IllegalStateException(
+                    "Backfill trading value and venue must be known. date=" + tradingDate
+            );
+        }
+        if ((tradingValueKrw != null && !tradingValueKrw.equals(bar.tradingValueKrw()))
+                || (tradingVenueScope != null && tradingVenueScope != bar.tradingVenueScope())) {
+            throw new IllegalStateException(
+                    "Backfill metadata must not conflict with stored values. date=" + tradingDate
+            );
+        }
+    }
+
+    public boolean fillMissingTradingValueMetadata(DailyPriceBar bar) {
+        validateTradingValueBackfill(bar);
+        if (!hasMissingTradingValueMetadata()) {
+            return false;
+        }
+        if (tradingValueKrw == null) {
+            tradingValueKrw = bar.tradingValueKrw();
+        }
+        if (tradingVenueScope == null) {
+            tradingVenueScope = bar.tradingVenueScope();
+        }
+        return true;
+    }
 }

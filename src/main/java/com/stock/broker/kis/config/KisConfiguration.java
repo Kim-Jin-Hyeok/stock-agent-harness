@@ -37,6 +37,7 @@ import com.stock.market.index.history.provider.kis.KisMarketIndexDailyHistoryCli
 import com.stock.market.index.history.provider.kis.KisMarketIndexDailyHistoryProvider;
 import com.stock.market.index.history.provider.kis.KisMarketIndexDailyHistoryRequestWaiter;
 import com.stock.market.price.history.collection.DailyPriceHistoryCollectionService;
+import com.stock.market.price.history.collection.backfill.DailyPriceTradingValueBackfillService;
 import com.stock.market.price.history.collection.config.DailyPriceHistoryBootstrapProperties;
 import com.stock.market.price.history.collection.config.DailyPriceHistoryCollectionProperties;
 import com.stock.market.price.history.collection.policy.DailyPriceCollectionDatePolicy;
@@ -51,9 +52,11 @@ import com.stock.market.price.history.provider.kis.KisDailyPriceHistoryRequestWa
 import com.stock.market.price.provider.kis.KisCurrentPriceClient;
 import com.stock.market.price.provider.kis.KisCurrentPriceProvider;
 import com.stock.portfolio.PortfolioService;
+import jakarta.persistence.EntityManager;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.web.client.RestClient;
 
 import java.time.Clock;
@@ -277,6 +280,17 @@ public class KisConfiguration {
                 historyProvider,
                 dailyPriceBarRepository
         );
+    }
+
+    @Bean
+    public DailyPriceTradingValueBackfillService dailyPriceTradingValueBackfillService(
+            DailyPriceHistoryProvider historyProvider,
+            DailyPriceBarRepository repository,
+            PlatformTransactionManager transactionManager,
+            EntityManager entityManager
+    ) {
+        return new DailyPriceTradingValueBackfillService(
+                historyProvider, repository, transactionManager, entityManager);
     }
 
     @Bean

@@ -39,6 +39,7 @@ import com.stock.market.index.history.provider.kis.KisMarketIndexDailyHistoryCli
 import com.stock.market.index.history.provider.kis.KisMarketIndexDailyHistoryProvider;
 import com.stock.market.index.history.provider.kis.KisMarketIndexDailyHistoryRequestWaiter;
 import com.stock.market.price.history.collection.DailyPriceHistoryCollectionService;
+import com.stock.market.price.history.collection.backfill.DailyPriceTradingValueBackfillService;
 import com.stock.market.price.history.collection.config.DailyPriceHistoryBootstrapProperties;
 import com.stock.market.price.history.collection.config.DailyPriceHistoryCollectionProperties;
 import com.stock.market.price.history.collection.policy.DailyPriceCollectionDatePolicy;
@@ -56,8 +57,10 @@ import com.stock.market.price.provider.CurrentPriceProvider;
 import com.stock.market.price.provider.FixedCurrentPriceProvider;
 import com.stock.market.price.provider.kis.KisCurrentPriceProvider;
 import com.stock.portfolio.PortfolioService;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.web.client.RestClient;
 
 import java.net.URI;
@@ -77,6 +80,8 @@ class KisConfigurationTest {
                             FixedCurrentPriceProvider.class
                     )
                     .withBean(Clock.class, Clock::systemUTC)
+                    .withBean(EntityManager.class, () -> mock(EntityManager.class))
+                    .withBean(PlatformTransactionManager.class, () -> mock(PlatformTransactionManager.class))
                     .withBean(
                             BrokerOrderRepository.class,
                             () -> mock(BrokerOrderRepository.class)
@@ -160,6 +165,7 @@ class KisConfigurationTest {
                     assertThat(context).doesNotHaveBean(
                             DailyPriceHistoryCollectionService.class
                     );
+                    assertThat(context).doesNotHaveBean(DailyPriceTradingValueBackfillService.class);
                     assertThat(context).doesNotHaveBean(
                             DailyPriceHistoryBootstrapRunner.class
                     );
@@ -380,6 +386,7 @@ class KisConfigurationTest {
                 )
                 .withBean(KisProperties.class, this::enabledProperties)
                 .run(context -> {
+                    assertThat(context).hasSingleBean(DailyPriceTradingValueBackfillService.class);
                     assertThat(context).hasSingleBean(RestClient.class);
                     assertThat(context).hasSingleBean(KisTokenClient.class);
                     assertThat(context).hasSingleBean(KisTokenProvider.class);
