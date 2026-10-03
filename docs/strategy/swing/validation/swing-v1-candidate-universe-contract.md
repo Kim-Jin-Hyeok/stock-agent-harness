@@ -43,6 +43,8 @@ runtimeSelectionImplemented: false
 
 원천 확인: [KIS 기간별 시세 공식 명세](https://apiportal.koreainvestment.com/apiservice-apiservice?/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice), [KIS 공식 요청 예제](https://github.com/koreainvestment/open-trading-api/blob/main/examples_llm/domestic_stock/inquire_daily_itemchartprice/inquire_daily_itemchartprice.py), [KIS 공식 응답 필드 예제](https://github.com/koreainvestment/open-trading-api/blob/main/examples_llm/domestic_stock/inquire_daily_itemchartprice/chk_inquire_daily_itemchartprice.py). 확인일은 `2026-10-03`이며 실 Broker 호출 없이 공개 명세를 열람했다.
 
+후속 [원천 의미 검증 결과 01](../../../market/price/history/validation/daily-price-trading-value-source-validation-01.md)에서 상세 명세와 보존 응답을 확인했다. 원 단위 가정은 세 날짜의 산술과 모순되지 않았지만 금액 배율·세션 범위의 공식 확인과 동일 범위 수치 대조는 완료되지 않았다. 이 조건을 추론으로 통과시키거나 `DESIGN_ONLY`를 해제하지 않는다. 부족한 증거와 후속 확인 범위는 해당 기록을 따른다.
+
 ### 기존 일봉 거래대금 보충 서비스
 
 서비스는 `com.stock.market.price.history.collection.backfill`, 결과와 상태는 그 아래 `result` 패키지에 둔다. 호출 계약은 `backfill(DailyPriceHistoryRequest request, TradingVenueScope expectedVenueScope)`다. 기존 Provider와 KIS 설정의 페이지 상한·페이지 간 대기를 재사용한다. 새로운 Client·API·테이블·마이그레이션은 추가하지 않는다.

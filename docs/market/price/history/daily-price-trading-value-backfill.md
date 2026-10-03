@@ -14,6 +14,8 @@
 
 별도 승인 후 수행한 [실측 검증 결과 02](validation/daily-price-trading-value-backfill-observation-02.md)에서는 로컬 V4 적용, 삼성전자 3행 보충과 독립 JVM 재실행의 조회 생략을 확인했다. 전체 기간 보충이나 거래대금 단위·시간외 범위 검증을 완료한 것은 아니다. 실제 실행 기록은 해당 문서를 따른다.
 
+[원천 의미 검증 결과 01](validation/daily-price-trading-value-source-validation-01.md)은 공개 명세와 보존된 3일 응답만 읽은 후속 조사다. 필드·요청 코드의 의미와 원 단위 가정에 대한 제한된 산술 정합성은 확인했으나, 금액 배율·세션 포함 범위와 독립적인 공식 수치 대조는 미확인 상태다. 추가 DB·Broker 호출은 하지 않았으며 보충 성공을 유동성 선정 승인으로 확대하지 않는다.
+
 ## 필수 설정
 
 접두어는 `market.price.history.collection.trading-value-backfill`이다.
