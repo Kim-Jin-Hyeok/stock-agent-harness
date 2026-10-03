@@ -1,15 +1,14 @@
 package com.stock.strategy.universe.liquidity.evaluation;
 
 import com.stock.market.price.history.DailyPriceHistory;
-import com.stock.market.price.history.TradingVenueScope;
 import com.stock.strategy.universe.liquidity.DailyTradingValueAverage;
 import com.stock.strategy.universe.liquidity.DailyTradingValueAverageCalculator;
+import com.stock.strategy.universe.liquidity.evaluation.request.DailyTradingValueSelectionEvaluationRequest;
 import com.stock.strategy.universe.liquidity.evaluation.result.DailyTradingValueSelectionEvaluationResult;
 import com.stock.strategy.universe.liquidity.evaluation.result.DailyTradingValueSelectionEvaluationStatus;
 import com.stock.strategy.universe.liquidity.selection.DailyTradingValueSelectionPolicy;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -35,26 +34,11 @@ public class DailyTradingValueSelectionEvaluationService {
     }
 
     public DailyTradingValueSelectionEvaluationResult evaluate(
-            List<String> targetSymbols,
-            List<DailyPriceHistory> histories,
-            LocalDate selectionAsOfDate,
-            List<LocalDate> requiredTradingDates,
-            TradingVenueScope expectedVenueScope,
-            long minimumAverageTradingValueKrw,
-            int maxCandidateCount
+            DailyTradingValueSelectionEvaluationRequest request,
+            List<DailyPriceHistory> histories
     ) {
-        List<LocalDate> tradingDates = DailyTradingValueAverage.copyValidatedTradingDates(
-                selectionAsOfDate, requiredTradingDates
-        );
-        Objects.requireNonNull(expectedVenueScope, "expectedVenueScope must not be null.");
-        if (minimumAverageTradingValueKrw <= 0) {
-            throw new IllegalArgumentException("minimumAverageTradingValueKrw must be positive.");
-        }
-        if (maxCandidateCount <= 0) {
-            throw new IllegalArgumentException("maxCandidateCount must be positive.");
-        }
-
-        List<String> symbols = copyValidatedTargetSymbols(targetSymbols);
+        Objects.requireNonNull(request, "request must not be null.");
+        List<String> symbols = request.targetSymbols();
         Map<String, DailyPriceHistory> historiesBySymbol = indexHistories(
                 histories, new HashSet<>(symbols)
         );
@@ -67,7 +51,8 @@ public class DailyTradingValueSelectionEvaluationService {
                 continue;
             }
             Optional<DailyTradingValueAverage> average = calculator.calculate(
-                    history, selectionAsOfDate, tradingDates, expectedVenueScope
+                    history, request.selectionAsOfDate(), request.requiredTradingDates(),
+                    request.expectedVenueScope()
             );
             if (average.isPresent()) {
                 calculatedAverages.add(average.orElseThrow());
@@ -79,36 +64,18 @@ public class DailyTradingValueSelectionEvaluationService {
         // Keep successful calculations, but never select from a partial target set.
         if (!unverifiedSymbols.isEmpty()) {
             return new DailyTradingValueSelectionEvaluationResult(
-                    DailyTradingValueSelectionEvaluationStatus.INCOMPLETE,
+                    request, DailyTradingValueSelectionEvaluationStatus.INCOMPLETE,
                     calculatedAverages, unverifiedSymbols, List.of()
             );
         }
         return new DailyTradingValueSelectionEvaluationResult(
-                DailyTradingValueSelectionEvaluationStatus.COMPLETE,
+                request, DailyTradingValueSelectionEvaluationStatus.COMPLETE,
                 calculatedAverages, List.of(),
                 selectionPolicy.select(
-                        calculatedAverages, minimumAverageTradingValueKrw, maxCandidateCount
+                        calculatedAverages, request.minimumAverageTradingValueKrw(),
+                        request.maxCandidateCount()
                 )
         );
-    }
-
-    private static List<String> copyValidatedTargetSymbols(List<String> targetSymbols) {
-        Objects.requireNonNull(targetSymbols, "targetSymbols must not be null.");
-        List<String> symbols = new ArrayList<>(targetSymbols);
-        if (symbols.isEmpty()) {
-            throw new IllegalArgumentException("targetSymbols must not be empty.");
-        }
-        Set<String> unique = new HashSet<>();
-        for (String symbol : symbols) {
-            if (symbol == null || symbol.isBlank()) {
-                throw new IllegalArgumentException("targetSymbols must not contain blank symbol.");
-            }
-            if (!unique.add(symbol)) {
-                throw new IllegalArgumentException("Duplicate target symbol: " + symbol);
-            }
-        }
-        symbols.sort(String::compareTo);
-        return List.copyOf(symbols);
     }
 
     private static Map<String, DailyPriceHistory> indexHistories(

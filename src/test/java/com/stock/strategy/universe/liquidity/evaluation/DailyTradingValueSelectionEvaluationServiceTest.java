@@ -5,6 +5,7 @@ import com.stock.market.price.history.DailyPriceHistory;
 import com.stock.market.price.history.TradingVenueScope;
 import com.stock.strategy.universe.liquidity.DailyTradingValueAverage;
 import com.stock.strategy.universe.liquidity.DailyTradingValueAverageCalculator;
+import com.stock.strategy.universe.liquidity.evaluation.request.DailyTradingValueSelectionEvaluationRequest;
 import com.stock.strategy.universe.liquidity.evaluation.result.DailyTradingValueSelectionEvaluationResult;
 import com.stock.strategy.universe.liquidity.evaluation.result.DailyTradingValueSelectionEvaluationStatus;
 import com.stock.strategy.universe.liquidity.ranking.DailyTradingValueRankingPolicy;
@@ -13,11 +14,8 @@ import com.stock.strategy.universe.liquidity.selection.result.DailyTradingValueS
 import com.stock.strategy.universe.liquidity.selection.result.DailyTradingValueSelectionStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.math.BigInteger;
@@ -25,7 +23,6 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -64,6 +61,7 @@ class DailyTradingValueSelectionEvaluationServiceTest {
         DailyTradingValueSelectionEvaluationResult result = evaluate(symbols, histories);
 
         assertThat(result.status()).isEqualTo(DailyTradingValueSelectionEvaluationStatus.COMPLETE);
+        assertThat(result.request()).isEqualTo(request(symbols));
         assertThat(result.unverifiedSymbols()).isEmpty();
         assertThat(result.calculatedAverages()).extracting(DailyTradingValueAverage::symbol)
                 .containsExactly("000660", "005380", "005930", "035420");
@@ -110,6 +108,57 @@ class DailyTradingValueSelectionEvaluationServiceTest {
         assertThat(result.unverifiedSymbols()).containsExactly("000660", "005930");
         assertThat(result.selectionResults()).isEmpty();
         verifyNoInteractions(calculator, selectionPolicy);
+    }
+
+    @Test
+    void preservesNondefaultRequestEvenWhenEveryTargetIsUnverified() {
+        LocalDate selectionDate = LocalDate.of(2026, 9, 25);
+        DailyTradingValueSelectionEvaluationRequest request = new DailyTradingValueSelectionEvaluationRequest(
+                List.of("005930", "000660"), selectionDate,
+                List.of(selectionDate.minusDays(1), selectionDate), TradingVenueScope.KRX, 98_765L, 7
+        );
+
+        DailyTradingValueSelectionEvaluationResult result = service.evaluate(request, List.of());
+
+        assertThat(result.request()).isSameAs(request);
+        assertThat(result.request().targetSymbols()).containsExactly("000660", "005930");
+        assertThat(result.request().selectionAsOfDate()).isEqualTo(selectionDate);
+        assertThat(result.request().requiredTradingDates())
+                .containsExactly(selectionDate.minusDays(1), selectionDate);
+        assertThat(result.request().expectedVenueScope()).isEqualTo(TradingVenueScope.KRX);
+        assertThat(result.request().minimumAverageTradingValueKrw()).isEqualTo(98_765L);
+        assertThat(result.request().maxCandidateCount()).isEqualTo(7);
+        assertThat(result.status()).isEqualTo(DailyTradingValueSelectionEvaluationStatus.INCOMPLETE);
+        assertThat(result.unverifiedSymbols()).containsExactlyElementsOf(request.targetSymbols());
+        assertThat(result.calculatedAverages()).isEmpty();
+        assertThat(result.selectionResults()).isEmpty();
+        verifyNoInteractions(calculator, selectionPolicy);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "100, 1, SELECTED, CANDIDATE_LIMIT",
+            "100, 2, SELECTED, SELECTED",
+            "101, 2, LIQUIDITY_BELOW_MINIMUM, LIQUIDITY_BELOW_MINIMUM"
+    })
+    void preservesAndAppliesExplicitSelectionCriteria(
+            long minimum, int limit,
+            DailyTradingValueSelectionStatus firstStatus, DailyTradingValueSelectionStatus secondStatus
+    ) {
+        DailyTradingValueSelectionEvaluationRequest request = new DailyTradingValueSelectionEvaluationRequest(
+                List.of("005930", "000660"), SELECTION_DATE, TRADING_DATES, VENUE, minimum, limit
+        );
+
+        DailyTradingValueSelectionEvaluationResult result = service.evaluate(request, List.of(
+                completeHistory("005930", 100L), completeHistory("000660", 100L)
+        ));
+
+        assertThat(result.request()).isSameAs(request);
+        assertThat(result.status()).isEqualTo(DailyTradingValueSelectionEvaluationStatus.COMPLETE);
+        assertThat(result.selectionResults()).containsExactly(
+                selection("000660", 300L, 1, firstStatus), selection("005930", 300L, 2, secondStatus)
+        );
+        verify(selectionPolicy).select(result.calculatedAverages(), minimum, limit);
     }
 
     @Test
@@ -232,8 +281,10 @@ class DailyTradingValueSelectionEvaluationServiceTest {
         BigInteger thresholdTotal = BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.valueOf(3L));
 
         DailyTradingValueSelectionEvaluationResult result = service.evaluate(
-                List.of("000660", "005930"), List.of(below, completeHistory("005930", Long.MAX_VALUE)),
-                SELECTION_DATE, TRADING_DATES, VENUE, Long.MAX_VALUE, 1
+                new DailyTradingValueSelectionEvaluationRequest(
+                        List.of("000660", "005930"), SELECTION_DATE, TRADING_DATES, VENUE, Long.MAX_VALUE, 1
+                ),
+                List.of(below, completeHistory("005930", Long.MAX_VALUE))
         );
 
         assertThat(result.status()).isEqualTo(DailyTradingValueSelectionEvaluationStatus.COMPLETE);
@@ -315,10 +366,11 @@ class DailyTradingValueSelectionEvaluationServiceTest {
         ));
         List<LocalDate> dates = new ArrayList<>(TRADING_DATES);
         List<DailyPriceHistory> originalHistories = List.copyOf(histories);
-
-        DailyTradingValueSelectionEvaluationResult result = service.evaluate(
-                symbols, histories, SELECTION_DATE, dates, VENUE, 100L, 2
+        DailyTradingValueSelectionEvaluationRequest request = new DailyTradingValueSelectionEvaluationRequest(
+                symbols, SELECTION_DATE, dates, VENUE, 100L, 2
         );
+
+        DailyTradingValueSelectionEvaluationResult result = service.evaluate(request, histories);
 
         assertThat(symbols).containsExactly("005930", "000660");
         assertThat(histories).containsExactlyElementsOf(originalHistories);
@@ -326,11 +378,18 @@ class DailyTradingValueSelectionEvaluationServiceTest {
         symbols.clear();
         histories.clear();
         dates.clear();
+        assertThat(result.request()).isSameAs(request);
+        assertThat(result.request().targetSymbols()).containsExactly("000660", "005930");
+        assertThat(result.request().requiredTradingDates()).containsExactlyElementsOf(TRADING_DATES);
         assertThat(result.calculatedAverages()).containsExactly(average("000660", 300L), average("005930", 600L));
         assertThat(result.selectionResults()).hasSize(2);
         assertThatThrownBy(result.calculatedAverages()::clear).isInstanceOf(UnsupportedOperationException.class);
         assertThatThrownBy(result.selectionResults()::clear).isInstanceOf(UnsupportedOperationException.class);
         assertThatThrownBy(() -> result.unverifiedSymbols().add("035420"))
+                .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(result.request().targetSymbols()::clear)
+                .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(result.request().requiredTradingDates()::clear)
                 .isInstanceOf(UnsupportedOperationException.class);
     }
 
@@ -356,33 +415,9 @@ class DailyTradingValueSelectionEvaluationServiceTest {
     }
 
     @Test
-    void rejectsNullTargetList() {
-        assertThatThrownBy(() -> evaluate(null, List.of()))
-                .isInstanceOf(NullPointerException.class).hasMessage("targetSymbols must not be null.");
-        verifyNoInteractions(calculator, selectionPolicy);
-    }
-
-    @Test
-    void rejectsEmptyTargetListRatherThanReportingCompleteEvaluation() {
-        assertThatThrownBy(() -> evaluate(List.of(), List.of()))
-                .isInstanceOf(IllegalArgumentException.class).hasMessage("targetSymbols must not be empty.");
-        verifyNoInteractions(calculator, selectionPolicy);
-    }
-
-    @ParameterizedTest
-    @NullAndEmptySource
-    @ValueSource(strings = {" ", "\t"})
-    void rejectsBlankTargetSymbol(String symbol) {
-        assertThatThrownBy(() -> evaluate(Arrays.asList(symbol), List.of()))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("targetSymbols must not contain blank symbol.");
-        verifyNoInteractions(calculator, selectionPolicy);
-    }
-
-    @Test
-    void rejectsDuplicateTargetSymbolBeforeCalculation() {
-        assertThatThrownBy(() -> evaluate(List.of("005930", "005930"), List.of()))
-                .isInstanceOf(IllegalArgumentException.class).hasMessage("Duplicate target symbol: 005930");
+    void rejectsNullRequestBeforeCalculation() {
+        assertThatThrownBy(() -> service.evaluate(null, List.of()))
+                .isInstanceOf(NullPointerException.class).hasMessage("request must not be null.");
         verifyNoInteractions(calculator, selectionPolicy);
     }
 
@@ -420,57 +455,6 @@ class DailyTradingValueSelectionEvaluationServiceTest {
         verifyNoInteractions(calculator, selectionPolicy);
     }
 
-    @ParameterizedTest
-    @ValueSource(longs = {0L, -1L, Long.MIN_VALUE})
-    void validatesMinimumEvenWhenEveryHistoryIsMissing(long minimum) {
-        assertThatThrownBy(() -> service.evaluate(
-                List.of("005930"), List.of(), SELECTION_DATE, TRADING_DATES, VENUE, minimum, 1
-        ))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("minimumAverageTradingValueKrw must be positive.");
-        verifyNoInteractions(calculator, selectionPolicy);
-    }
-
-    @ParameterizedTest
-    @ValueSource(ints = {0, -1, Integer.MIN_VALUE})
-    void validatesLimitEvenWhenEveryHistoryIsMissing(int limit) {
-        assertThatThrownBy(() -> service.evaluate(
-                List.of("005930"), List.of(), SELECTION_DATE, TRADING_DATES, VENUE, 100L, limit
-        ))
-                .isInstanceOf(IllegalArgumentException.class).hasMessage("maxCandidateCount must be positive.");
-        verifyNoInteractions(calculator, selectionPolicy);
-    }
-
-    @Test
-    void validatesSelectionDateEvenWhenEveryHistoryIsMissing() {
-        assertThatThrownBy(() -> service.evaluate(
-                List.of("005930"), List.of(), null, TRADING_DATES, VENUE, 100L, 1
-        ))
-                .isInstanceOf(NullPointerException.class).hasMessage("selectionAsOfDate must not be null.");
-        verifyNoInteractions(calculator, selectionPolicy);
-    }
-
-    @Test
-    void validatesExpectedVenueEvenWhenEveryHistoryIsMissing() {
-        assertThatThrownBy(() -> service.evaluate(
-                List.of("005930"), List.of(), SELECTION_DATE, TRADING_DATES, null, 100L, 1
-        ))
-                .isInstanceOf(NullPointerException.class).hasMessage("expectedVenueScope must not be null.");
-        verifyNoInteractions(calculator, selectionPolicy);
-    }
-
-    @ParameterizedTest
-    @MethodSource("invalidTradingDates")
-    void validatesDateStructureEvenWhenEveryHistoryIsMissing(
-            List<LocalDate> dates, Class<? extends Throwable> exceptionType, String message
-    ) {
-        assertThatThrownBy(() -> service.evaluate(
-                List.of("005930"), List.of(), SELECTION_DATE, dates, VENUE, 100L, 1
-        ))
-                .isInstanceOf(exceptionType).hasMessage(message);
-        verifyNoInteractions(calculator, selectionPolicy);
-    }
-
     @Test
     void rejectsNullCalculator() {
         assertThatThrownBy(() -> new DailyTradingValueSelectionEvaluationService(null, selectionPolicy))
@@ -483,27 +467,16 @@ class DailyTradingValueSelectionEvaluationServiceTest {
                 .isInstanceOf(NullPointerException.class).hasMessage("selectionPolicy must not be null.");
     }
 
-    private static Stream<Arguments> invalidTradingDates() {
-        return Stream.of(
-                Arguments.of(null, NullPointerException.class, "tradingDates must not be null."),
-                Arguments.of(List.of(), IllegalArgumentException.class, "tradingDates must not be empty."),
-                Arguments.of(Arrays.asList(FIRST_DATE, null, SELECTION_DATE), NullPointerException.class,
-                        "tradingDate must not be null."),
-                Arguments.of(List.of(FIRST_DATE, FIRST_DATE, SELECTION_DATE), IllegalArgumentException.class,
-                        "tradingDates must be strictly increasing."),
-                Arguments.of(List.of(SECOND_DATE, FIRST_DATE, SELECTION_DATE), IllegalArgumentException.class,
-                        "tradingDates must be strictly increasing."),
-                Arguments.of(List.of(FIRST_DATE, SELECTION_DATE, SELECTION_DATE.plusDays(1)),
-                        IllegalArgumentException.class, "tradingDates must not be after selectionAsOfDate."),
-                Arguments.of(List.of(FIRST_DATE, SECOND_DATE), IllegalArgumentException.class,
-                        "tradingDates must end on selectionAsOfDate.")
-        );
-    }
-
     private DailyTradingValueSelectionEvaluationResult evaluate(
             List<String> symbols, List<DailyPriceHistory> histories
     ) {
-        return service.evaluate(symbols, histories, SELECTION_DATE, TRADING_DATES, VENUE, 100L, 2);
+        return service.evaluate(request(symbols), histories);
+    }
+
+    private DailyTradingValueSelectionEvaluationRequest request(List<String> symbols) {
+        return new DailyTradingValueSelectionEvaluationRequest(
+                symbols, SELECTION_DATE, TRADING_DATES, VENUE, 100L, 2
+        );
     }
 
     private DailyPriceHistory completeHistory(String symbol, long dailyValue) {
