@@ -43,7 +43,8 @@ public record DailyTradingValueAverage(
         return totalTradingValueKrw.compareTo(minimumTotalTradingValueKrw) >= 0;
     }
 
-    static List<LocalDate> copyValidatedTradingDates(
+    // Validates the supplied date structure, not the exchange's trading calendar.
+    public static List<LocalDate> copyValidatedTradingDates(
             LocalDate selectionAsOfDate,
             List<LocalDate> tradingDates
     ) {
