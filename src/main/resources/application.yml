@@ -113,6 +113,11 @@ portfolio:
         weight: 1
 
 strategy:
+  universe:
+    liquidity:
+      evaluation:
+        manual:
+          enabled: false
   universes:
     - strategy-id: DAY_TRADING_V1
       strategy-version: 1

@@ -36,9 +36,10 @@ runtimeSelectionImplemented: false
 | `DailyTradingValueSelectionSnapshotEntity`, `DailyTradingValueSelectionSnapshotRepository` | 평가 기준일·상태·저장 시각과 전체 JSON을 별도 행으로 보관한다. 같은 기준일의 재평가를 고유키로 합치거나 기존 기록을 갱신하지 않는다. |
 | `DailyTradingValueSelectionSnapshotStore` | 명시적으로 받은 스냅샷을 새 ID로 저장하고 ID로 복원한다. 손상 JSON·열과 JSON의 기준일/상태 불일치는 거절하며 자동 평가·산술 검산·실행 승인은 하지 않는다. |
 | `DailyTradingValueSelectionQueryService` | 명시한 대상·기간의 저장 일봉을 기존 조회 서비스로 읽고 전체 이력을 기존 평가 서비스에 전달한다. 누락 종목 삭제·자동 보충·외부 API·운영 후보 연결은 하지 않는다. |
+| `DailyTradingValueSelectionEvaluationProperties`, `DailyTradingValueSelectionEvaluationRunner` | 기본 비활성화인 수동 진입점이다. 활성화할 때 여섯 평가 조건을 검증하고 기존 조회·평가와 DB 저장을 한 번 호출한다. 완전·불완전 결과 모두 기록하며 자동 시장 검색·후보 적용·주문은 하지 않는다. |
 | 현재 관측 원본 | 소규모 고정 표본이다. 과거 시장 전체 구성이나 당시 제공된 데이터 버전의 증거를 대신하지 않는다. |
 
-전체 Universe 선정 계약은 여전히 문서 설계 단계다. 일봉 거래대금 저장·보충과 독립적인 평균 계산·최소 기준 판정·동일 구간 정렬·유동성 조건의 선정 정책·누락 종목 보존 평가·저장 일봉의 평가 연결·평가 입력 보존·스냅샷 JSON 변환 및 DB 저장·ID 조회는 구현됐지만 종목 마스터·전체 자격 판정·전체 Universe 증거 보존·운영 후보 자동 선정은 구현되지 않았다. 조회 진입점은 명시한 요청의 평가만 담당하며 저장도 별도 명시적 호출이 필요하다. 계산기와 정책·평가 서비스를 운영 또는 백테스트 후보 선정에 연결하지 않았다. 운영 후보·주문·스케줄·Risk·AI Prompt는 바꾸지 않는다.
+전체 Universe 선정 계약은 여전히 문서 설계 단계다. 일봉 거래대금 저장·보충과 독립적인 평균 계산·최소 기준 판정·동일 구간 정렬·유동성 조건의 선정 정책·누락 종목 보존 평가·저장 일봉의 평가 연결·평가 입력 보존·스냅샷 JSON 변환 및 DB 저장·ID 조회·수동 평가 기록은 구현됐지만 종목 마스터·전체 자격 판정·전체 Universe 증거 보존·운영 후보 자동 선정은 구현되지 않았다. 조회 진입점은 명시한 요청의 평가만 담당하며 별도 Store 호출 또는 명시적으로 활성화한 수동 Runner가 저장한다. 계산기와 정책·평가 서비스를 운영 또는 백테스트 후보 선정에 연결하지 않았다. 운영 후보·주문·스케줄·Risk·AI Prompt는 바꾸지 않는다.
 
 검증 표본을 선정하는 Universe와 거래마다 신호를 거르는 전략 Screener는 구분한다. 이 계약은 첫 평가 전 표본을 정하는 전자만 다룬다. 골든크로스·ATR·과거 전략 수익률로 후보를 선정하거나 운영 BUY 조건에 유동성 필터를 삽입하지 않는다.
 
@@ -209,11 +210,23 @@ averageTradingValueKrw = sum(해당 N개 거래일의 실제 거래대금) / N
 
 저장은 쓰기 트랜잭션에서 직렬화한 뒤 `saveAndFlush()`하고 조회는 읽기 전용 트랜잭션을 사용한다. 직렬화·DB 저장 실패는 성공 ID로 바꾸지 않고 그대로 전달한다. 저장 서비스가 Spring 트랜잭션 프록시를 통해 호출되는 경로에서 트랜잭션 완료 실패도 호출자에게 전달된다. 평가 서비스·일봉 조회 서비스는 이 Store를 자동 호출하지 않는다.
 
-`V5__create_daily_trading_value_selection_snapshot.sql`은 `daily_trading_value_selection_snapshot` 테이블과 `BIGINT AUTO_INCREMENT` ID, `DATETIME(6)` 저장 시각, `DATE` 기준일, `VARCHAR(20)` 상태, `LONGTEXT NOT NULL` JSON을 추가한다. 기존 일봉·포트폴리오·Harness 이력 테이블은 변경하지 않고 기준일 고유 제약도 두지 않는다. 목록 검색·Controller·Runner·Scheduler·운영 후보 또는 백테스트 실행 연결·Docker 변경은 추가하지 않는다. 운영 MySQL에 마이그레이션을 적용하거나 서버를 재시작하는 작업도 포함하지 않는다.
+`V5__create_daily_trading_value_selection_snapshot.sql`은 `daily_trading_value_selection_snapshot` 테이블과 `BIGINT AUTO_INCREMENT` ID, `DATETIME(6)` 저장 시각, `DATE` 기준일, `VARCHAR(20)` 상태, `LONGTEXT NOT NULL` JSON을 추가한다. 기존 일봉·포트폴리오·Harness 이력 테이블은 변경하지 않고 기준일 고유 제약도 두지 않는다. Store 자체는 목록 검색·Controller·Runner·Scheduler를 제공하지 않고 아래 수동 Runner가 명시적으로 평가·저장을 호출한다. 운영 후보 또는 백테스트 실행 연결·Docker 변경은 추가하지 않는다. 운영 MySQL에 마이그레이션을 적용하거나 서버를 재시작하는 작업도 포함하지 않는다.
 
 관련 단위 테스트는 메타데이터 추출, null·잘못된 ID 차단, 직렬화 후 신규 저장 순서와 ID 반환, 없는 ID·DB 오류·복원 오류의 구분을 확인한다. H2 통합 테스트는 완전·불완전 결과의 저장·영속성 컨텍스트 초기화 후 복원·동일 정책 재평가, 큰 JSON과 `Long` 범위를 넘는 합계의 보존, 반복 저장의 별도 ID, 일봉 보충 후 새 완료 평가와 이전 불완전 증거의 분리를 확인한다. 직접 SQL로 손상시킨 JSON과 메타데이터 불일치를 복원 시 거절하고 자동 복구하지 않는 것도 검사한다. 마이그레이션 SQL은 별도 H2 MySQL 모드에서 큰 문자열·같은 기준일 복수 행·필수 열 제약을 확인한다. 운영 MySQL의 타입·시간대·트랜잭션·재시작·백업 검증을 대신하지 않는다.
 
 이 저장 경로는 평가 입력과 결과의 보존 기반이며 전체 Universe 검증 완료가 아니다. 원천 단위·세션 범위·실제 거래일·과거 모집단·정정 이력·정책 버전은 여전히 별도로 확인해야 한다. `DESIGN_ONLY`와 `runtimeSelectionImplemented=false`를 유지한다.
+
+### 수동 평가와 DB 기록 진입점
+
+`com.stock.strategy.universe.liquidity.evaluation.runner`의 `DailyTradingValueSelectionEvaluationRunner`는 기존 수동 Runner 패턴인 `ApplicationRunner`를 사용한다. 설정은 그 아래 `config`의 `DailyTradingValueSelectionEvaluationProperties`이며 접두어는 `strategy.universe.liquidity.evaluation.manual`이다. 일반 설정의 `enabled`는 `false`이고 명시적으로 `true`일 때만 Runner 빈을 등록한다. 별도 실행에서 활성화하면 시작 시 한 번 실행하며, 활성화 설정을 계속 남기면 재시작마다 새 평가·새 ID가 생성된다.
+
+활성화할 때 `targetSymbols`, `selectionAsOfDate`, `requiredTradingDates`, `expectedVenueScope`, `minimumAverageTradingValueKrw`, `maxCandidateCount`를 모두 요구한다. 대상·날짜 목록은 불변 복사하고 기존 평가 요청의 정렬·중복·날짜 구조·양수 검증을 재사용한다. 비활성화 상태에서는 평가 조건을 요구하거나 숨은 금액·종목·거래일 기본값을 넣지 않는다. 운영 후보 목록을 가져오거나 최근 N개 날짜를 자동으로 추론하지 않는다. 날짜 구조 검증은 실제 거래일·원천 확정 시각의 검증이 아니다.
+
+Runner는 기존 QueryService의 `evaluate(request)`를 한 번 호출하고 결과의 요청이 입력과 같은지 확인한 뒤 `Snapshot.from(result)`와 Store의 `save(snapshot)`을 한 번 호출한다. `INCOMPLETE`, 전체 누락, 후보가 없는 `COMPLETE`도 그대로 기록한다. 조회·평가 실패 또는 잘못된 평가 응답이면 저장하지 않는다. 저장 실패·누락 또는 잘못된 ID는 성공으로 바꾸지 않고 예외를 시작 경로로 전달하며 자동 재시도하지 않는다. 양의 저장 ID 반환 뒤에만 `recorded` 로그에 ID·실제 평가 상태·기준일·대상/계산/선정/미확인 종목 수를 남긴다. 전체 JSON·입력 일봉·자격 증명은 로그에 넣지 않는다.
+
+Runner는 자체 트랜잭션이나 새 계산·저장 계층을 추가하지 않는다. 기존 조회의 다종목 시점 일관성 한계와 Store의 트랜잭션·별도 행 보존 계약을 유지한다. 일봉 보충·외부 Broker·OpenAI·운영 후보·백테스트·주문을 호출하지 않고 다른 스케줄이나 수집 기능을 자동으로 끄지도 않는다. 따라서 별도 프로세스에서 해당 기능을 끈 상태로만 수동 검증한다. 실행 방법과 DB 확인 절차는 [거래대금 후보 수동 평가](../daily-trading-value-selection-manual-evaluation.md)를 따른다.
+
+단위 테스트는 비활성화 무호출, 완전·불완전·무선정 결과 기록, 조회 후 저장 순서, 요청 불일치·null 응답·잘못된 ID와 실패 시 완료 로그 차단을 확인한다. 설정·컨텍스트 테스트는 명시한 여섯 값의 바인딩·방어적 복사, 필수값/잘못된 기준의 시작 전 거절, 활성화할 때만 빈 등록, 운영 Universe와 분리를 확인한다. H2 통합 테스트는 준비한 일봉에 대해 Runner를 명시적으로 호출하여 저장 ID로 복원한 결과와 직접 평가의 일치, 일봉 행 보존, 반복 실행의 새 행과 이전 기록 유지, 알려진 시장 범위 충돌 시 기록 미생성을 확인한다. 실제 MySQL 실행·재시작·원천 검증은 수행하지 않으며 `DESIGN_ONLY`와 `runtimeSelectionImplemented=false`를 유지한다.
 
 ### 저장된 일봉 조회와 평가 연결
 
@@ -225,7 +238,7 @@ averageTradingValueKrw = sum(해당 N개 거래일의 실제 거래대금) / N
 
 null 요청은 조회 전에 거절한다. 조회가 예기치 않게 null 이력을 반환하거나 요청한 종목과 다른 종목을 반환하면 오류로 거절하며, 다른 요청 대상 종목의 응답이어도 대체하지 않는다. DB 조회·이력 변환 실패는 빈 이력으로 바꾸지 않고 그대로 전달한다. 일부 종목을 읽은 뒤 실패하면 나머지 조회와 전체 평가를 진행하지 않는다. 평가 단계의 알려진 시장 범위 충돌이나 예상하지 못한 실패도 그대로 전달하며 부분 성공으로 바꾸지 않는다.
 
-새 서비스는 저장·보충 기능을 호출하지 않고 외부 Provider도 의존하지 않는다. 종목별 기존 기간 조회를 재사용하는 제한된 명시 대상의 경로이며, 전 시장 일괄 조회·성능 최적화·Controller·Runner·Scheduler는 추가하지 않는다. 운영 DB·Docker·기존 수집 설정·운영 후보·백테스트 후보 연결을 변경하지 않는다.
+조회 서비스 자체는 저장·보충 기능을 호출하지 않고 외부 Provider도 의존하지 않는다. 종목별 기존 기간 조회를 재사용하는 제한된 명시 대상의 경로이며 전 시장 일괄 조회·성능 최적화·Controller·Scheduler는 추가하지 않는다. 위 수동 Runner가 이 서비스를 호출한 뒤 별도 Store에 저장하지만 조회 서비스의 책임은 바뀌지 않는다. 운영 DB·Docker·기존 수집 설정·운영 후보·백테스트 후보 연결을 변경하지 않는다.
 
 단위 테스트는 정확한 기간·전체 대상 조회와 평가 순서, 빈 이력·미확인 메타데이터·0의 구분, 기준 전달, 잘못된 조회 응답과 조회 실패 시 평가 미호출, 평가 예외·정책 재사용을 확인한다. H2 통합 테스트는 저장·복원된 같은 원본의 직접 평가와 결과 일치, 없는 대상 보존, 오래된·미래·대상 밖 일봉 제외, 필수 날짜와 조회 범위의 구분, 알려진 시장 충돌, 단일 날짜와 재실행, 기존 행의 ID·종목·값 보존을 확인한다. 저장 메타데이터를 보충하면 새 DB 평가는 완료로 바뀌지만 이전 결과의 요청·입력 일봉으로 재평가하면 이전 불완전 결과가 그대로 유지되고 DB를 추가 변경하지 않는 것도 확인한다. 테스트 데이터는 합성이며 운영 MySQL 성능·동시 갱신·격리 검증이나 실제 원천 의미 확인을 대신하지 않는다.
 
