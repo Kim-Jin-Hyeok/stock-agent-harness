@@ -20,6 +20,7 @@ runtimeSelectionImplemented: false
 | 현재 구조 | 역할과 한계 |
 | --- | --- |
 | `StrategyStockUniverseRegistry` | 운영 설정의 전략별 종목 목록을 반환한다. 시장 전체 검색이나 유동성 선정을 하지 않는다. |
+| `StockEligibilityInput`, `StockEligibilityRequest`, `StockEligibilityPolicy`, `StockEligibilityResult` | 명시한 기준일·시각·허용 조건과 전달된 단일 종목의 근거 상태로 자격을 판정한다. 현재 정보·누락·미래 정보는 확인 불가로 남긴다. 실제 종목 원천 검증·마스터 조회·전체 모집단 판정·유동성 연결은 하지 않는다. |
 | `SwingV1BacktestExperimentRequest.candidateSymbols` | 백테스트에 사용할 명시적인 후보와 순서를 받는다. 운영 후보를 자동으로 가져오지 않는다. |
 | `SwingV1BacktestExperimentService` | 후보마다 같은 초기 현금의 독립 포트폴리오를 평가한다. 하나라도 실패하면 성공한 종목만 남기지 않는다. |
 | `DailyPriceBar`, `DailyPriceBarEntity` | OHLCV와 nullable 거래대금·조회 시장 범위를 보관한다. 기존 행은 새 값이 `null`이며 과거 상장 상태·종목 유형·제공 시점 이력은 없다. |
@@ -39,7 +40,7 @@ runtimeSelectionImplemented: false
 | `DailyTradingValueSelectionEvaluationProperties`, `DailyTradingValueSelectionEvaluationRunner` | 기본 비활성화인 수동 진입점이다. 활성화할 때 여섯 평가 조건을 검증하고 기존 조회·평가와 DB 저장을 한 번 호출한다. 완전·불완전 결과 모두 기록하며 자동 시장 검색·후보 적용·주문은 하지 않는다. |
 | 현재 관측 원본 | 소규모 고정 표본이다. 과거 시장 전체 구성이나 당시 제공된 데이터 버전의 증거를 대신하지 않는다. |
 
-전체 Universe 선정 계약은 여전히 문서 설계 단계다. 일봉 거래대금 저장·보충과 독립적인 평균 계산·최소 기준 판정·동일 구간 정렬·유동성 조건의 선정 정책·누락 종목 보존 평가·저장 일봉의 평가 연결·평가 입력 보존·스냅샷 JSON 변환 및 DB 저장·ID 조회·수동 평가 기록은 구현됐지만 종목 마스터·전체 자격 판정·전체 Universe 증거 보존·운영 후보 자동 선정은 구현되지 않았다. 조회 진입점은 명시한 요청의 평가만 담당하며 별도 Store 호출 또는 명시적으로 활성화한 수동 Runner가 저장한다. 계산기와 정책·평가 서비스를 운영 또는 백테스트 후보 선정에 연결하지 않았다. 운영 후보·주문·스케줄·Risk·AI Prompt는 바꾸지 않는다.
+전체 Universe 선정 계약은 여전히 문서 설계 단계다. 일봉 거래대금 저장·보충과 독립적인 평균 계산·최소 기준 판정·동일 구간 정렬·유동성 조건의 선정 정책·누락 종목 보존 평가·저장 일봉의 평가 연결·평가 입력 보존·스냅샷 JSON 변환 및 DB 저장·ID 조회·수동 평가 기록과 단일 종목의 기준 시점 자격 정책은 구현됐지만 종목 마스터·전체 자격 판정·전체 Universe 증거 보존·운영 후보 자동 선정은 구현되지 않았다. 조회 진입점은 명시한 요청의 유동성 평가만 담당하며 별도 Store 호출 또는 명시적으로 활성화한 수동 Runner가 저장한다. 자격 정책과 유동성 계산·정책·평가 서비스를 운영 또는 백테스트 후보 선정에 연결하지 않았다. 운영 후보·주문·스케줄·Risk·AI Prompt는 바꾸지 않는다.
 
 검증 표본을 선정하는 Universe와 거래마다 신호를 거르는 전략 Screener는 구분한다. 이 계약은 첫 평가 전 표본을 정하는 전자만 다룬다. 골든크로스·ATR·과거 전략 수익률로 후보를 선정하거나 운영 BUY 조건에 유동성 필터를 삽입하지 않는다.
 
@@ -97,6 +98,50 @@ runtimeSelectionImplemented: false
 KOSPI 후보는 KOSPI 벤치마크, KOSDAQ 후보는 KOSDAQ 벤치마크의 별도 실험으로 평가한다. 현재 요청에는 벤치마크 하나만 있으므로 두 시장을 한 요청에 섞지 않는다. 시장 매핑은 향후 선정 자료에서 검증해 명시적으로 전달해야 하며 현재 자동 매핑 기능이 있다는 뜻은 아니다.
 
 기준 시점의 거래정지 여부 등 추가 자격 제한을 적용한다면 원천 근거와 규칙을 사전에 고정한다. 이후 거래정지·상장폐지·시장 이전을 미리 알고 제외해서는 안 된다.
+
+### 기준 시점 단일 종목 자격 정책
+
+`com.stock.strategy.universe.eligibility.StockEligibilityPolicy.evaluate(request, input)`은 외부 조회나 계산 상태를 갖지 않는 Java 정책이다. Spring `Component`로 등록하지만 자동 실행하지 않는다. 요청은 `eligibility.request`, 입력과 분류 enum은 `eligibility.input`, 결과·상태·사유는 `eligibility.result`에 둔다. 유동성 판단과 다른 책임이므로 `liquidity` 안에 합치지 않는다.
+
+`StockEligibilityRequest`는 `selectionAsOfDate`, `selectionCutoffAt`, `eligibleMarkets`, `eligibleSecurityTypes`를 명시적으로 요구한다. 날짜·시각에 현재 시각 기본값을 넣지 않고, 허용 집합은 비어 있지 않은 불변 복사로 보존한다. 시장은 `KOSPI`·`KOSDAQ`, 지원 개별주 유형은 `COMMON_STOCK`·`PREFERRED_STOCK` 중 명시한다. `OTHER` 시장이나 `ETF`·`ETN`·`OTHER` 유형을 허용 집합에 넣으면 요청 자체를 거절한다. 두 시장을 허용하는 자격 정책 요청이 두 벤치마크의 백테스트를 합쳐도 된다는 뜻은 아니다.
+
+기준일은 국내 시장 날짜이며 cutoff는 `Instant`다. `Asia/Seoul`로 본 cutoff의 날짜가 기준일보다 이르면 요청을 거절한다. 다음 날 cutoff도 명시할 수 있지만 실제 거래일·다음 신호일·일봉 확정 시각은 이 요청이 검증하지 않는다. `TradingVenueScope`의 KRX·NXT·통합 조회 범위와 종목의 KOSPI·KOSDAQ 소속은 서로 다른 개념이다.
+
+`StockEligibilityInput`은 다음 값을 그대로 보존한다. 빈 종목 코드는 입력 오류로 거절하고, 나머지 값의 누락은 추정하거나 기본값을 채우지 않는다.
+
+| 입력 | 의미 |
+| --- | --- |
+| `symbol` | 앞자리 0을 보존하는 종목 코드 문자열 |
+| `asOfDate` | 전달된 시장·유형·상장 상태가 적용되는 기준일. 요청의 기준일과 정확히 같아야 한다. |
+| `market` | `KOSPI`, `KOSDAQ`, 확인된 다른 시장인 `OTHER`; 모르면 `null` |
+| `securityType` | `COMMON_STOCK`, `PREFERRED_STOCK`, `ETF`, `ETN`, 확인된 다른 유형인 `OTHER`; 모르면 `null` |
+| `listingStatus` | 해당 기준일의 `LISTED` 또는 `NOT_LISTED`; 모르면 `null`. 거래정지와는 구분한다. |
+| `sourceReference` | 호출자가 보존·검토한 근거의 참조. 비밀값을 넣지 않는다. 문자열 존재가 근거의 진위 검증은 아니다. |
+| `informationAvailableAt` | 전달된 판정 항목 전체가 당시 알려져 있었다고 확인한 시각. 여러 항목의 시각이 다르면 가장 늦은 가용 시각을 기준으로 한다. 현재 수집 시각으로 대체하지 않는다. |
+| `evidenceStatus` | `AS_OF_VERIFIED`, `CURRENT_ONLY`, `UNVERIFIED`; 누락은 미확인. `AS_OF_VERIFIED`는 원천·적용 시점·당시 가용성을 확인했다는 호출자의 선언이다. |
+
+정책은 `AS_OF_VERIFIED`를 자동으로 만들어 주지 않는다. 현재 정보에 과거 날짜만 붙인 입력은 `CURRENT_ONLY` 또는 `UNVERIFIED`로 전달해야 한다. 날짜·출처 문자열·플래그를 거짓으로 채운 것을 코드가 탐지하는 원천 인증 기능은 없다. 과거 자료를 지금 내려받았더라도 당시 상태와 가용성이 실제로 확인된다면 사용할 수 있으며, 늦은 수집 시각만으로 모두 거절하지 않는다.
+
+판정은 아래 순서로 최초 실패 사유 한 개를 반환하고, 전체 입력과 요청을 결과에 보존한다. 먼저 근거·시점과 필수 항목을 확인하여 불완전 자료를 확정적인 제외로 바꾸지 않는다.
+
+| 검사 순서 | 사유 / 상태 |
+| --- | --- |
+| 적용 기준일 누락·불일치 | `AS_OF_DATE_UNVERIFIED` / `DATA_UNVERIFIED` |
+| 현재 정보만 제공 | `CURRENT_INFORMATION_ONLY` / `DATA_UNVERIFIED` |
+| 검증 선언 또는 출처 참조 없음 | `SOURCE_UNVERIFIED` / `DATA_UNVERIFIED` |
+| 정보 가용 시각 누락 | `INFORMATION_AVAILABILITY_UNVERIFIED` / `DATA_UNVERIFIED` |
+| 정보 가용 시각이 cutoff 이후 | `INFORMATION_AFTER_CUTOFF` / `DATA_UNVERIFIED` |
+| 시장·유형·상장 상태 누락 | 각각 `MARKET_UNVERIFIED`, `SECURITY_TYPE_UNVERIFIED`, `LISTING_STATUS_UNVERIFIED` / `DATA_UNVERIFIED` |
+| 확인된 시장이 허용 집합 밖 | `MARKET_NOT_ALLOWED` / `INELIGIBLE` |
+| 확인된 유형이 허용 집합 밖 | `UNSUPPORTED_SECURITY_TYPE` / `INELIGIBLE` |
+| 해당 시점에 미상장 | `NOT_LISTED_AS_OF` / `INELIGIBLE` |
+| 위 조건을 모두 통과 | `ELIGIBILITY_CONFIRMED` / `ELIGIBLE` |
+
+cutoff와 정확히 같은 정보 가용 시각은 허용하고 1ns 이후는 미확인이다. 자료 적용일과 정보 가용 시각을 구분하므로, 적용일이 `S`이고 공개 시각이 `S` 다음 날이라도 사전에 명시한 cutoff까지 실제로 알려진 자료라면 시각 조건을 충족할 수 있다. cutoff를 결과에 맞춰 사후 변경해서는 안 된다. 더 이른 날짜의 종목 상태도 자동으로 `S`까지 유효하다고 추정하지 않는다.
+
+결과의 상태와 사유는 enum으로 보존하고 서로 모순되는 조합은 생성자에서 거절한다. `ELIGIBLE`은 전달된 자격 조건의 충족일 뿐 유동성 선정, 전체 모집단 검증 또는 주문 승인이 아니다. 이후 상장폐지된 종목을 과거 후보에서 지우거나 현재 상장 상태로 과거 입력을 갱신하지 않는다. 거래정지·기업행위 처리, 자동 소스 검증·조회, 종목 마스터 DB, 전체 종목 평가, 기존 거래대금 Runner·스냅샷 연결은 추가하지 않았다.
+
+합성 데이터 단위 테스트는 명시 허용 유형·시장, ETF·ETN 제외, 누락과 제외의 구분, 현재 정보의 과거 날짜 재사용 차단, 가용 시각 경계, 이후 상장폐지 정보의 과거 대체 차단, 요청의 방어적 복사와 결과·사유 일관성 및 정책 재사용을 확인한다. 실제 종목 자료·DB·외부 API를 조회하거나 전략 성과를 검증한 것은 아니다. `DESIGN_ONLY`와 `runtimeSelectionImplemented=false`를 유지한다.
 
 ## 유동성 계산과 정렬
 
