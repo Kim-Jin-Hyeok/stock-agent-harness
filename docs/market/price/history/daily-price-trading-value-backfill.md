@@ -12,6 +12,8 @@
 
 후속 [사전 점검 결과 01](validation/daily-price-trading-value-backfill-observation-01.md)은 로컬 MySQL의 V4 미적용으로 실제 보충을 실행하지 못한 기록이다. 해당 점검은 보충·재실행이나 거래대금 단위 검증의 성공을 뜻하지 않는다.
 
+별도 승인 후 수행한 [실측 검증 결과 02](validation/daily-price-trading-value-backfill-observation-02.md)에서는 로컬 V4 적용, 삼성전자 3행 보충과 독립 JVM 재실행의 조회 생략을 확인했다. 전체 기간 보충이나 거래대금 단위·시간외 범위 검증을 완료한 것은 아니다. 실제 실행 기록은 해당 문서를 따른다.
+
 ## 필수 설정
 
 접두어는 `market.price.history.collection.trading-value-backfill`이다.
