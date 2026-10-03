@@ -31,6 +31,18 @@ public record DailyTradingValueAverage(
         return tradingDates.size();
     }
 
+    public boolean meetsMinimumAverageTradingValueKrw(long minimumAverageTradingValueKrw) {
+        if (minimumAverageTradingValueKrw <= 0) {
+            throw new IllegalArgumentException(
+                    "minimumAverageTradingValueKrw must be positive."
+            );
+        }
+        BigInteger minimumTotalTradingValueKrw = BigInteger
+                .valueOf(minimumAverageTradingValueKrw)
+                .multiply(BigInteger.valueOf(tradingDayCount()));
+        return totalTradingValueKrw.compareTo(minimumTotalTradingValueKrw) >= 0;
+    }
+
     static List<LocalDate> copyValidatedTradingDates(
             LocalDate selectionAsOfDate,
             List<LocalDate> tradingDates

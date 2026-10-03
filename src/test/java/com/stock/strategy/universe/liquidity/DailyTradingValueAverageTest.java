@@ -3,6 +3,7 @@ package com.stock.strategy.universe.liquidity;
 import com.stock.market.price.history.TradingVenueScope;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -38,6 +39,67 @@ class DailyTradingValueAverageTest {
     void allowsZeroTotal() {
         assertThat(average("005930", BigInteger.ZERO, TRADING_DATES).totalTradingValueKrw())
                 .isEqualTo(BigInteger.ZERO);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "3000000, 1000000, true",
+            "2999999, 1000000, false",
+            "3000001, 1000000, true",
+            "0, 1, false",
+            "2, 1, false",
+            "3, 1, true",
+            "4, 1, true"
+    })
+    void comparesExactTotalAgainstMinimumWithoutRounding(
+            long totalTradingValueKrw,
+            long minimumAverageTradingValueKrw,
+            boolean expected
+    ) {
+        DailyTradingValueAverage result = average(
+                "005930", BigInteger.valueOf(totalTradingValueKrw), TRADING_DATES
+        );
+
+        assertThat(result.meetsMinimumAverageTradingValueKrw(minimumAverageTradingValueKrw))
+                .isEqualTo(expected);
+    }
+
+    @Test
+    void usesResultTradingDayCountAsDenominator() {
+        DailyTradingValueAverage singleDay = average(
+                "005930", BigInteger.valueOf(100L), List.of(SELECTION_DATE)
+        );
+        DailyTradingValueAverage threeDays = average(
+                "005930", BigInteger.valueOf(100L), TRADING_DATES
+        );
+
+        assertThat(singleDay.meetsMinimumAverageTradingValueKrw(100L)).isTrue();
+        assertThat(threeDays.meetsMinimumAverageTradingValueKrw(100L)).isFalse();
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {-1, 0})
+    void comparesThresholdBeyondLongRangeExactly(int offset) {
+        BigInteger minimumTotal = BigInteger.valueOf(Long.MAX_VALUE)
+                .multiply(BigInteger.valueOf(TRADING_DATES.size()));
+        DailyTradingValueAverage result = average(
+                "005930", minimumTotal.add(BigInteger.valueOf(offset)), TRADING_DATES
+        );
+
+        assertThat(result.meetsMinimumAverageTradingValueKrw(Long.MAX_VALUE))
+                .isEqualTo(offset == 0);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {0L, -1L, Long.MIN_VALUE})
+    void rejectsNonPositiveMinimumAverageTradingValue(long minimumAverageTradingValueKrw) {
+        DailyTradingValueAverage result = average("005930", BigInteger.ONE, TRADING_DATES);
+
+        assertThatThrownBy(() -> result.meetsMinimumAverageTradingValueKrw(
+                minimumAverageTradingValueKrw
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("minimumAverageTradingValueKrw must be positive.");
     }
 
     @Test
