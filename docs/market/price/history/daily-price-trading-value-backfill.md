@@ -10,6 +10,8 @@
 
 이 문서는 실행 방법이며 실제 보충 결과 기록이 아니다. 이번 구현에서는 KIS 호출·MySQL 변경·Docker 조작을 수행하지 않았다. 실제 실행 대상·기간·조회 예산과 DB 변경은 별도로 승인한다.
 
+후속 [사전 점검 결과 01](validation/daily-price-trading-value-backfill-observation-01.md)은 로컬 MySQL의 V4 미적용으로 실제 보충을 실행하지 못한 기록이다. 해당 점검은 보충·재실행이나 거래대금 단위 검증의 성공을 뜻하지 않는다.
+
 ## 필수 설정
 
 접두어는 `market.price.history.collection.trading-value-backfill`이다.
