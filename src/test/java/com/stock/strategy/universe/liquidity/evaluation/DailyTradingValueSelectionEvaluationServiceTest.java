@@ -29,6 +29,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -63,6 +64,9 @@ class DailyTradingValueSelectionEvaluationServiceTest {
         assertThat(result.status()).isEqualTo(DailyTradingValueSelectionEvaluationStatus.COMPLETE);
         assertThat(result.request()).isEqualTo(request(symbols));
         assertThat(result.unverifiedSymbols()).isEmpty();
+        assertThat(result.inputHistories()).containsExactly(
+                histories.get(1), histories.get(3), histories.get(0), histories.get(2)
+        );
         assertThat(result.calculatedAverages()).extracting(DailyTradingValueAverage::symbol)
                 .containsExactly("000660", "005380", "005930", "035420");
         assertThat(result.selectionResults()).containsExactly(
@@ -88,6 +92,7 @@ class DailyTradingValueSelectionEvaluationServiceTest {
 
         assertThat(result.status()).isEqualTo(DailyTradingValueSelectionEvaluationStatus.INCOMPLETE);
         assertThat(result.unverifiedSymbols()).containsExactly("000660");
+        assertThat(result.inputHistories()).containsExactly(samsung, naver);
         assertThat(result.calculatedAverages()).containsExactly(
                 average("005930", 900L), average("035420", 450L)
         );
@@ -105,6 +110,7 @@ class DailyTradingValueSelectionEvaluationServiceTest {
 
         assertThat(result.status()).isEqualTo(DailyTradingValueSelectionEvaluationStatus.INCOMPLETE);
         assertThat(result.calculatedAverages()).isEmpty();
+        assertThat(result.inputHistories()).isEmpty();
         assertThat(result.unverifiedSymbols()).containsExactly("000660", "005930");
         assertThat(result.selectionResults()).isEmpty();
         verifyNoInteractions(calculator, selectionPolicy);
@@ -169,6 +175,7 @@ class DailyTradingValueSelectionEvaluationServiceTest {
 
         assertThat(result.status()).isEqualTo(DailyTradingValueSelectionEvaluationStatus.INCOMPLETE);
         assertThat(result.unverifiedSymbols()).containsExactly("005930");
+        assertThat(result.inputHistories()).containsExactly(empty);
         assertThat(result.calculatedAverages()).isEmpty();
         assertThat(result.selectionResults()).isEmpty();
         verify(calculator).calculate(empty, SELECTION_DATE, TRADING_DATES, VENUE);
@@ -206,6 +213,10 @@ class DailyTradingValueSelectionEvaluationServiceTest {
 
         assertThat(result.status()).isEqualTo(DailyTradingValueSelectionEvaluationStatus.INCOMPLETE);
         assertThat(result.unverifiedSymbols()).containsExactly("005930");
+        assertThat(result.inputHistories()).containsExactly(incomplete);
+        DailyPriceBar preserved = result.inputHistories().getFirst().bars().get(1);
+        assertThat(preserved.tradingValueKrw()).isEqualTo(missingValue ? null : 100L);
+        assertThat(preserved.tradingVenueScope()).isEqualTo(missingVenue ? null : VENUE);
         assertThat(result.calculatedAverages()).isEmpty();
         assertThat(result.selectionResults()).isEmpty();
         verifyNoInteractions(selectionPolicy);
@@ -220,6 +231,9 @@ class DailyTradingValueSelectionEvaluationServiceTest {
 
         assertThat(result.status()).isEqualTo(DailyTradingValueSelectionEvaluationStatus.COMPLETE);
         assertThat(result.unverifiedSymbols()).isEmpty();
+        assertThat(result.inputHistories()).containsExactly(
+                completeHistory("000660", 100L), completeHistory("005930", 0L)
+        );
         assertThat(result.calculatedAverages()).containsExactly(
                 average("000660", 300L), average("005930", 0L)
         );
@@ -267,6 +281,8 @@ class DailyTradingValueSelectionEvaluationServiceTest {
 
         assertThat(result.status()).isEqualTo(DailyTradingValueSelectionEvaluationStatus.COMPLETE);
         assertThat(result.calculatedAverages()).containsExactly(average("005930", 300L));
+        assertThat(result.inputHistories()).containsExactly(input);
+        assertThat(result.inputHistories().getFirst().bars()).hasSize(5);
         assertThat(result.selectionResults()).containsExactly(
                 selection("005930", 300L, 1, DailyTradingValueSelectionStatus.SELECTED)
         );
@@ -381,6 +397,7 @@ class DailyTradingValueSelectionEvaluationServiceTest {
         assertThat(result.request()).isSameAs(request);
         assertThat(result.request().targetSymbols()).containsExactly("000660", "005930");
         assertThat(result.request().requiredTradingDates()).containsExactlyElementsOf(TRADING_DATES);
+        assertThat(result.inputHistories()).containsExactly(originalHistories.get(1), originalHistories.get(0));
         assertThat(result.calculatedAverages()).containsExactly(average("000660", 300L), average("005930", 600L));
         assertThat(result.selectionResults()).hasSize(2);
         assertThatThrownBy(result.calculatedAverages()::clear).isInstanceOf(UnsupportedOperationException.class);
@@ -391,6 +408,74 @@ class DailyTradingValueSelectionEvaluationServiceTest {
                 .isInstanceOf(UnsupportedOperationException.class);
         assertThatThrownBy(result.request().requiredTradingDates()::clear)
                 .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(result.inputHistories()::clear).isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"COMPLETE", "MISSING_HISTORY", "EMPTY_HISTORY", "MISSING_METADATA", "ALL_MISSING"})
+    void reproducesEvaluationFromPreservedRequestAndInputs(String scenario) {
+        List<DailyPriceHistory> histories = switch (scenario) {
+            case "COMPLETE" -> List.of(
+                    completeHistory("005930", 300L), completeHistory("000660", 200L),
+                    completeHistory("035420", 150L), completeHistory("005380", 0L)
+            );
+            case "MISSING_HISTORY" -> List.of(completeHistory("005930", 300L));
+            case "EMPTY_HISTORY" -> List.of(history("005930"));
+            case "MISSING_METADATA" -> List.of(history(
+                    "005930", bar(FIRST_DATE, 100L), bar(SECOND_DATE, null, null), bar(SELECTION_DATE, 100L)
+            ));
+            case "ALL_MISSING" -> List.of();
+            default -> throw new IllegalArgumentException("Unknown test scenario: " + scenario);
+        };
+        DailyTradingValueSelectionEvaluationResult original = evaluate(
+                List.of("035420", "000660", "005930", "005380"), histories
+        );
+
+        DailyTradingValueSelectionEvaluationResult replayed = service.evaluate(
+                original.request(), original.inputHistories()
+        );
+
+        assertThat(replayed).isEqualTo(original);
+        assertThat(original.inputHistories()).containsExactlyInAnyOrderElementsOf(histories);
+        assertThat(original.status()).isEqualTo(scenario.equals("COMPLETE")
+                ? DailyTradingValueSelectionEvaluationStatus.COMPLETE
+                : DailyTradingValueSelectionEvaluationStatus.INCOMPLETE);
+    }
+
+    @Test
+    void preservesIndexedInputsEvenIfCallerListChangesDuringCalculation() {
+        DailyPriceHistory samsung = completeHistory("005930", 100L);
+        DailyPriceHistory hynix = completeHistory("000660", 200L);
+        List<DailyPriceHistory> inputs = new ArrayList<>(List.of(samsung, hynix));
+        doAnswer(invocation -> {
+            inputs.clear();
+            inputs.add(completeHistory("005930", 900L));
+            return invocation.callRealMethod();
+        }).when(calculator).calculate(hynix, SELECTION_DATE, TRADING_DATES, VENUE);
+
+        DailyTradingValueSelectionEvaluationResult result = evaluate(List.of("005930", "000660"), inputs);
+
+        assertThat(result.inputHistories()).containsExactly(hynix, samsung);
+        assertThat(result.calculatedAverages()).containsExactly(average("000660", 600L), average("005930", 300L));
+        assertThat(inputs).containsExactly(completeHistory("005930", 900L));
+    }
+
+    @Test
+    void distinguishesDifferentDailyInputsWithIdenticalCalculatedTotals() {
+        DailyPriceHistory uniform = completeHistory("005930", 100L);
+        DailyPriceHistory varied = history(
+                "005930", bar(SELECTION_DATE, 150L), bar(FIRST_DATE, 50L), bar(SECOND_DATE, 100L)
+        );
+
+        DailyTradingValueSelectionEvaluationResult first = evaluate(List.of("005930"), List.of(uniform));
+        DailyTradingValueSelectionEvaluationResult second = evaluate(List.of("005930"), List.of(varied));
+
+        assertThat(first.calculatedAverages()).isEqualTo(second.calculatedAverages());
+        assertThat(first.selectionResults()).isEqualTo(second.selectionResults());
+        assertThat(first.inputHistories()).containsExactly(uniform);
+        assertThat(second.inputHistories()).containsExactly(varied);
+        assertThat(first).isNotEqualTo(second);
+        assertThat(service.evaluate(second.request(), second.inputHistories())).isEqualTo(second);
     }
 
     @ParameterizedTest

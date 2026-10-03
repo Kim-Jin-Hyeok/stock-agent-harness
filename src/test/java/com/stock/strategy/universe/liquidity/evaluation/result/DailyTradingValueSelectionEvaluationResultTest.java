@@ -1,5 +1,7 @@
 package com.stock.strategy.universe.liquidity.evaluation.result;
 
+import com.stock.market.price.history.DailyPriceBar;
+import com.stock.market.price.history.DailyPriceHistory;
 import com.stock.market.price.history.TradingVenueScope;
 import com.stock.strategy.universe.liquidity.DailyTradingValueAverage;
 import com.stock.strategy.universe.liquidity.evaluation.request.DailyTradingValueSelectionEvaluationRequest;
@@ -53,7 +55,8 @@ class DailyTradingValueSelectionEvaluationResultTest {
         List<DailyTradingValueSelectionResult> selections = new ArrayList<>();
 
         DailyTradingValueSelectionEvaluationResult result = new DailyTradingValueSelectionEvaluationResult(
-                bothRequest, DailyTradingValueSelectionEvaluationStatus.INCOMPLETE, averages, unverified, selections
+                bothRequest, DailyTradingValueSelectionEvaluationStatus.INCOMPLETE,
+                histories(averages), averages, unverified, selections
         );
 
         averages.clear();
@@ -87,7 +90,7 @@ class DailyTradingValueSelectionEvaluationResultTest {
     void allowsAllTargetsToBeUnverified() {
         DailyTradingValueSelectionEvaluationResult result = new DailyTradingValueSelectionEvaluationResult(
                 samsungRequest, DailyTradingValueSelectionEvaluationStatus.INCOMPLETE,
-                List.of(), List.of("005930"), List.of()
+                List.of(), List.of(), List.of("005930"), List.of()
         );
 
         assertThat(result.calculatedAverages()).isEmpty();
@@ -106,7 +109,7 @@ class DailyTradingValueSelectionEvaluationResultTest {
                 ? List.of(selection(samsung, 1)) : List.of();
 
         assertThatThrownBy(() -> new DailyTradingValueSelectionEvaluationResult(
-                bothRequest, status, averages, unverified, selections
+                bothRequest, status, histories(averages), averages, unverified, selections
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Calculated and unverified symbols must exactly cover request targetSymbols.");
@@ -121,7 +124,7 @@ class DailyTradingValueSelectionEvaluationResultTest {
                 ? List.of(selection(hynix, 1)) : List.of();
 
         assertThatThrownBy(() -> new DailyTradingValueSelectionEvaluationResult(
-                samsungRequest, status, List.of(hynix), unverified, selections
+                samsungRequest, status, histories(List.of(hynix)), List.of(hynix), unverified, selections
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Calculated and unverified symbols must exactly cover request targetSymbols.");
@@ -131,7 +134,7 @@ class DailyTradingValueSelectionEvaluationResultTest {
     void rejectsUnexpectedUnverifiedTargetEvenWhenAllDataIsMissing() {
         assertThatThrownBy(() -> new DailyTradingValueSelectionEvaluationResult(
                 samsungRequest, DailyTradingValueSelectionEvaluationStatus.INCOMPLETE,
-                List.of(), List.of("000660"), List.of()
+                List.of(), List.of(), List.of("000660"), List.of()
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Calculated and unverified symbols must exactly cover request targetSymbols.");
@@ -149,7 +152,7 @@ class DailyTradingValueSelectionEvaluationResultTest {
                 ? List.of(selection(samsung, 1), selection(naver, 2)) : List.of();
 
         assertThatThrownBy(() -> new DailyTradingValueSelectionEvaluationResult(
-                bothRequest, status, averages, unverified, selections
+                bothRequest, status, histories(averages), averages, unverified, selections
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Calculated and unverified symbols must exactly cover request targetSymbols.");
@@ -168,7 +171,7 @@ class DailyTradingValueSelectionEvaluationResultTest {
                 ? List.of(selection(wrongAverage, 1)) : List.of();
 
         assertThatThrownBy(() -> new DailyTradingValueSelectionEvaluationResult(
-                request, status, List.of(wrongAverage), unverified, selections
+                request, status, histories(List.of(wrongAverage)), List.of(wrongAverage), unverified, selections
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Calculated average must match request trading window and venue. symbol=005930");
@@ -201,7 +204,7 @@ class DailyTradingValueSelectionEvaluationResultTest {
         );
         DailyTradingValueSelectionEvaluationResult result = new DailyTradingValueSelectionEvaluationResult(
                 request, DailyTradingValueSelectionEvaluationStatus.INCOMPLETE,
-                List.of(), request.targetSymbols(), List.of()
+                List.of(), List.of(), request.targetSymbols(), List.of()
         );
 
         symbols.clear();
@@ -223,7 +226,8 @@ class DailyTradingValueSelectionEvaluationResultTest {
     @Test
     void rejectsCompleteStatusWithUnverifiedSymbols() {
         assertThatThrownBy(() -> new DailyTradingValueSelectionEvaluationResult(
-                bothRequest, DailyTradingValueSelectionEvaluationStatus.COMPLETE, List.of(samsung),
+                bothRequest, DailyTradingValueSelectionEvaluationStatus.COMPLETE,
+                histories(List.of(samsung)), List.of(samsung),
                 List.of("000660"), List.of(selection(samsung, 1))
         ))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -241,7 +245,7 @@ class DailyTradingValueSelectionEvaluationResultTest {
     void rejectsIncompleteStatusWithoutUnverifiedSymbols() {
         assertThatThrownBy(() -> new DailyTradingValueSelectionEvaluationResult(
                 samsungRequest, DailyTradingValueSelectionEvaluationStatus.INCOMPLETE,
-                List.of(samsung), List.of(), List.of()
+                histories(List.of(samsung)), List.of(samsung), List.of(), List.of()
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("INCOMPLETE status requires unverified symbols.");
@@ -250,7 +254,8 @@ class DailyTradingValueSelectionEvaluationResultTest {
     @Test
     void rejectsPartialSelectionResultsForIncompleteStatus() {
         assertThatThrownBy(() -> new DailyTradingValueSelectionEvaluationResult(
-                bothRequest, DailyTradingValueSelectionEvaluationStatus.INCOMPLETE, List.of(samsung),
+                bothRequest, DailyTradingValueSelectionEvaluationStatus.INCOMPLETE,
+                histories(List.of(samsung)), List.of(samsung),
                 List.of("000660"), List.of(selection(samsung, 1))
         ))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -261,7 +266,7 @@ class DailyTradingValueSelectionEvaluationResultTest {
     void rejectsSymbolOverlapBetweenCalculatedAndUnverified() {
         assertThatThrownBy(() -> new DailyTradingValueSelectionEvaluationResult(
                 samsungRequest, DailyTradingValueSelectionEvaluationStatus.INCOMPLETE,
-                List.of(samsung), List.of("005930"), List.of()
+                histories(List.of(samsung)), List.of(samsung), List.of("005930"), List.of()
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Calculated and unverified symbols must not overlap: 005930");
@@ -276,7 +281,7 @@ class DailyTradingValueSelectionEvaluationResultTest {
     @Test
     void rejectsDuplicateUnverifiedSymbol() {
         assertThatThrownBy(() -> new DailyTradingValueSelectionEvaluationResult(
-                samsungRequest, DailyTradingValueSelectionEvaluationStatus.INCOMPLETE, List.of(),
+                samsungRequest, DailyTradingValueSelectionEvaluationStatus.INCOMPLETE, List.of(), List.of(),
                 List.of("005930", "005930"), List.of()
         ))
                 .isInstanceOf(IllegalArgumentException.class).hasMessage("Duplicate unverified symbol: 005930");
@@ -287,7 +292,7 @@ class DailyTradingValueSelectionEvaluationResultTest {
     void rejectsBlankUnverifiedSymbol(String symbol) {
         assertThatThrownBy(() -> new DailyTradingValueSelectionEvaluationResult(
                 samsungRequest, DailyTradingValueSelectionEvaluationStatus.INCOMPLETE,
-                List.of(), List.of(symbol), List.of()
+                List.of(), List.of(), List.of(symbol), List.of()
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("unverifiedSymbols must not contain blank symbol.");
@@ -364,6 +369,7 @@ class DailyTradingValueSelectionEvaluationResultTest {
 
         assertThatThrownBy(() -> new DailyTradingValueSelectionEvaluationResult(
                 request("005930", "000660", "035420"), DailyTradingValueSelectionEvaluationStatus.INCOMPLETE,
+                histories(List.of(samsung, differentVenue)),
                 List.of(samsung, differentVenue),
                 List.of("035420"), List.of()
         ))
@@ -380,7 +386,7 @@ class DailyTradingValueSelectionEvaluationResultTest {
     @Test
     void rejectsNullStatus() {
         assertThatThrownBy(() -> new DailyTradingValueSelectionEvaluationResult(
-                samsungRequest, null, List.of(), List.of(), List.of()
+                samsungRequest, null, List.of(), List.of(), List.of(), List.of()
         ))
                 .isInstanceOf(NullPointerException.class).hasMessage("status must not be null.");
     }
@@ -395,7 +401,7 @@ class DailyTradingValueSelectionEvaluationResultTest {
     void rejectsNullUnverifiedList() {
         assertThatThrownBy(() -> new DailyTradingValueSelectionEvaluationResult(
                 samsungRequest, DailyTradingValueSelectionEvaluationStatus.COMPLETE,
-                List.of(samsung), null, List.of(selection(samsung, 1))
+                histories(List.of(samsung)), List.of(samsung), null, List.of(selection(samsung, 1))
         ))
                 .isInstanceOf(NullPointerException.class).hasMessage("unverifiedSymbols must not be null.");
     }
@@ -412,7 +418,7 @@ class DailyTradingValueSelectionEvaluationResultTest {
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new DailyTradingValueSelectionEvaluationResult(
                 samsungRequest, DailyTradingValueSelectionEvaluationStatus.INCOMPLETE,
-                List.of(), Arrays.asList((String) null), List.of()
+                List.of(), List.of(), Arrays.asList((String) null), List.of()
         ))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> complete(
@@ -421,13 +427,127 @@ class DailyTradingValueSelectionEvaluationResultTest {
                 .isInstanceOf(NullPointerException.class);
     }
 
+    @Test
+    void copiesAndSortsInputHistoriesWithoutChangingCallerCollections() {
+        DailyPriceHistory hynixHistory = histories(List.of(hynix)).getFirst();
+        List<DailyPriceBar> bars = new ArrayList<>(histories(List.of(samsung)).getFirst().bars());
+        DailyPriceHistory samsungHistory = new DailyPriceHistory("005930", bars);
+        List<DailyPriceHistory> inputs = new ArrayList<>(List.of(samsungHistory, hynixHistory));
+
+        DailyTradingValueSelectionEvaluationResult result = new DailyTradingValueSelectionEvaluationResult(
+                bothRequest, DailyTradingValueSelectionEvaluationStatus.COMPLETE, inputs,
+                List.of(hynix, samsung), List.of(), List.of(selection(samsung, 1), selection(hynix, 2))
+        );
+
+        assertThat(inputs).containsExactly(samsungHistory, hynixHistory);
+        inputs.clear();
+        bars.clear();
+        assertThat(result.inputHistories()).containsExactly(hynixHistory, samsungHistory);
+        assertThat(result.inputHistories().getLast()).isSameAs(samsungHistory);
+        assertThat(result.inputHistories().getLast().bars()).hasSize(1);
+        assertThatThrownBy(result.inputHistories()::clear).isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(result.inputHistories().getLast().bars()::clear)
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void preservesEmptyAndUnknownMetadataHistoriesWithoutFabricatingMissingHistory() {
+        DailyPriceHistory empty = new DailyPriceHistory("000660", List.of());
+        DailyPriceHistory unknown = new DailyPriceHistory("005930", List.of(
+                new DailyPriceBar(SELECTION_DATE, 100L, 100L, 100L, 100L, 1L, 0L, null)
+        ));
+        DailyTradingValueSelectionEvaluationRequest request = request("000660", "005930", "035420");
+
+        DailyTradingValueSelectionEvaluationResult result = new DailyTradingValueSelectionEvaluationResult(
+                request, DailyTradingValueSelectionEvaluationStatus.INCOMPLETE, List.of(unknown, empty),
+                List.of(), request.targetSymbols(), List.of()
+        );
+
+        assertThat(result.inputHistories()).containsExactly(empty, unknown);
+        assertThat(result.inputHistories().getFirst().bars()).isEmpty();
+        assertThat(result.inputHistories().getLast().bars().getFirst().tradingValueKrw()).isZero();
+        assertThat(result.inputHistories().getLast().bars().getFirst().tradingVenueScope()).isNull();
+        assertThat(result.unverifiedSymbols()).containsExactly("000660", "005930", "035420");
+    }
+
+    @Test
+    void rejectsNullInputHistoryList() {
+        assertThatThrownBy(() -> new DailyTradingValueSelectionEvaluationResult(
+                samsungRequest, DailyTradingValueSelectionEvaluationStatus.COMPLETE, null,
+                List.of(samsung), List.of(), List.of(selection(samsung, 1))
+        ))
+                .isInstanceOf(NullPointerException.class).hasMessage("inputHistories must not be null.");
+    }
+
+    @Test
+    void rejectsNullInputHistoryEntry() {
+        assertThatThrownBy(() -> new DailyTradingValueSelectionEvaluationResult(
+                samsungRequest, DailyTradingValueSelectionEvaluationStatus.INCOMPLETE,
+                Arrays.asList((DailyPriceHistory) null), List.of(), List.of("005930"), List.of()
+        ))
+                .isInstanceOf(NullPointerException.class);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {300L, 301L})
+    void rejectsDuplicateInputHistorySymbol(long total) {
+        assertThatThrownBy(() -> new DailyTradingValueSelectionEvaluationResult(
+                samsungRequest, DailyTradingValueSelectionEvaluationStatus.COMPLETE,
+                histories(List.of(samsung, average("005930", total))),
+                List.of(samsung), List.of(), List.of(selection(samsung, 1))
+        ))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage("Duplicate input history symbol: 005930");
+    }
+
+    @Test
+    void rejectsInputHistoryOutsideRequestedTargetsEvenWhenUnverified() {
+        assertThatThrownBy(() -> new DailyTradingValueSelectionEvaluationResult(
+                samsungRequest, DailyTradingValueSelectionEvaluationStatus.INCOMPLETE,
+                histories(List.of(hynix)), List.of(), List.of("005930"), List.of()
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Input history symbol must belong to request targetSymbols: 000660");
+    }
+
+    @ParameterizedTest
+    @EnumSource(DailyTradingValueSelectionEvaluationStatus.class)
+    void rejectsCalculatedSymbolWithoutInputHistory(DailyTradingValueSelectionEvaluationStatus status) {
+        DailyTradingValueSelectionEvaluationRequest request = status == DailyTradingValueSelectionEvaluationStatus.COMPLETE
+                ? samsungRequest : bothRequest;
+        List<String> unverified = status == DailyTradingValueSelectionEvaluationStatus.INCOMPLETE
+                ? List.of("000660") : List.of();
+        List<DailyTradingValueSelectionResult> selections = status == DailyTradingValueSelectionEvaluationStatus.COMPLETE
+                ? List.of(selection(samsung, 1)) : List.of();
+
+        assertThatThrownBy(() -> new DailyTradingValueSelectionEvaluationResult(
+                request, status, List.of(), List.of(samsung), unverified, selections
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Calculated symbol must have an input history: 005930");
+    }
+
     private DailyTradingValueSelectionEvaluationResult complete(
             DailyTradingValueSelectionEvaluationRequest request,
             List<DailyTradingValueAverage> averages, List<DailyTradingValueSelectionResult> selections
     ) {
         return new DailyTradingValueSelectionEvaluationResult(
-                request, DailyTradingValueSelectionEvaluationStatus.COMPLETE, averages, List.of(), selections
+                request, DailyTradingValueSelectionEvaluationStatus.COMPLETE,
+                histories(averages), averages, List.of(), selections
         );
+    }
+
+    private List<DailyPriceHistory> histories(List<DailyTradingValueAverage> averages) {
+        if (averages == null) {
+            return List.of();
+        }
+        return averages.stream().filter(average -> average != null)
+                .map(average -> new DailyPriceHistory(average.symbol(), average.tradingDates().stream()
+                        .map(date -> new DailyPriceBar(
+                                date, 100L, 100L, 100L, 100L, 1L,
+                                date.equals(average.selectionAsOfDate())
+                                        ? average.totalTradingValueKrw().longValueExact() : 0L,
+                                average.tradingVenueScope()
+                        )).toList())).toList();
     }
 
     private static Stream<Arguments> mismatchedAverages() {

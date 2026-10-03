@@ -103,6 +103,9 @@ class DailyTradingValueSelectionQueryServiceIntegrationTest {
 
         assertThat(result.status()).isEqualTo(DailyTradingValueSelectionEvaluationStatus.INCOMPLETE);
         assertThat(result.unverifiedSymbols()).containsExactly("000660");
+        assertThat(result.inputHistories()).containsExactly(
+                history("000660"), completeHistory("005930", 100L, VENUE)
+        );
         assertThat(result.calculatedAverages()).containsExactly(average("005930", 300L));
         assertThat(result.selectionResults()).isEmpty();
         assertThat(storedRows()).containsExactlyInAnyOrderElementsOf(before);
@@ -188,6 +191,41 @@ class DailyTradingValueSelectionQueryServiceIntegrationTest {
         assertThat(result.calculatedAverages()).isEmpty();
         assertThat(result.selectionResults()).isEmpty();
         assertThat(storedRows()).containsExactlyInAnyOrderElementsOf(before);
+    }
+
+    @Test
+    void replaysPreservedIncompleteInputsAfterStoredMetadataIsFilled() {
+        DailyPriceHistory incompleteHistory = history(
+                "005930", bar(FIRST_DATE, 100L, VENUE), bar(SECOND_DATE, null, null),
+                bar(SELECTION_DATE, 100L, VENUE)
+        );
+        save(incompleteHistory);
+        DailyTradingValueSelectionEvaluationRequest request = request("005930");
+        DailyTradingValueSelectionEvaluationResult original = service.evaluate(request);
+        assertThat(original.status()).isEqualTo(DailyTradingValueSelectionEvaluationStatus.INCOMPLETE);
+        assertThat(original.inputHistories()).containsExactly(incompleteHistory);
+
+        DailyPriceBarEntity missingRow = repository
+                .findAllBySymbolAndTradingDateBetweenOrderByTradingDateAsc("005930", SECOND_DATE, SECOND_DATE)
+                .getFirst();
+        assertThat(missingRow.fillMissingTradingValueMetadata(bar(SECOND_DATE, 100L, VENUE))).isTrue();
+        repository.saveAndFlush(missingRow);
+        entityManager.clear();
+        List<Tuple> filledRows = storedRows();
+
+        DailyTradingValueSelectionEvaluationResult fresh = service.evaluate(request);
+        DailyTradingValueSelectionEvaluationResult replayed = evaluationService.evaluate(
+                original.request(), original.inputHistories()
+        );
+
+        assertThat(fresh.status()).isEqualTo(DailyTradingValueSelectionEvaluationStatus.COMPLETE);
+        assertThat(fresh.inputHistories()).containsExactly(completeHistory("005930", 100L, VENUE));
+        assertThat(fresh.calculatedAverages()).containsExactly(average("005930", 300L));
+        assertThat(fresh).isNotEqualTo(original);
+        assertThat(replayed).isEqualTo(original);
+        assertThat(original.inputHistories().getFirst().bars().get(1).tradingValueKrw()).isNull();
+        assertThat(original.inputHistories().getFirst().bars().get(1).tradingVenueScope()).isNull();
+        assertThat(storedRows()).containsExactlyInAnyOrderElementsOf(filledRows);
     }
 
     @Test

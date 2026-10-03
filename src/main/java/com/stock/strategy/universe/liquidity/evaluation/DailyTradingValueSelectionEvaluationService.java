@@ -42,6 +42,8 @@ public class DailyTradingValueSelectionEvaluationService {
         Map<String, DailyPriceHistory> historiesBySymbol = indexHistories(
                 histories, new HashSet<>(symbols)
         );
+        // Retain the same immutable histories used below, not the caller's mutable list.
+        List<DailyPriceHistory> inputHistories = List.copyOf(historiesBySymbol.values());
         List<DailyTradingValueAverage> calculatedAverages = new ArrayList<>();
         List<String> unverifiedSymbols = new ArrayList<>();
         for (String symbol : symbols) {
@@ -65,12 +67,12 @@ public class DailyTradingValueSelectionEvaluationService {
         if (!unverifiedSymbols.isEmpty()) {
             return new DailyTradingValueSelectionEvaluationResult(
                     request, DailyTradingValueSelectionEvaluationStatus.INCOMPLETE,
-                    calculatedAverages, unverifiedSymbols, List.of()
+                    inputHistories, calculatedAverages, unverifiedSymbols, List.of()
             );
         }
         return new DailyTradingValueSelectionEvaluationResult(
                 request, DailyTradingValueSelectionEvaluationStatus.COMPLETE,
-                calculatedAverages, List.of(),
+                inputHistories, calculatedAverages, List.of(),
                 selectionPolicy.select(
                         calculatedAverages, request.minimumAverageTradingValueKrw(),
                         request.maxCandidateCount()

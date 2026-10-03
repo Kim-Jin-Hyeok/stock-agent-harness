@@ -1,9 +1,11 @@
 package com.stock.strategy.universe.liquidity.evaluation.result;
 
+import com.stock.market.price.history.DailyPriceHistory;
 import com.stock.strategy.universe.liquidity.DailyTradingValueAverage;
 import com.stock.strategy.universe.liquidity.evaluation.request.DailyTradingValueSelectionEvaluationRequest;
 import com.stock.strategy.universe.liquidity.selection.result.DailyTradingValueSelectionResult;
 
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -14,6 +16,7 @@ import java.util.Set;
 public record DailyTradingValueSelectionEvaluationResult(
         DailyTradingValueSelectionEvaluationRequest request,
         DailyTradingValueSelectionEvaluationStatus status,
+        List<DailyPriceHistory> inputHistories,
         List<DailyTradingValueAverage> calculatedAverages,
         List<String> unverifiedSymbols,
         List<DailyTradingValueSelectionResult> selectionResults
@@ -21,6 +24,9 @@ public record DailyTradingValueSelectionEvaluationResult(
     public DailyTradingValueSelectionEvaluationResult {
         Objects.requireNonNull(request, "request must not be null.");
         Objects.requireNonNull(status, "status must not be null.");
+        inputHistories = List.copyOf(Objects.requireNonNull(
+                inputHistories, "inputHistories must not be null."
+        ));
         calculatedAverages = List.copyOf(Objects.requireNonNull(
                 calculatedAverages, "calculatedAverages must not be null."
         ));
@@ -77,6 +83,35 @@ public record DailyTradingValueSelectionEvaluationResult(
         }
         if (status == DailyTradingValueSelectionEvaluationStatus.COMPLETE) {
             validateSelectionResults(averagesBySymbol, selectionResults);
+        }
+        validateInputHistories(request, inputHistories, averagesBySymbol.keySet());
+        inputHistories = inputHistories.stream()
+                .sorted(Comparator.comparing(DailyPriceHistory::symbol)).toList();
+    }
+
+    private static void validateInputHistories(
+            DailyTradingValueSelectionEvaluationRequest request,
+            List<DailyPriceHistory> histories,
+            Set<String> calculatedSymbols
+    ) {
+        Set<String> targets = new HashSet<>(request.targetSymbols());
+        Set<String> inputSymbols = new HashSet<>();
+        for (DailyPriceHistory history : histories) {
+            if (!targets.contains(history.symbol())) {
+                throw new IllegalArgumentException(
+                        "Input history symbol must belong to request targetSymbols: " + history.symbol()
+                );
+            }
+            if (!inputSymbols.add(history.symbol())) {
+                throw new IllegalArgumentException("Duplicate input history symbol: " + history.symbol());
+            }
+        }
+        for (String symbol : calculatedSymbols) {
+            if (!inputSymbols.contains(symbol)) {
+                throw new IllegalArgumentException(
+                        "Calculated symbol must have an input history: " + symbol
+                );
+            }
         }
     }
 
