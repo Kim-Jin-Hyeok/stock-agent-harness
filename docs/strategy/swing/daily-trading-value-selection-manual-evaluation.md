@@ -6,7 +6,7 @@
 
 Runner는 `com.stock.strategy.universe.liquidity.evaluation.runner`, 설정은 그 아래 `config` 패키지에 둔다. `ApplicationRunner`이므로 별도 프로세스 시작 시 실행한다. `enabled`는 기본 `false`이며 명시적인 `true`일 때만 빈을 등록한다. 활성화 값을 일반 서버 설정이나 `.env`에 남기면 재시작마다 새 평가·새 DB 행이 생기므로 해당 수동 실행의 인자에서만 켠다. 애플리케이션 종료는 강제하지 않는다.
 
-이 문서는 실행 안내이지 실 DB 관측 결과가 아니다. 이번 구현에서는 Docker·MySQL·KIS·OpenAI를 호출하지 않았다. `COMPLETE`는 명시한 대상의 계산·분류 완료이며 종목 자격·원천 단위·과거 정보 가용성 검증이나 후보 적용·주문 승인이 아니다. 전체 Universe 계약의 `DESIGN_ONLY`와 `runtimeSelectionImplemented=false`를 유지한다.
+이 문서는 실행 안내이며 실제 DB 관측은 [MySQL 실측 검증 결과](validation/daily-trading-value-selection-observation-01.md)에 별도로 기록한다. 구현 단계에서는 외부 실행을 하지 않았고, 후속 승인된 검증에서 로컬 MySQL의 V5 적용·평가 3건 저장·별도 JVM 복원을 확인했다. KIS·OpenAI는 호출하지 않았다. `COMPLETE`는 명시한 대상의 계산·분류 완료이며 종목 자격·원천 단위·과거 정보 가용성 검증이나 후보 적용·주문 승인이 아니다. 전체 Universe 계약의 `DESIGN_ONLY`와 `runtimeSelectionImplemented=false`를 유지한다.
 
 ## 필수 설정
 
@@ -109,5 +109,7 @@ Java의 `SnapshotStore.findById(id)`는 해당 JSON을 복원한다. 현재 일�
 반복 실행은 같은 조건이어도 새 ID를 생성한다. 메타데이터 보충 뒤의 완료 평가는 이전 불완전 스냅샷을 덮어쓰지 않는다. 실행 중 중단되거나 저장 응답이 불명확하면 DB 상태를 먼저 확인한다. 완료 로그가 없다는 이유만으로 저장되지 않았다고 단정하고 재시도하지 않는다.
 
 관련 단위·컨텍스트·H2 통합 테스트로 비활성화 무호출, 필수값 차단, 평가 후 저장 순서, 완전·불완전·무선정 결과, 예외 시 완료 로그 차단, ID 복원 일치와 기존 일봉·스냅샷 보존을 확인한다. H2 통합 테스트는 데이터를 준비한 뒤 Runner를 직접 호출하며 시작 시 자동 Runner 실행과 구분한다. MySQL의 실제 실행·격리·재시작 검증을 대신하지 않는다.
+
+2026-10-03 로컬 MySQL 실측에서는 `COMPLETE`·`INCOMPLETE`·같은 조건의 반복 평가가 새 ID 1·2·3으로 저장됐다. 별도 JVM에서 세 건을 복원하고 저장 입력으로 재평가한 결과가 일치했다. 기존 일봉 2,916행과 다른 테이블은 그대로였고 MySQL은 검증 후 다시 정지했다. V5와 세 관측 행은 DB에 남아 있으며, 전체 시장 성능·동시 갱신·DB 재기동 후 복구·원천 검증은 수행한 것으로 해석하지 않는다. 자세한 조건·시각·증거는 위 실측 기록을 따른다.
 
 전체 설계와 미검증 경계는 [후보 Universe 계약](validation/swing-v1-candidate-universe-contract.md)을 따른다.
