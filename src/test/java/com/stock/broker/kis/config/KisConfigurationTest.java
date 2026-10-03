@@ -40,6 +40,9 @@ import com.stock.market.index.history.provider.kis.KisMarketIndexDailyHistoryPro
 import com.stock.market.index.history.provider.kis.KisMarketIndexDailyHistoryRequestWaiter;
 import com.stock.market.price.history.collection.DailyPriceHistoryCollectionService;
 import com.stock.market.price.history.collection.backfill.DailyPriceTradingValueBackfillService;
+import com.stock.market.price.history.collection.backfill.runner.DailyPriceTradingValueBackfillRunner;
+import com.stock.market.price.history.collection.backfill.runner.config.DailyPriceTradingValueBackfillProperties;
+import com.stock.market.price.history.TradingVenueScope;
 import com.stock.market.price.history.collection.config.DailyPriceHistoryBootstrapProperties;
 import com.stock.market.price.history.collection.config.DailyPriceHistoryCollectionProperties;
 import com.stock.market.price.history.collection.policy.DailyPriceCollectionDatePolicy;
@@ -67,6 +70,7 @@ import java.net.URI;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalTime;
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -250,6 +254,29 @@ class KisConfigurationTest {
                     assertThat(context).doesNotHaveBean(
                             BrokerOrderExpirationCancellationScheduler.class
                     );
+                });
+    }
+
+    @Test
+    void wiresTradingValueBackfillRunnerToExistingKisServiceWhenExplicitlyEnabled() {
+        contextRunner
+                .withUserConfiguration(DailyPriceTradingValueBackfillRunner.class)
+                .withPropertyValues(
+                        "broker.kis.enabled=true",
+                        "market.price.history.collection.trading-value-backfill.enabled=true"
+                )
+                .withBean(KisProperties.class, this::enabledProperties)
+                .withBean(DailyPriceCollectionDatePolicy.class,
+                        () -> mock(DailyPriceCollectionDatePolicy.class))
+                .withBean(DailyPriceTradingValueBackfillProperties.class,
+                        () -> new DailyPriceTradingValueBackfillProperties(
+                                true, "005930", LocalDate.of(2026, 9, 21), LocalDate.of(2026, 9, 23),
+                                TradingVenueScope.INTEGRATED, 3))
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(DailyPriceTradingValueBackfillRunner.class);
+                    assertThat(context).hasSingleBean(DailyPriceTradingValueBackfillService.class);
+                    assertThat(context).hasSingleBean(KisDailyPriceHistoryProvider.class);
                 });
     }
 

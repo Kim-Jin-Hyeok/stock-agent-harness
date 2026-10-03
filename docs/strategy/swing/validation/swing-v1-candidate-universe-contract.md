@@ -24,6 +24,7 @@ runtimeSelectionImplemented: false
 | `SwingV1BacktestExperimentService` | 후보마다 같은 초기 현금의 독립 포트폴리오를 평가한다. 하나라도 실패하면 성공한 종목만 남기지 않는다. |
 | `DailyPriceBar`, `DailyPriceBarEntity` | OHLCV와 nullable 거래대금·조회 시장 범위를 보관한다. 기존 행은 새 값이 `null`이며 과거 상장 상태·종목 유형·제공 시점 이력은 없다. |
 | `DailyPriceTradingValueBackfillService` | 명시한 종목·기간·조회 범위에 대해 기존 일봉의 누락 메타데이터만 보충한다. 자동 실행·신규 일봉 삽입·후보 선정은 하지 않는다. |
+| `DailyPriceTradingValueBackfillRunner` | 기본 비활성화인 수동 진입점이다. 명시한 기간 상한·KIS 시장 설정·최근 확정일을 검사한 뒤 보충 서비스를 한 번 호출한다. |
 | 현재 관측 원본 | 소규모 고정 표본이다. 과거 시장 전체 구성이나 당시 제공된 데이터 버전의 증거를 대신하지 않는다. |
 
 후보 선정 계약은 여전히 문서 설계 단계다. 일봉 거래대금 저장 경로가 추가되어도 종목 마스터·선정 서비스·평균 계산·자동 선정은 구현되지 않았다. 운영 후보·주문·스케줄·Risk·AI Prompt는 바꾸지 않는다.
@@ -38,7 +39,7 @@ runtimeSelectionImplemented: false
 - `TradingVenueScope`는 Broker에 의존하지 않는 `com.stock.market.price.history`의 enum이다. `KRX`, `NXT`, `INTEGRATED`를 사용한다. KIS Client가 실제 요청하는 `J`, `NX`, `UN`과 명시적으로 대응하며 DB에는 enum 이름을 문자열로 저장한다. 이 값은 **요청한 조회 범위**이며 KOSPI/KOSDAQ 소속, 과거 시장의 구성이나 세션 확정 여부를 증명하지 않는다.
 - `DailyPriceBarEntity.toBar()`, 기존 DB 조회 서비스와 `HarnessDailyPriceBarSnapshot.from()`은 거래대금과 범위를 그대로 전달한다. 구 생성자와 구 JSON에서 새 필드가 없으면 두 값 모두 `null`이다. 새 스냅샷도 이 구분을 보존한다. 현재 설정을 과거 행에 대입하지 않는다.
 - `V4__add_daily_price_trading_value.sql`은 두 nullable 컬럼만 추가한다. 기존 OHLCV·고유키는 유지한다. 저장 단위는 아직 `(symbol, trading_date)`이므로 같은 날짜의 여러 시장 범위를 동시에 저장하는 구조가 아니며 범위가 다른 기간을 검증 없이 합산하지 않는다.
-- 증분 수집 서비스는 최신 저장일 이후만 조회한다. 이미 저장된 과거 거래대금이 `null`이어도 자동 재조회하지 않는다. 아래 별도 보충 서비스도 기동이나 스케줄에 연결하지 않았다. 저장·보충 구현은 실 DB 마이그레이션 적용이나 모의투자 서버 재시작을 포함하지 않는다.
+- 증분 수집 서비스는 최신 저장일 이후만 조회한다. 이미 저장된 과거 거래대금이 `null`이어도 자동 재조회하지 않는다. 별도 보충 Runner도 기본 비활성화이며 수동 실행 인자로 명시적으로 켤 때만 호출한다. 저장·보충 구현은 실 DB 마이그레이션 적용이나 모의투자 서버 재시작을 포함하지 않는다.
 
 원천 확인: [KIS 기간별 시세 공식 명세](https://apiportal.koreainvestment.com/apiservice-apiservice?/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice), [KIS 공식 요청 예제](https://github.com/koreainvestment/open-trading-api/blob/main/examples_llm/domestic_stock/inquire_daily_itemchartprice/inquire_daily_itemchartprice.py), [KIS 공식 응답 필드 예제](https://github.com/koreainvestment/open-trading-api/blob/main/examples_llm/domestic_stock/inquire_daily_itemchartprice/chk_inquire_daily_itemchartprice.py). 확인일은 `2026-10-03`이며 실 Broker 호출 없이 공개 명세를 열람했다.
 
@@ -54,11 +55,11 @@ runtimeSelectionImplemented: false
 
 결과는 요청 범위, 실제 조회 범위, 기대 시장 범위와 `targetCount`·`fetchedCount`·`updatedCount`를 보존한다. 수량은 필드 개수가 아니라 일봉 행 수다. `BACKFILLED`는 한 행 이상 반영한 상태, `ALREADY_FILLED`는 조회 사이 다른 작업이 대상 모두를 같은 값으로 채워 이번 요청은 변경하지 않은 상태다. 성공 후 같은 요청을 반복하면 `NO_TARGETS`이며 외부 조회를 생략한다. 확인된 `0`도 알려진 값이며 다른 숫자로 덮어쓰지 않는다.
 
-`TransactionTemplate`로 짧은 읽기·쓰기 구간을 나눈다. 이미 활성 트랜잭션 안에서 호출하면 외부 API 대기 중 트랜잭션을 유지하는 것을 막기 위해 즉시 거절한다. KIS 활성화 시 빈만 등록하며 Runner·Scheduler·Controller·실행 플래그는 추가하지 않는다. 트랜잭션·잠금 방식은 [Spring 공식 트랜잭션 문서](https://docs.spring.io/spring-framework/reference/data-access/transaction/programmatic.html), [Spring Data JPA 잠금 문서](https://docs.spring.io/spring-data/jpa/reference/jpa/locking.html)를 따른다.
+`TransactionTemplate`로 짧은 읽기·쓰기 구간을 나눈다. 이미 활성 트랜잭션 안에서 호출하면 외부 API 대기 중 트랜잭션을 유지하는 것을 막기 위해 즉시 거절한다. KIS 활성화 시 서비스 빈을 등록하고, 수동 Runner는 별도의 `market.price.history.collection.trading-value-backfill.enabled=true`일 때만 등록한다. Scheduler·Controller는 추가하지 않는다. 트랜잭션·잠금 방식은 [Spring 공식 트랜잭션 문서](https://docs.spring.io/spring-framework/reference/data-access/transaction/programmatic.html), [Spring Data JPA 잠금 문서](https://docs.spring.io/spring-data/jpa/reference/jpa/locking.html)를 따른다.
 
 검증은 서비스 단위 테스트와 H2 통합 테스트로 한다. 누락 필드만 보충, 재실행 조회 생략, 실제 0 보존, 잘못된 응답·OHLCV 충돌·동시 갱신 거절, 두 요청의 동시 반영 및 DB 제약조건 오류 시 전체 롤백을 확인한다. H2 결과는 운영 MySQL의 잠금·타임아웃 검증을 대신하지 않는다.
 
-이 변경에서는 실제 보충 호출·운영 DB 변경·Docker 조작을 하지 않는다. 실제 실행 전에 과거 확정 일봉 범위, 조회 시장 설정과 기대 범위 일치, 요청별 호출 예산·DB 잠금 대기 정책과 원본 보존 방법을 별도로 승인해야 한다. 이 서비스는 일봉 확정 시각을 자동 판정하지 않으므로 진행 중인 당일 값을 호출자가 제외해야 한다. **원천의 금액 단위·시간외 범위, 수정주가·기업행위와 과거 시점 정보 검증은 여전히 별도 과제다.** 기존 OHLCV 일치만으로 과거 원천이 완전히 검증됐다고 인정하거나 유동성 Universe를 실행하지 않는다.
+이 변경에서는 실제 보충 호출·운영 DB 변경·Docker 조작을 하지 않는다. 실제 실행 전에 과거 확정 일봉 범위, 조회 시장 설정과 기대 범위 일치, 요청별 호출 예산·DB 잠금 대기 정책과 원본 보존 방법을 별도로 승인해야 한다. 서비스 자체는 일봉 확정 시각을 자동 판정하지 않으며 수동 Runner가 기존 날짜 정책의 최근 확정일을 검사한다. 이는 설정상 검사이지 원천 데이터 확정의 증명이 아니다. 실행 방법은 [일봉 거래대금 수동 보충](../../../market/price/history/daily-price-trading-value-backfill.md)을 따른다. **원천의 금액 단위·시간외 범위, 수정주가·기업행위와 과거 시점 정보 검증은 여전히 별도 과제다.** 기존 OHLCV 일치만으로 과거 원천이 완전히 검증됐다고 인정하거나 유동성 Universe를 실행하지 않는다.
 
 ## 선정 시점과 대상
 
