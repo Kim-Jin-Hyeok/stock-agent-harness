@@ -114,6 +114,10 @@ portfolio:
 
 strategy:
   universe:
+    candidate:
+      evaluation:
+        manual:
+          enabled: false
     liquidity:
       evaluation:
         manual:

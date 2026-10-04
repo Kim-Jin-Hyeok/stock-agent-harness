@@ -27,7 +27,7 @@ Runner는 `com.stock.strategy.universe.liquidity.evaluation.runner`, 설정은 �
 ## 실행 전 확인
 
 1. 승인한 연구용 DB의 주소·스키마를 확인한다. 주문 프로세스나 다른 수집·보충 작업과 분리하고 작은 명시 대상부터 시작한다. 여러 종목 조회가 한 시점의 고정 DB 스냅샷이라는 격리 보장을 추가한 것은 아니다.
-2. `V5__create_daily_trading_value_selection_snapshot.sql`까지 이미 적용된 DB인지 확인한다. 아래 명령은 Flyway를 끄고 Hibernate `validate`만 수행하며 테이블을 생성·수정하지 않는다. 필요한 마이그레이션은 별도 승인 후 진행한다.
+2. 현재 애플리케이션의 Entity 검증을 위해 `V6__create_stock_candidate_evaluation_snapshot.sql`까지 이미 적용된 DB인지 확인한다. 이 Runner의 기록 테이블은 기존 V5 테이블이며 V6로 교체하지 않는다. 아래 명령은 Flyway를 끄고 Hibernate `validate`만 수행하며 테이블을 생성·수정하지 않는다. 필요한 마이그레이션은 별도 승인 후 진행한다.
 3. 대상 전체와 거래일 목록, 기준일·시장 범위·최소 금액·최대 개수를 결과 확인 전에 고정한다. 누락 종목이나 미달 결과가 나오더라도 성공한 종목만 남기도록 입력을 사후 수정하지 않는다.
 4. 저장 일봉의 거래대금·시장 범위와 원천 의미의 미검증 범위를 확인한다. 누락은 `INCOMPLETE`로 기록할 수 있지만 원천 단위·모집단 검증 없이 실제 후보에 적용하지 않는다.
 
@@ -72,6 +72,7 @@ $runArgs = @(
     '--market.index.history.collection.scheduler.enabled=false'
     '--market.index.history.collection.backfill.enabled=false'
     '--backtest.swing-v1.experiment.manual.enabled=false'
+    '--strategy.universe.candidate.evaluation.manual.enabled=false'
     '--strategy.universe.liquidity.evaluation.manual.enabled=true'
     '--strategy.universe.liquidity.evaluation.manual.target-symbols=005930,000660'
     '--strategy.universe.liquidity.evaluation.manual.selection-as-of-date=2026-09-23'
