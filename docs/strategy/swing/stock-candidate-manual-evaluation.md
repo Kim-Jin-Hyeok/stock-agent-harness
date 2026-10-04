@@ -6,7 +6,7 @@
 
 Runner는 `com.stock.strategy.universe.candidate.evaluation.runner`, 설정은 그 아래 `config.StockCandidateEvaluationProperties`다. `ApplicationRunner`이므로 명시적으로 활성화한 별도 프로세스의 시작 시 한 번 실행한다. 기본 `enabled=false`이며 활성화 설정을 계속 남기면 재시작마다 새 평가·새 DB 행이 생긴다. 일반 서버 설정이나 `.env`에 켜두지 않고 수동 실행 인자에서만 활성화한다. Runner가 애플리케이션을 강제로 종료하지는 않는다.
 
-이 문서는 실행 안내이지 실제 MySQL 실행 결과가 아니다. 이번 구현은 단위·설정·컨텍스트·합성 H2 통합 테스트로 검증했으며 실제 DB 마이그레이션 적용·평가 기록·Docker 조작·KIS·OpenAI 호출은 하지 않았다. `COMPLETE`는 명시한 대상과 근거의 분류 완료이며 원천 검증·과거 모집단 확인·수익성 증명 또는 주문 승인이 아니다. 전체 계약의 `DESIGN_ONLY`와 `runtimeSelectionImplemented=false`를 유지한다.
+이 문서는 실행 안내이며 실제 실행 증거는 별도 기록으로 구분한다. Runner 구현은 단위·설정·컨텍스트·합성 H2 통합 테스트로 검증했다. 후속 [MySQL 실측 검증](validation/stock-candidate-evaluation-observation-01.md)에서는 2026-10-04 기존 V6를 적용하고 자격 미확인의 `INCOMPLETE` 스냅샷 3건 저장·반복 실행·별도 JVM 복원을 확인했다. 앱 기동과 KIS·OpenAI 호출은 하지 않았다. 실제 MySQL의 완료 평가 분기와 과거 자격 원천 검증은 아직 남아 있다. `COMPLETE`는 명시한 대상과 근거의 분류 완료이며 원천 검증·과거 모집단 확인·수익성 증명 또는 주문 승인이 아니다. 전체 계약의 `DESIGN_ONLY`와 `runtimeSelectionImplemented=false`를 유지한다.
 
 ## 평가 설정
 
@@ -70,7 +70,7 @@ ORDER BY symbol, trading_date;
 
 DB 환경변수는 [로컬 MySQL 문서](../../local-mysql-development.md)를 따른다. `bootRun`은 Docker Compose의 `.env`를 자동으로 읽지 않으므로 별도 PowerShell 프로세스 또는 실행 설정에서 DB 연결 환경변수를 전달한다. 비밀값을 명령 인자·문서·로그·Git에 넣지 않는다. 이 경로에는 KIS·OpenAI 자격 증명이 필요하지 않다.
 
-아래 종목·날짜·금액은 실행 형태를 설명하는 값이지 추천 투자 후보·유동성 기준이나 검증된 과거 근거가 아니다. 자격 근거는 일부러 넣지 않고 한 종목의 코드만 전달하므로 **자격 단계의 `INCOMPLETE`를 기록하는 예시**다. 나머지 대상의 자격도 추정하지 않는다. 아래 명령은 **승인한 DB에 통합 평가 스냅샷 한 행을 실제 INSERT**하므로 DB·대상·조건을 확정한 뒤에만 실행한다. 이번 작업에서는 실행하지 않았다.
+아래 종목·날짜·금액은 실행 형태를 설명하는 값이지 추천 투자 후보·유동성 기준이나 검증된 과거 근거가 아니다. 자격 근거는 일부러 넣지 않고 한 종목의 코드만 전달하므로 **자격 단계의 `INCOMPLETE`를 기록하는 예시**다. 나머지 대상의 자격도 추정하지 않는다. 아래 명령은 **승인한 DB에 통합 평가 스냅샷 한 행을 실제 INSERT**하므로 DB·대상·조건을 확정한 뒤에만 실행한다. 이 안내 예시는 그대로 실행한 관측 기록이 아니며, 후속 실측의 고정 입력·격리 인자·실행 결과는 별도 검증 문서를 따른다.
 
 ```powershell
 $runArgs = @(
@@ -145,4 +145,4 @@ WHERE id = 123;
 
 관련 단위·설정·컨텍스트 테스트는 비활성화 무호출·빈 미등록, 조건 검증, 코드·날짜·enum 바인딩, 근거 기본값 미생성, 평가 뒤 저장 한 번 호출, 결과별 단계 건수와 실패 시 완료 로그 차단을 확인한다. H2 통합 테스트는 정상 선정·자격 미확인·유동성 미확인·전체 제외·미달·전체 누락의 직접 평가 및 저장 ID 복원 일치, 생략한 자격의 미확인 기록, 반복 실행의 새 ID와 이전 기록 유지, 기존 일봉·유동성 스냅샷 무변경을 확인한다.
 
-H2 테스트는 준비한 일봉에 대해 Runner를 직접 호출한 것이며 실제 애플리케이션 프로세스 시작·MySQL 트랜잭션·별도 JVM 복원·DB 재시작·백업 복구·외부 원천 검증을 대신하지 않는다. 실제 실행 관측과 V6 적용은 별도 검증으로 남겨야 한다. 전체 설계와 미검증 경계는 [후보 Universe 계약](validation/swing-v1-candidate-universe-contract.md)을 따른다.
+H2 테스트는 준비한 일봉에 대해 Runner를 직접 호출한 것이며 실제 애플리케이션 프로세스 시작·MySQL 트랜잭션·별도 JVM 복원·DB 재시작·백업 복구·외부 원천 검증을 대신하지 않는다. 후속 [MySQL 실측 검증](validation/stock-candidate-evaluation-observation-01.md)은 제한된 두 대상의 자격 근거 누락·`CURRENT_ONLY` 대조·동일 조건 반복을 실제 시작 경로로 기록하고 V6·저장 ID·명시적 null·나노초 cutoff·사유·일봉 보존을 확인했다. 별도 JVM에서 저장 입력만의 재평가도 일치했고 기존 데이터는 변경되지 않았다. 근거를 만들어 완료 상태를 유도하지 않았으므로 실제 MySQL의 `COMPLETE`·유동성 평가 분기, 과거 자격 원천·DB 재기동 복구·전체 시장 성능·전략 순성과는 미검증이다. 전체 설계와 미검증 경계는 [후보 Universe 계약](validation/swing-v1-candidate-universe-contract.md)을 따른다.
