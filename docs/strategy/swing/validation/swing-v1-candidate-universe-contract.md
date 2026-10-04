@@ -23,6 +23,7 @@ runtimeSelectionImplemented: false
 | `StockEligibilityInput`, `StockEligibilityRequest`, `StockEligibilityPolicy`, `StockEligibilityResult` | 명시한 기준일·시각·허용 조건과 전달된 단일 종목의 근거 상태로 자격을 판정한다. 현재 정보·누락·미래 정보는 확인 불가로 남긴다. 실제 종목 원천 검증·마스터 조회·전체 모집단 판정·유동성 연결은 하지 않는다. |
 | `StockCandidateEvaluationRequest` | 기존 자격 요청과 유동성 요청을 묶고 두 기준일의 일치를 요구한다. 원래 대상과 모든 기준을 유지하며 자격 통과 대상만 별도 유동성 요청으로 전달한다. |
 | `StockCandidateEvaluationService`, `StockCandidateEvaluationResult` | 명시한 대상 전체의 자격을 먼저 판정하고 적격 대상만 기존 거래대금 평가에 연결한다. 미확인 대상이 있으면 후보를 반환하지 않으며 제외 사유와 전달된 일봉 전체를 보존한다. 실제 모집단 조회·자동 후보 적용·DB 저장은 하지 않는다. |
+| `StockCandidateEvaluationSnapshot`, `StockCandidateEvaluationSnapshotJsonConverter` | 통합 평가 결과 전체를 독립된 형식 버전으로 감싸고 JSON 문자열로 변환·복원한다. 자격 때문에 생략된 유동성 단계도 명시적인 null로 보존한다. DB 저장·산술 검산·원천 인증은 하지 않는다. |
 | `SwingV1BacktestExperimentRequest.candidateSymbols` | 백테스트에 사용할 명시적인 후보와 순서를 받는다. 운영 후보를 자동으로 가져오지 않는다. |
 | `SwingV1BacktestExperimentService` | 후보마다 같은 초기 현금의 독립 포트폴리오를 평가한다. 하나라도 실패하면 성공한 종목만 남기지 않는다. |
 | `DailyPriceBar`, `DailyPriceBarEntity` | OHLCV와 nullable 거래대금·조회 시장 범위를 보관한다. 기존 행은 새 값이 `null`이며 과거 상장 상태·종목 유형·제공 시점 이력은 없다. |
@@ -42,9 +43,9 @@ runtimeSelectionImplemented: false
 | `DailyTradingValueSelectionEvaluationProperties`, `DailyTradingValueSelectionEvaluationRunner` | 기본 비활성화인 수동 진입점이다. 활성화할 때 여섯 평가 조건을 검증하고 기존 조회·평가와 DB 저장을 한 번 호출한다. 완전·불완전 결과 모두 기록하며 자동 시장 검색·후보 적용·주문은 하지 않는다. |
 | 현재 관측 원본 | 소규모 고정 표본이다. 과거 시장 전체 구성이나 당시 제공된 데이터 버전의 증거를 대신하지 않는다. |
 
-전체 Universe 선정 계약은 여전히 문서 설계 단계다. 일봉 거래대금 저장·보충과 독립적인 평균 계산·최소 기준 판정·동일 구간 정렬·유동성 조건의 선정 정책·누락 종목 보존 평가·저장 일봉의 평가 연결·평가 입력 보존·스냅샷 JSON 변환 및 DB 저장·ID 조회·수동 평가 기록·기준 시점 자격 정책과 명시한 대상의 자격·유동성 통합 평가는 구현됐다. 종목 마스터·과거 시장 전체 모집단 조회·전체 Universe 증거 보존·운영 후보 자동 선정은 구현되지 않았다.
+전체 Universe 선정 계약은 여전히 문서 설계 단계다. 일봉 거래대금 저장·보충과 독립적인 평균 계산·최소 기준 판정·동일 구간 정렬·유동성 조건의 선정 정책·누락 종목 보존 평가·저장 일봉의 평가 연결·평가 입력 보존·유동성 스냅샷 JSON 변환 및 DB 저장·ID 조회·수동 평가 기록·기준 시점 자격 정책·명시한 대상의 자격·유동성 통합 평가와 통합 스냅샷 JSON 변환·복원은 구현됐다. 종목 마스터·과거 시장 전체 모집단 조회·통합 스냅샷 DB 저장·전체 Universe 증거 보존·운영 후보 자동 선정은 구현되지 않았다.
 
-기존 DB 조회 진입점과 수동 Runner는 유동성 평가만 담당하며 별도 Store 호출 또는 명시적으로 활성화한 Runner가 저장한다. 새 통합 서비스는 전달된 자격 입력·일봉으로 인메모리 평가만 수행하며 기존 Runner·스냅샷에 연결하지 않았다. 자격 정책과 유동성 계산·정책·평가 서비스를 운영 또는 백테스트 후보 선정에 연결하지 않았다. 운영 후보·주문·스케줄·Risk·AI Prompt는 바꾸지 않는다.
+기존 DB 조회 진입점과 수동 Runner는 유동성 평가만 담당하며 별도 Store 호출 또는 명시적으로 활성화한 Runner가 저장한다. 통합 서비스는 전달된 자격 입력·일봉으로 인메모리 평가만 수행하며, 새 통합 스냅샷과 변환기는 별도로 명시한 결과를 JSON 문자열로 변환·복원한다. 기존 Runner·유동성 스냅샷 Store에 연결하거나 자동 저장하지 않는다. 자격 정책과 유동성 계산·정책·평가 서비스를 운영 또는 백테스트 후보 선정에 연결하지 않았다. 운영 후보·주문·스케줄·Risk·AI Prompt는 바꾸지 않는다.
 
 검증 표본을 선정하는 Universe와 거래마다 신호를 거르는 전략 Screener는 구분한다. 이 계약은 첫 평가 전 표본을 정하는 전자만 다룬다. 골든크로스·ATR·과거 전략 수익률로 후보를 선정하거나 운영 BUY 조건에 유동성 필터를 삽입하지 않는다.
 
@@ -171,6 +172,20 @@ cutoff와 정확히 같은 정보 가용 시각은 허용하고 1ns 이후는 �
 `COMPLETE`는 명시한 대상·전달된 근거에 따른 분류 완료이지 전체 과거 모집단·원천 단위·정보 가용성의 인증, 주문 허가 또는 수익성 증명이 아니다. 자격의 `AS_OF_VERIFIED`는 여전히 호출자 선언이며 거래대금 원천의 미검증 조건도 유지한다. 실제 종목 마스터 조회, 전체 모집단 생성, 거래정지·기업행위 처리, 기존 QueryService·Runner·JSON 스냅샷·DB 저장 연결, 운영 후보·백테스트 적용과 새 설정은 추가하지 않았다. 기존 유동성 JSON 형식 버전 1과 DB Schema를 변경하지 않는다.
 
 합성 테스트는 자격 제외 후 순위·개수 제한, 제외 대상의 시세 누락과 미확인 자격의 차이, 전체 제외·미달·시세 누락의 상태 구분, 원래 대상과 입력 보존, 입력 순서 독립성과 동률, 미래 일봉의 계산 제외, 방어적 복사와 서비스 재사용을 확인한다. 중복·대상 밖·null 입력의 호출 전 거절, 기존 정책 실패 전파, 잘못된 응답·변경된 기준·누락된 대상·교체된 이력·상태 모순 거절과 보존 입력 재평가도 확인한다. 관련 자격·유동성 정책 테스트만 함께 실행하며 실제 데이터·DB·외부 API·Docker·전략 성과를 검증한 것은 아니다. `DESIGN_ONLY`와 `runtimeSelectionImplemented=false`를 유지한다.
+
+### 통합 평가 스냅샷 JSON 변환과 복원
+
+`com.stock.strategy.universe.candidate.evaluation.snapshot.StockCandidateEvaluationSnapshot`은 `schemaVersion`과 기존 `StockCandidateEvaluationResult` 전체인 `evaluationResult`를 가진 record다. `from(result)`는 현재 형식 버전 `1`로 같은 불변 결과를 감싼다. 지원하지 않는 버전과 null 결과를 거절하며 별도 JSON DTO나 평가 알고리즘은 추가하지 않는다. 이 버전은 통합 JSON의 형식 버전이지 전략·계산 정책·원천 검증 버전이 아니다. 기존 유동성 스냅샷 버전 1과 독립된 타입이며 서로의 JSON을 자동 변환하지 않는다.
+
+그 아래 `snapshot.json.StockCandidateEvaluationSnapshotJsonConverter`는 `toJson(snapshot)`으로 문자열을 반환하고 `fromJson(json)`으로 스냅샷을 복원한다. 기존 변환기와 같은 방식으로 주입된 `ObjectMapper`의 복사본과 전용 writer·reader를 사용한다. 공유 mapper 설정·기존 유동성 변환기·DB 저장 형식은 변경하지 않는다. 빈·손상 문자열, null 루트, 객체가 아닌 문서, 지원하지 않는 버전, 필수 필드 누락·null 필수값, 알 수 없는 필드·enum, 같은 값의 중복 필드와 추가 문서도 거절한다. 정수 필드의 소수·문자열 숫자, 숫자 종목 코드와 enum ordinal을 자동 보정하지 않는다. Java null 인자는 `NullPointerException`, Jackson 처리 실패는 원인을 보존한 `IllegalArgumentException`이며 기본 결과나 부분 JSON을 반환하지 않는다.
+
+원래 자격·유동성 요청, 대상 전체의 자격 결과·사유·입력, 전달된 일봉 전체와 내부 유동성 결과를 보존한다. `sourceReference`와 정보 가용 시각도 입력 그대로 남기며 조회하거나 인증하지 않는다. ISO 날짜와 `Instant` 문자열, 정확한 JSON 정수인 `BigInteger` 합계를 사용해 나노초 시각과 큰 합계도 유지한다. nullable 자격 항목·일봉 메타데이터와 생략된 유동성 단계는 필드를 빼지 않고 명시적인 null로 표현한다. 특히 `liquidityResult: null`은 허용된 단계 생략이지만 필드 자체가 없는 JSON은 거절한다. 근거 상태의 null도 `UNVERIFIED`로 대체하지 않는다. 최종 후보와 미확인 코드 목록은 기존 결과 메서드로 구하며 별도 중복 필드로 저장하지 않는다.
+
+복원은 기존 record 생성자를 거쳐 원래 대상의 정확한 자격 분류, 요청 기준 일치, 내부 적격 대상·시세 보존과 단계별 완료 상태를 검증한다. **일봉 합계·자격 판정·선정 결과를 다시 계산하거나 근거의 진위를 인증하는 것은 아니다.** 대응하는 계산값과 선정값을 함께 바꾼 구조상 유효한 JSON은 복원될 수 있다. 계산 일치는 복원한 요청·자격 입력·일봉을 기존 통합 서비스에 전달해 별도로 비교한다. 같은 정책 구현에서의 재평가 일치와 정책 변경 뒤의 재현성은 구분하며 JSON 필드 순서나 바이트 단위 동일성을 보장하는 해시·서명 계약도 추가하지 않는다.
+
+합성 테스트는 고정 버전 1 문서 복원, 정상 선정·전체 자격 제외·자격 미확인·유동성 미확인·전체 누락·최소 기준 미달의 왕복 및 재평가 일치를 확인한다. 제외 사유·원래 대상과 두 단계의 이력 범위, 빈 이력·없는 이력·명시적 null·확인된 0, 현재 정보와 미확인 근거 상태, 명시한 허용 집합·시장 범위·비기본 기준·나노초 시각·큰 합계도 보존한다. 필수 거래일 밖 미래 일봉은 보존하되 재평가 계산에서 제외한다. 잘못된 JSON·요청 교체·대상 누락·입력 이력 교체·상태 모순 거절, 공유 설정 격리·기존 형식 유지와 구조 복원·산술 검산의 차이도 확인한다.
+
+이번 범위는 DB의 `@Lob`에 담을 수 있는 문자열 형식과 복원 검증까지다. 파일 저장, Entity·Repository·Store·마이그레이션, 수동 Runner, DB 조회·변경, 외부 API, 운영 후보·백테스트 연결과 Docker 조작은 추가하지 않는다. 기존 유동성 스냅샷 DB 저장은 그대로 유지하고 통합 결과의 영속화는 아직 연결하지 않았다. 실제 원천·과거 모집단·거래대금 단위·정보 가용성과 전략 순성과를 검증한 것은 아니므로 `DESIGN_ONLY`와 `runtimeSelectionImplemented=false`를 유지한다.
 
 ## 유동성 계산과 정렬
 
@@ -342,7 +357,7 @@ null 요청은 조회 전에 거절한다. 조회가 예기치 않게 null 이�
 
 ## 선정 상태와 보존할 증거
 
-선정 대상 전체를 포함·제외·확인 불가로 분류하고, 모집단 수가 분류 건수 합계와 일치해야 한다. 유동성 기준을 통과했지만 최대 후보 수에 걸린 종목도 순위와 사유를 남긴다. 다음 표는 전체 Universe에서 향후 저장할 의미다. 현재 Java 선정 enum에는 유동성 조건만 판단하는 `SELECTED`·`LIQUIDITY_BELOW_MINIMUM`·`CANDIDATE_LIMIT`만 있다. 평가 서비스의 `INCOMPLETE`와 `unverifiedSymbols`는 전달된 대상의 계산 불가를 보존하는 수단이며, 나머지 자격·원천 검증 사유와 전체 모집단 처리는 구현하지 않았다.
+선정 대상 전체를 포함·제외·확인 불가로 분류하고, 모집단 수가 분류 건수 합계와 일치해야 한다. 유동성 기준을 통과했지만 최대 후보 수에 걸린 종목도 순위와 사유를 남긴다. 다음 표는 전체 Universe에서 향후 저장할 의미다. 현재 Java 유동성 선정 enum은 `SELECTED`·`LIQUIDITY_BELOW_MINIMUM`·`CANDIDATE_LIMIT`이고, 자격 상태·사유는 별도 `StockEligibilityStatus`·`StockEligibilityReasonCode`로 보존한다. 통합 결과와 JSON은 명시한 대상 전체의 자격 및 적격 대상의 유동성 분류를 함께 유지하지만 DB 영속화·원천 검증 사유·과거 시장 전체 모집단 처리는 아직 연결하지 않았다.
 
 | 분류 / 사유 | 의미 |
 | --- | --- |
