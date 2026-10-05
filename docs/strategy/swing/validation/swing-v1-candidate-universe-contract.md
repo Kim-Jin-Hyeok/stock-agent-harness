@@ -151,6 +151,8 @@ cutoff와 정확히 같은 정보 가용 시각은 허용하고 1ns 이후는 �
 
 합성 데이터 단위 테스트는 명시 허용 유형·시장, ETF·ETN 제외, 누락과 제외의 구분, 현재 정보의 과거 날짜 재사용 차단, 가용 시각 경계, 이후 상장폐지 정보의 과거 대체 차단, 요청의 방어적 복사와 결과·사유 일관성 및 정책 재사용을 확인한다. 실제 종목 자료·DB·외부 API를 조회하거나 전략 성과를 검증한 것은 아니다. `DESIGN_ONLY`와 `runtimeSelectionImplemented=false`를 유지한다.
 
+후속 [종목 자격 원천 검증](stock-eligibility-source-validation-01.md)은 KIS 공식 마스터의 필드 의미와 현재 관측용 매핑 방향, 첫 수동 수집의 범위를 정리한다. 실제 마스터 다운로드·파싱·과거 적용 시점·정보 가용성·당시 전체 모집단 검증은 완료하지 않았다. 현재 마스터만으로 `AS_OF_VERIFIED`를 만들지 않고 근거가 없는 입력은 계속 미확인으로 남긴다. 이 문서 연결은 종목 마스터 수집이나 운영 후보 선정의 구현이 아니다.
+
 ### 명시한 대상의 자격·유동성 통합 평가
 
 `com.stock.strategy.universe.candidate.evaluation.StockCandidateEvaluationService.evaluate(request, eligibilityInputs, histories)`는 기존 `StockEligibilityPolicy`와 `DailyTradingValueSelectionEvaluationService`를 조합한다. `Service` 빈 등록만으로 평가하지 않으며 DB·Broker·OpenAI를 의존하지 않는다. 요청은 `candidate.evaluation.request`, 결과와 완료 상태는 `candidate.evaluation.result`에 둔다. 자격·유동성의 개별 판정 알고리즘을 새로 만들지 않는다.
