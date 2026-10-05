@@ -37,3 +37,10 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
 }
+
+tasks.register('collectStockMaster', JavaExec) {
+    group = 'application'
+    description = 'Run isolated manual KIS stock master collection without DB or broker beans.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.stock.market.stock.master.collection.runner.StockMasterCollectionRunner'
+}

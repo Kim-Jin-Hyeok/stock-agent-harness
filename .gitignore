@@ -45,3 +45,6 @@ bin/
 ### Local environment ###
 .env
 !.env.example
+
+### Local stock master observations ###
+/data/stock-master-observations/

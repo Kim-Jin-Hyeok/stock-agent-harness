@@ -7,3 +7,4 @@ out
 .env
 .env.*
 *.md
+data/stock-master-observations
