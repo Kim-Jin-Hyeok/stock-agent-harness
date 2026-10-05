@@ -6,7 +6,7 @@
 
 고정한 규격의 필드 설명과 실제 조합이 일치하는 범위는 KOSPI `EF/2/0` 1,159행의 ETF 유형 해석이다. 이는 아래에서 정한 프로젝트의 제한적인 해석 방향이며, 원천이 모든 조합의 허용 여부를 인증했다는 뜻은 아니다. 나머지 3,244행은 공백 또는 미정의 값 때문에 전체 조합 매핑을 보류한다. **이 건수는 문서의 조합 검토 결과이지 운영 분류 결과나 종목 자격 판정 건수가 아니다.**
 
-Java 매핑·새 enum·`StockEligibilityInput`·DB 저장·운영 후보·백테스트·주문 연결은 추가하지 않았다. `DESIGN_ONLY`, `runtimeSelectionImplemented=false`, `eligibilityOrHistoricalPopulationVerified=false`를 유지한다. 유형 해석과 과거 시장 소속·상장 상태·정보 가용성 검증은 별개의 책임이다.
+이 문서의 근거 재검증 단계에서는 Java 매핑·새 enum·`StockEligibilityInput`·DB 저장·운영 후보·백테스트·주문 연결을 추가하지 않았다. 후속 Java 정책의 구현과 검증은 마지막 절의 별도 문서로 구분한다. `DESIGN_ONLY`, `runtimeSelectionImplemented=false`, `eligibilityOrHistoricalPopulationVerified=false`를 유지한다. 유형 해석과 과거 시장 소속·상장 상태·정보 가용성 검증은 별개의 책임이다.
 
 ## 고정한 공식 자료
 
@@ -102,3 +102,7 @@ GitHub Contents API에 고정 commit을 지정해 받은 base64를 바이트로 
 `verify-local.ps1`은 네트워크 요청 없이 파일 해시·헤더 및 예제 폭·LF 행 구조·조합별 전체 건수를 대조했다. 헬퍼의 PowerShell 배열·사전 객체 처리 오류를 수정한 뒤 동일 자료로 성공했으며 규격이나 MST를 다시 받지 않았다. 성공 결과는 `local-verification.json`, 검증 시각은 `2026-10-05T11:23:59.7810330+00:00`이다. 이전 관측 JSON의 SHA-256은 `08f2c7a40a738d99b05df6b0eef215cee109bed3d3307e3882b5ea1402fbea87`이고, 실행 전후 기존 7개 보존 파일의 크기·해시도 동일했다.
 
 헤더·예제의 일치와 원본 조합 대조는 코드 의미의 추가 인증이나 과거 자격 승인으로 해석하지 않는다. 이번 변경 대상은 이 문서와 기존 문서의 후속 판정 안내·링크다. Java·설정·스키마·테스트는 수정하지 않았고 Gradle 테스트도 재실행하지 않았다. DB·Docker·계좌·주문·OpenAI 호출, 커밋·Push는 하지 않았다.
+
+## 후속 Java 유형 해석
+
+별도 작업인 [현재 유형 해석 정책](../stock-master-type-classification.md)은 이 검토의 제한적 해석 방향을 Java로 고정했다. KOSPI `EF/2/0`만 ETF로 반환하고 그 밖의 조합은 null 유형과 보류 사유를 남긴다. 실제 보존 배치의 1,159행 해석·3,244행 보류를 확인했으며 원본과 고정한 규격은 변경하지 않았다. 원문 파서·배치 서비스의 계약 및 종목 자격·과거 모집단·운영 선택 미승인 경계는 그대로다.
