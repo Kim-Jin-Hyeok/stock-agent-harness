@@ -73,3 +73,7 @@ ZIP은 수집 당시 구조·추출 크기·CRC를 검사한 보존 원본이다
 반환한 수집 record는 manifest와 같았고 두 시장 간 식별자 충돌 없이 완료됐다. 원본 7개 파일의 크기·SHA-256은 이전 관측 기록과 같았으며 실행 전후에도 변경되지 않았다. 기존 대조 기록의 SHA-256은 `08f2c7a40a738d99b05df6b0eef215cee109bed3d3307e3882b5ea1402fbea87`이다. 이번 도구가 비교한 집계는 행 수와 표본이며, 원문 파서 단계의 6종 분포 집계를 다시 실행했다고 주장하지 않는다.
 
 도구와 결과는 Git 제외 경로 `build/stock-master-batch-parsing-observation-01/VerifyStockMasterBatchParsing.java` 및 `verification.json`에 남겼다. 외부 요청은 0회이며 재수집·DB·Docker·계좌·주문·OpenAI 실행은 없었다. `eligibilityOrHistoricalPopulationVerified=false`를 유지한다.
+
+## 후속 유형 매핑 검토
+
+[유형 매핑 근거 재검증](validation/stock-master-type-mapping-validation-01.md)은 공식 규격·예제를 고정하고 같은 배치의 원문 조합을 대조한 별도 문서 검증이다. ETP 공백과 미정의 코드 때문에 전체 개별주 자동 매핑은 보류한다. 배치 해석 서비스의 성공 계약과 원문 보존 동작을 변경하지 않았으며, 이 검토를 종목 자격·운영 후보·주문 승인으로 연결하지 않는다.
