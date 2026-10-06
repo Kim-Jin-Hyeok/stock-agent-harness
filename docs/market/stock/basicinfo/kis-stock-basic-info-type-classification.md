@@ -10,6 +10,8 @@
 
 후속 [마스터와 표준코드 대조](../master/kis-stock-basic-info-matching.md)는 요청 종목의 마스터 행과 API 표준코드·시장을 비교하는 별도 정책이다. 두 결과를 자동 결합하거나 대조 성공으로 유형·투자 자격을 승인하지 않는다.
 
+별도 [현재 유형 보완 정책](kis-stock-basic-info-type-resolution.md)은 대조 성공 후 이 해석과 마스터 해석으로 참고 유형을 만든다. 이 정책의 원천 유형·사유는 바꾸지 않으며 충돌 시 참고 유형을 보류한다. 후보 선정과 주문 연결은 포함하지 않는다.
+
 ## 패키지와 호출 계약
 
 패키지는 `com.stock.strategy.universe.eligibility.classification.kis.basicinfo`다. 기존 마스터 정책은 `classification.kis`에 그대로 두며 기존 `StockSecurityType`을 재사용한다.

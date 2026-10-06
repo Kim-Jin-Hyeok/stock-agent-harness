@@ -8,6 +8,8 @@ KIS 마스터에서 **호출자가 전달한 요청 종목코드의 행을 먼�
 
 이름·가격·상품 유형·주식종류·거래 제한 값은 식별 대조에 사용하지 않는다. SPAC·ETF·거래정지·정리매매 사례도 표준코드와 시장이 같으면 이 제한된 대조에서 성공할 수 있다. **대조 성공 수를 투자 가능한 종목 수로 사용하지 않는다.**
 
+후속 [현재 유형 보완 정책](../basicinfo/kis-stock-basic-info-type-resolution.md)은 이 결과를 단건 입력으로 받아 대조 성공 때만 마스터·API 유형을 조합한다. 이 대조 정책과 원문은 변경하지 않으며 참고 유형을 투자 자격이나 주문 허가로 연결하지 않는다.
+
 ## 패키지와 호출 계약
 
 패키지는 `com.stock.market.stock.master.matching.kisbasicinfo`다. 기존 `matching.kiskrx`와 분리하며 기존 마스터 배치와 [주식기본조회 파싱 결과](../basicinfo/kis-stock-basic-info-raw-parsing.md)를 재사용한다.
