@@ -1,6 +1,7 @@
 package com.stock.harness.scheduler;
 
 import com.stock.harness.HarnessRunHistoryService;
+import com.stock.harness.HarnessRunAlreadyInProgressException;
 import com.stock.harness.HarnessRunResult;
 import com.stock.harness.HarnessRunStatus;
 import com.stock.harness.InvestmentHarness;
@@ -27,9 +28,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -102,6 +106,49 @@ class HarnessSchedulerTest {
         verify(investmentHarness).run(DAY_TRADING);
         verify(investmentHarness).run(SWING);
         verify(investmentHarness).run(LONG_TERM);
+    }
+
+    @Test
+    void skipsDuplicateStrategyContinuesOthersAndCanRunOnNextTick() {
+        InvestmentHarness investmentHarness = mock(InvestmentHarness.class);
+        HarnessRunHistoryService historyService = mock(HarnessRunHistoryService.class);
+        HarnessScheduler scheduler = scheduler(
+                investmentHarness,
+                historyService,
+                properties(true, enabledStrategies())
+        );
+        when(historyService.getLatestRunStartedAt(any())).thenReturn(Optional.empty());
+        when(investmentHarness.run(DAY_TRADING))
+                .thenThrow(new HarnessRunAlreadyInProgressException(DAY_TRADING))
+                .thenReturn(completedRunResult(DAY_TRADING));
+        when(investmentHarness.run(SWING)).thenReturn(completedRunResult(SWING));
+        when(investmentHarness.run(LONG_TERM)).thenReturn(completedRunResult(LONG_TERM));
+
+        assertThatCode(scheduler::run).doesNotThrowAnyException();
+        verify(investmentHarness).run(SWING);
+        verify(investmentHarness).run(LONG_TERM);
+
+        scheduler.run();
+
+        verify(investmentHarness, times(2)).run(DAY_TRADING);
+        verify(investmentHarness, times(2)).run(SWING);
+        verify(investmentHarness, times(2)).run(LONG_TERM);
+    }
+
+    @Test
+    void doesNotTreatUnexpectedFailureAsDuplicate() {
+        InvestmentHarness investmentHarness = mock(InvestmentHarness.class);
+        HarnessRunHistoryService historyService = mock(HarnessRunHistoryService.class);
+        HarnessScheduler scheduler = scheduler(
+                investmentHarness,
+                historyService,
+                properties(true, enabledStrategies())
+        );
+        when(historyService.getLatestRunStartedAt(any())).thenReturn(Optional.empty());
+        IllegalStateException failure = new IllegalStateException("History unavailable");
+        when(investmentHarness.run(DAY_TRADING)).thenThrow(failure);
+
+        assertThatThrownBy(scheduler::run).isSameAs(failure);
     }
 
     @Test

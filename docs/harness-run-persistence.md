@@ -69,6 +69,35 @@ getStepsByRunId(runId)
 
 `HarnessRunResult`는 `POST /api/harness/run`으로 방금 실행한 결과를 응답할 때 사용한다. 저장된 Run 이력 조회의 기준은 `HarnessRunDetail`이다.
 
+## Run 동시 실행과 운영 조건
+
+스케줄러와 수동 `POST /api/harness/run`은 같은 singleton `InvestmentHarness`의
+`run()`을 호출한다. Harness는 `(strategyId, strategyVersion, horizon)`을 키로
+진행 중인 Run을 메모리에 원자적으로 등록한다. 같은 키의 요청은 대기열에 넣지 않고
+후보 종목·포트폴리오·시장 조회, Provider 및 Broker 주문 호출 전에 거절한다.
+다른 전략, 버전 또는 투자 관점의 Run은 이 차단을 공유하지 않는다.
+
+- 수동 API: HTTP `409 Conflict`로 응답한다.
+- 스케줄러: 중복 전략을 로그에 남기고 건너뛰며 나머지 전략을 계속 검사한다.
+- 중복 요청: 새 Run을 시작하지 않으므로 실패 Run 이력도 저장하지 않는다.
+- 허용된 Run: 성공 또는 실패 이력 저장까지 등록을 유지한다. 정상 종료, 실행 실패,
+  이력 저장 예외로 `run()`을 벗어날 때 `finally`에서 등록을 해제해 다음 Run을 허용한다.
+
+**현재 운영 조건은 앱 인스턴스 1개이며, 스케줄러와 수동 API가 같은 Harness bean을
+사용해야 한다.** 이 메모리 차단은 다른 JVM, 다른 앱 인스턴스 또는 별도로 생성한
+Harness 사이를 보호하지 않는다. 같은 Broker 계좌를 사용하는 앱을 여러 개 실행하는
+운영은 이 기능의 보호 범위를 벗어난다. 이를 확장하려면 별도의 인스턴스 간 실행 통제가
+필요하다. 이 변경에는 DB migration이나 추가 의존성이 없다.
+
+이 차단은 실행 중인 Run의 겹침을 막는다. 완료 이후의 재요청을 중복으로 처리하는
+idempotency 기능이나 전략 간 공유 계좌의 주문 충돌 통제를 대신하지 않는다.
+스케줄러의 실행 날짜·시간대·주기 정책은 기존 이력 조회 기준을 계속 사용한다.
+
+`InvestmentHarnessConcurrencyTest`는 latch로 실제 Harness 실행을 멈춘 상태에서
+동시 요청, 양방향 스케줄러/API 경합, 키별 독립 실행, 실행 실패 및 이력 저장 실패 후
+재실행을 검증한다. Controller와 Scheduler 테스트는 각각 HTTP 409와 중복 건너뛰기,
+다른 전략의 계속 실행 및 다음 tick 재시도를 검증한다. 외부 서비스는 mock을 사용한다.
+
 ## Persisted Models
 
 ### HarnessRunEntity
