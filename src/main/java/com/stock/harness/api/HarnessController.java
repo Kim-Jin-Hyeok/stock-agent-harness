@@ -23,7 +23,12 @@ public class HarnessController {
 
     @PostMapping("/run")
     public HarnessRunResponse run(@Valid @RequestBody HarnessRunRequest request) {
-        HarnessRunResult result = investmentHarness.run(request.toStrategyIdentity());
+        HarnessRunResult result;
+        try {
+            result = investmentHarness.run(request.toStrategyIdentity());
+        } catch (HarnessRunAlreadyInProgressException e) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage(), e);
+        }
 
         List<TradeRecord> tradeRecords = tradeHistoryService.getRecordsByRunId(result.runId());
 

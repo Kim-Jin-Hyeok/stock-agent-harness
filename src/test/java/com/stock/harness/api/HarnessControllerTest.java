@@ -7,6 +7,7 @@ import com.stock.agent.decision.order.proposal.OrderQuantityProposal;
 import com.stock.agent.evidence.movingaverage.MovingAverageDecisionEvidence;
 import com.stock.agent.evidence.movingaverage.order.MovingAverageOrderDecisionEvidence;
 import com.stock.harness.HarnessRunDetail;
+import com.stock.harness.HarnessRunAlreadyInProgressException;
 import com.stock.harness.HarnessRunHistoryService;
 import com.stock.harness.HarnessRunResult;
 import com.stock.harness.HarnessRunStatus;
@@ -57,6 +58,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -65,6 +67,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -161,6 +164,33 @@ class HarnessControllerTest {
 
         verify(investmentHarness).run(STRATEGY_IDENTITY);
         verify(tradeHistoryService).getRecordsByRunId(runId);
+    }
+
+    @Test
+    void runReturnsConflictWhenSameStrategyIsAlreadyRunning() throws Exception {
+        HarnessRunAlreadyInProgressException duplicate =
+                new HarnessRunAlreadyInProgressException(STRATEGY_IDENTITY);
+        when(investmentHarness.run(STRATEGY_IDENTITY)).thenThrow(duplicate);
+
+        mockMvc.perform(post("/api/harness/run")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "strategyId": "DAY_TRADING_V1",
+                                  "strategyVersion": 1,
+                                  "horizon": "DAY_TRADING"
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(result -> {
+                    assertThat(result.getResolvedException())
+                            .isInstanceOf(ResponseStatusException.class);
+                    ResponseStatusException exception =
+                            (ResponseStatusException) result.getResolvedException();
+                    assertThat(exception.getReason()).isEqualTo(duplicate.getMessage());
+                });
+
+        verifyNoInteractions(tradeHistoryService, harnessRunHistoryService, harnessStateService);
     }
 
     @Test

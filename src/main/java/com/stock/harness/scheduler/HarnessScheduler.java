@@ -1,6 +1,7 @@
 package com.stock.harness.scheduler;
 
 import com.stock.harness.HarnessRunHistoryService;
+import com.stock.harness.HarnessRunAlreadyInProgressException;
 import com.stock.harness.HarnessRunResult;
 import com.stock.harness.InvestmentHarness;
 import com.stock.harness.scheduler.config.HarnessSchedulerProperties;
@@ -94,7 +95,18 @@ public class HarnessScheduler {
                 evaluatedAt
         );
 
-        HarnessRunResult result = investmentHarness.run(strategyIdentity);
+        HarnessRunResult result;
+        try {
+            result = investmentHarness.run(strategyIdentity);
+        } catch (HarnessRunAlreadyInProgressException e) {
+            log.info(
+                    "Harness scheduler skipped active strategy. strategyId={}, strategyVersion={}, horizon={}",
+                    strategyIdentity.strategyId(),
+                    strategyIdentity.strategyVersion(),
+                    strategyIdentity.horizon()
+            );
+            return;
+        }
 
         log.info(
                 "Harness scheduler completed. runId={}, strategyId={}, status={}",

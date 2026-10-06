@@ -42,7 +42,9 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Component
@@ -63,9 +65,23 @@ public class InvestmentHarness {
     private final HarnessRetryWaiter harnessRetryWaiter;
     private final StrategyStockUniverseRegistry strategyStockUniverseRegistry;
     private final CurrentPriceObservationService currentPriceObservationService;
+    // Shared by scheduler and API callers of this singleton; not a distributed lock.
+    private final Set<InvestmentStrategyIdentity> activeStrategies = ConcurrentHashMap.newKeySet();
 
     public HarnessRunResult run(InvestmentStrategyIdentity strategyIdentity) {
         Objects.requireNonNull(strategyIdentity, "strategyIdentity must not be null.");
+        if (!activeStrategies.add(strategyIdentity)) {
+            throw new HarnessRunAlreadyInProgressException(strategyIdentity);
+        }
+
+        try {
+            return executeRun(strategyIdentity);
+        } finally {
+            activeStrategies.remove(strategyIdentity);
+        }
+    }
+
+    private HarnessRunResult executeRun(InvestmentStrategyIdentity strategyIdentity) {
         LocalDateTime startedAt = LocalDateTime.now();
         log.info(
                 "Investment Harness started. strategyId={}, strategyVersion={}, horizon={}",
