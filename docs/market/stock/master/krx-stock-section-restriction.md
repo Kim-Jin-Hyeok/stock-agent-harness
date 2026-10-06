@@ -113,3 +113,7 @@ Git 제외 경로 `build/krx-stock-section-restriction-observation-01/`에 `Veri
 ## 후속 KIS 관측 해석
 
 [KIS 거래정지 정리매매 관측 상태 해석](kis-stock-trading-restriction.md)은 같은 유형 입력의 KIS 원문에서 두 필드를 독립적으로 기록한다. 이 문서의 소속부 규칙·보고서·당시 검증 결과는 변경하지 않았으며, 두 정책의 관측으로 실제 종목 자격·거래 가능 여부를 승인하지 않는다.
+
+## 후속 관측 통합
+
+[KIS KRX 종목 제한 관측 통합](kis-krx-stock-restriction-observation.md)은 확장된 KIS 다섯 상태와 이 정책의 소속부 결과를 같은 입력에 대해 함께 보존한다. 소속부 사유·원문·규칙 버전·기존 증적은 그대로 유지하고 서로 다른 입력의 조합을 거절한다. KRX 데이터는 운영 필수 출처로 확정하지 않으며 관측을 하나의 정상 여부로 합치지 않는다.
