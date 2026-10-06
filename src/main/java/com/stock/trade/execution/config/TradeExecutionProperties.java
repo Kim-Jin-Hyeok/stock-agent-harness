@@ -6,7 +6,8 @@ import java.util.Objects;
 
 @ConfigurationProperties(prefix = "trade.execution")
 public record TradeExecutionProperties(
-        TradeExecutionMode mode
+        TradeExecutionMode mode,
+        boolean ordersEnabled
 ) {
     public TradeExecutionProperties {
         Objects.requireNonNull(mode, "Trade execution mode must not be null.");

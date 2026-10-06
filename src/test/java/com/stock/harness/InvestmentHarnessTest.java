@@ -83,6 +83,8 @@ import com.stock.trade.TradeHistoryService;
 import com.stock.trade.TradeReasonCode;
 import com.stock.trade.TradeStatus;
 import com.stock.trade.execution.TradeExecutionHandler;
+import com.stock.trade.execution.config.TradeExecutionMode;
+import com.stock.trade.execution.config.TradeExecutionProperties;
 import com.stock.trade.execution.virtual.VirtualTradeExecutionHandler;
 import com.stock.trade.persistence.TradeRecordEntity;
 import com.stock.trade.persistence.TradeRecordRepository;
@@ -115,6 +117,8 @@ import static org.mockito.Mockito.when;
 class InvestmentHarnessTest {
     private static final InvestmentStrategyIdentity STRATEGY_IDENTITY =
             new InvestmentStrategyIdentity("DAY_TRADING_V1", 1, InvestmentHorizon.DAY_TRADING);
+    private static final TradeExecutionProperties TRADE_EXECUTION_PROPERTIES =
+            new TradeExecutionProperties(TradeExecutionMode.VIRTUAL, true);
     private static final Instant CURRENT_PRICE_OBSERVED_AT = Instant.parse(
             "2026-01-01T00:00:00Z"
     );
@@ -142,7 +146,8 @@ class InvestmentHarnessTest {
     private final TradeHistoryService tradeHistoryService = new TradeHistoryService(mock(TradeRecordRepository.class));
     private final TradeExecutor tradeExecutor = new TradeExecutor(
             new VirtualTradeExecutionHandler(portfolioService),
-            tradeHistoryService
+            tradeHistoryService,
+            TRADE_EXECUTION_PROPERTIES
     );
     private final MarketService marketService = new MarketService(
             new MarketSessionPolicy(
@@ -836,7 +841,8 @@ class InvestmentHarnessTest {
 
         TradeExecutor sellTradeExecutor = new TradeExecutor(
                 new VirtualTradeExecutionHandler(sellPortfolioService),
-                tradeHistoryService
+                tradeHistoryService,
+                TRADE_EXECUTION_PROPERTIES
         );
 
         InvestmentHarness sellHarness = new InvestmentHarness(
@@ -1200,7 +1206,8 @@ class InvestmentHarnessTest {
         );
         TradeExecutor aiTradeExecutor = new TradeExecutor(
                 new VirtualTradeExecutionHandler(portfolioService),
-                new TradeHistoryService(tradeRecordRepository)
+                new TradeHistoryService(tradeRecordRepository),
+                TRADE_EXECUTION_PROPERTIES
         );
         InvestmentHarness aiHarness = new InvestmentHarness(
                 riskGuard,
@@ -1302,7 +1309,8 @@ class InvestmentHarnessTest {
         );
         TradeExecutor aiTradeExecutor = new TradeExecutor(
                 tradeExecutionHandler,
-                new TradeHistoryService(tradeRecordRepository)
+                new TradeHistoryService(tradeRecordRepository),
+                TRADE_EXECUTION_PROPERTIES
         );
         InvestmentHarness aiHarness = new InvestmentHarness(
                 riskGuard,

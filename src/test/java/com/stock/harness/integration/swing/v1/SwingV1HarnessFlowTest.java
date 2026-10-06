@@ -48,6 +48,7 @@ import com.stock.market.price.validation.CurrentPriceFreshnessPolicy;
 import com.stock.market.price.validation.CurrentPriceFreshnessProperties;
 import com.stock.market.session.MarketSessionPolicy;
 import com.stock.portfolio.PortfolioService;
+import com.stock.portfolio.PortfolioSnapshot;
 import com.stock.portfolio.PortfolioSnapshotStore;
 import com.stock.portfolio.valuation.PortfolioValuationService;
 import com.stock.risk.RiskCheckStatus;
@@ -79,7 +80,10 @@ import com.stock.strategy.universe.config.ConfiguredStrategyStockUniverse;
 import com.stock.strategy.universe.config.StrategyStockUniverseProperties;
 import com.stock.trade.TradeExecutor;
 import com.stock.trade.TradeHistoryService;
+import com.stock.trade.TradeReasonCode;
 import com.stock.trade.TradeStatus;
+import com.stock.trade.execution.config.TradeExecutionMode;
+import com.stock.trade.execution.config.TradeExecutionProperties;
 import com.stock.trade.execution.virtual.VirtualTradeExecutionHandler;
 import com.stock.trade.persistence.TradeRecordEntity;
 import com.stock.trade.persistence.TradeRecordRepository;
@@ -150,12 +154,6 @@ class SwingV1HarnessFlowTest {
 
     @BeforeEach
     void setUp() {
-        StrategyDailyPriceHistoryPolicy historyPolicy = historyPolicy();
-        CurrentPriceFreshnessPolicy freshnessPolicy = freshnessPolicy();
-        RiskProperties riskProperties = new RiskProperties(0.1, 0.3);
-        OrderQuantityCapacityCalculator capacityCalculator =
-                new OrderQuantityCapacityCalculator(riskProperties);
-
         when(dailyPriceHistoryQueryService.getLatestDailyPriceHistory(
                 CANDIDATE_SYMBOL,
                 120
@@ -172,9 +170,18 @@ class SwingV1HarnessFlowTest {
                 120_000L
         );
 
-        investmentHarness = new InvestmentHarness(
+        investmentHarness = createHarness(true);
+    }
+
+    private InvestmentHarness createHarness(boolean ordersEnabled) {
+        StrategyDailyPriceHistoryPolicy historyPolicy = historyPolicy();
+        CurrentPriceFreshnessPolicy freshnessPolicy = freshnessPolicy();
+        OrderQuantityCapacityCalculator capacityCalculator =
+                new OrderQuantityCapacityCalculator(new RiskProperties(0.1, 0.3));
+
+        return new InvestmentHarness(
                 new RiskGuard(capacityCalculator),
-                tradeExecutor(),
+                tradeExecutor(ordersEnabled),
                 portfolioService,
                 marketService(),
                 runHistoryService(),
@@ -189,6 +196,50 @@ class SwingV1HarnessFlowTest {
                 stockUniverseRegistry(),
                 observationService
         );
+    }
+
+    @Test
+    void disabledOrdersPreserveSwingV1DecisionAndRejectionWithoutPortfolioChanges() {
+        PortfolioSnapshot before = portfolioService.getCurrentSnapshot(
+                STRATEGY_IDENTITY
+        );
+
+        HarnessRunResult result = createHarness(false).run(STRATEGY_IDENTITY);
+
+        assertThat(result.status()).isEqualTo(HarnessRunStatus.FAILED);
+        assertThat(result.decision().action()).isEqualTo(InvestmentAction.BUY);
+        assertThat(result.decision().symbol()).isEqualTo(CANDIDATE_SYMBOL);
+        assertThat(result.decision().quantity()).isEqualTo(9L);
+        assertThat(result.riskCheckResult().status())
+                .isEqualTo(RiskCheckStatus.APPROVED);
+        assertThat(result.tradeResult().status()).isEqualTo(TradeStatus.REJECTED);
+        assertThat(result.tradeResult().reasonCode())
+                .isEqualTo(TradeReasonCode.ORDER_EXECUTION_DISABLED);
+        assertThat(result.portfolioSnapshot()).isEqualTo(before);
+        assertThat(portfolioService.getCurrentSnapshot(STRATEGY_IDENTITY))
+                .isEqualTo(before);
+        assertThat(result.steps()).anySatisfy(step -> {
+            assertThat(step.type()).isEqualTo(HarnessStepType.EXECUTE_TRADE);
+            assertThat(step.status()).isEqualTo(HarnessStepStatus.FAILED);
+            assertThat(step.message()).isEqualTo(result.tradeResult().reason());
+        });
+        assertThat(result.steps()).anySatisfy(step -> {
+            assertThat(step.type()).isEqualTo(HarnessStepType.LOAD_FINAL_PORTFOLIO);
+            assertThat(step.status()).isEqualTo(HarnessStepStatus.COMPLETED);
+        });
+
+        verifyExternalBoundaries(result);
+        verifyPersistedRun(result);
+        ArgumentCaptor<TradeRecordEntity> tradeCaptor =
+                ArgumentCaptor.forClass(TradeRecordEntity.class);
+        verify(tradeRecordRepository).save(tradeCaptor.capture());
+        assertThat(tradeCaptor.getValue().getStatus())
+                .isEqualTo(TradeStatus.REJECTED);
+        assertThat(tradeCaptor.getValue().getReasonCode())
+                .isEqualTo(TradeReasonCode.ORDER_EXECUTION_DISABLED);
+        assertThat(tradeCaptor.getValue().getReason())
+                .isEqualTo(result.tradeResult().reason());
+        verifyNoInteractions(defaultProvider);
     }
 
     @Test
@@ -331,12 +382,16 @@ class SwingV1HarnessFlowTest {
                 .toDecisionSnapshot(savedRun.getDecisionSnapshotJson());
 
         assertThat(savedRun.getRunId()).isEqualTo(result.runId());
+        assertThat(savedRun.getStatus()).isEqualTo(result.status());
         assertThat(savedRun.getStrategyId())
                 .isEqualTo(STRATEGY_IDENTITY.strategyId());
         assertThat(savedRun.getStrategyVersion())
                 .isEqualTo(STRATEGY_IDENTITY.strategyVersion());
         assertThat(savedRun.getHorizon())
                 .isEqualTo(STRATEGY_IDENTITY.horizon());
+        assertThat(savedDecision.action()).isEqualTo(result.decision().action());
+        assertThat(savedDecision.symbol()).isEqualTo(result.decision().symbol());
+        assertThat(savedDecision.quantity()).isEqualTo(result.decision().quantity());
         assertThat(savedDecision.swingV1Evidence()).isNotNull();
         assertThat(savedDecision.swingV1Evidence()
                 .actionPolicyResult()
@@ -475,10 +530,11 @@ class SwingV1HarnessFlowTest {
         );
     }
 
-    private TradeExecutor tradeExecutor() {
+    private TradeExecutor tradeExecutor(boolean ordersEnabled) {
         return new TradeExecutor(
                 new VirtualTradeExecutionHandler(portfolioService),
-                new TradeHistoryService(tradeRecordRepository)
+                new TradeHistoryService(tradeRecordRepository),
+                new TradeExecutionProperties(TradeExecutionMode.VIRTUAL, ordersEnabled)
         );
     }
 

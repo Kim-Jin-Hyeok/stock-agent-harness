@@ -59,7 +59,7 @@ class TradeExecutionConfigurationTest {
                 .withUserConfiguration(TradeExecutionConfiguration.class)
                 .withBean(
                         TradeExecutionProperties.class,
-                        () -> new TradeExecutionProperties(mode)
+                        () -> new TradeExecutionProperties(mode, false)
                 )
                 .withBean(
                         PortfolioService.class,

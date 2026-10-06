@@ -6,6 +6,7 @@ import com.stock.risk.RiskCheckResult;
 import com.stock.risk.RiskCheckStatus;
 import com.stock.strategy.profile.InvestmentStrategyIdentity;
 import com.stock.trade.execution.TradeExecutionHandler;
+import com.stock.trade.execution.config.TradeExecutionProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -16,6 +17,7 @@ import java.util.Objects;
 public class TradeExecutor {
     private final TradeExecutionHandler tradeExecutionHandler;
     private final TradeHistoryService tradeHistoryService;
+    private final TradeExecutionProperties tradeExecutionProperties;
 
     public TradeResult execute(
             String runId,
@@ -66,6 +68,21 @@ public class TradeExecutor {
                     decision.estimatedOrderAmountKrw(),
                     TradeReasonCode.UNSUPPORTED_ACTION,
                     "Unsupported investment action."
+            );
+
+            return recordAndReturn(runId, tradeResult);
+        }
+
+        if (!tradeExecutionProperties.ordersEnabled()) {
+            TradeResult tradeResult = new TradeResult(
+                    TradeStatus.REJECTED,
+                    decision.action(),
+                    decision.symbol(),
+                    decision.quantity(),
+                    decision.expectedPriceKrw(),
+                    decision.estimatedOrderAmountKrw(),
+                    TradeReasonCode.ORDER_EXECUTION_DISABLED,
+                    "Order execution is disabled by configuration."
             );
 
             return recordAndReturn(runId, tradeResult);

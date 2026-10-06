@@ -193,6 +193,7 @@ agent:
 trade:
   execution:
     mode: ${TRADE_EXECUTION_MODE:VIRTUAL}
+    orders-enabled: ${TRADE_EXECUTION_ORDERS_ENABLED:false}
 
 harness:
   max-steps: 10
