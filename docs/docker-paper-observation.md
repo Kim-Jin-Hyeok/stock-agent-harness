@@ -15,15 +15,15 @@ KIS 모의투자 데이터와 가상 거래 결과를 관측한다. 아래 명�
 | 활성 프로필 | `local,paper-observation` |
 | KIS | 활성화, 모의투자 URL `https://openapivts.koreainvestment.com:29443` |
 | 거래 실행 | `VIRTUAL`: 앱 내부 가상 거래이며 Broker 주문 제출과 구분한다. |
-| Harness / 일봉 수집 스케줄러 | 둘 다 활성화 |
+| Harness / 일봉 수집 스케줄러 | 둘 다 비활성화, 각각 명시적으로 `true`를 설정할 때만 실행 |
 | 일봉 시작 시 수집 | 비활성화 (`MARKET_PRICE_HISTORY_COLLECTION_BOOTSTRAP_ENABLED=false`) |
 | Broker 주문 정합성 / 취소 스케줄러 | 둘 다 비활성화 |
 | Agent / 주문 수량 판단 Provider | 둘 다 `RULE_BASED`, OpenAI 비활성화 |
-| 호스트 포트 | 앱 `8080`, MySQL `3307` |
+| 호스트 포트 | 앱 `127.0.0.1:8080`, MySQL `127.0.0.1:3307` (호스트의 IPv4 loopback에서만 접근) |
 | 컨테이너 내부 DB 주소 | `mysql:3306` |
 | 시간대 | JVM과 MySQL 컨테이너 `Asia/Seoul` |
 
-`VIRTUAL`이어도 Broker 호출이 없는 환경은 아니다. 스케줄러가 현재가와
+`VIRTUAL`이어도 Broker 호출이 없는 환경은 아니다. 켜진 스케줄러가 현재가와
 일봉을 조회할 수 있고, 포트폴리오 최초 조회는 모의계좌 잔액을 조회하여
 DB에 초기 상태를 저장할 수 있다. 이 환경의 가상 거래 수익률과 잔고를
 Broker의 실제 모의주문 체결 결과나 계좌 잔고와 같다고 간주하지 않는다.
@@ -46,6 +46,15 @@ if (-not (Test-Path -LiteralPath .\.env)) {
     Copy-Item -LiteralPath .\.env.example -Destination .\.env
 }
 ```
+
+`compose.yml`, `.env.example`과 모의투자 프로필의 기본값을 바꿔도 기존
+`.env`는 자동으로 갱신되지 않는다. 기존 `.env`에 두 스케줄러 값이
+`true`로 남아 있으면 새 기본값 `false`를 덮어쓰므로 최초 점검 전에
+확인한다. 바인딩 주소도 기존 `.env`의 `APP_BIND_ADDRESS`와
+`DB_BIND_ADDRESS`가 우선하며, 두 값은 기본적으로 `127.0.0.1`을 유지한다.
+`0.0.0.0` 같은 값을 지정하면 외부 인터페이스에도 포트가 공개된다.
+셸 환경변수는 `.env`보다 우선하므로 실제 적용값은 아래 `config` 예시로
+확인한다. 기존 `.env`를 예제 파일로 덮어쓰면 인증정보가 사라질 수 있다.
 
 생성된 `.env`에서 다음 값을 실제 **모의투자** 정보로 채운다.
 
@@ -110,7 +119,9 @@ docker volume ls --filter "label=com.docker.compose.project=$paperProject"
   변경된 값은 앱 컨테이너를 생성·재생성할 때 적용되며 실행 중 앱을
   즉시 멈추는 스위치가 아니다. 기존 컨테이너의 `start`나 `restart`만으로
   변경된 `.env`가 반영되지는 않는다.
-- 관측을 시작할 때만 두 스케줄러 값을 `true`로 전환한다. 현재 기본
+- 관측을 시작할 때만 필요한 스케줄러를 각각 명시적으로 켠다.
+  Harness는 `HARNESS_SCHEDULER_ENABLED=true`, 일봉 수집은
+  `MARKET_PRICE_HISTORY_COLLECTION_SCHEDULER_ENABLED=true`로 설정한다. 현재 기본
   Harness 설정에는 단타·스윙·장기 전략이 모두 포함되어 있으므로 스윙만
   실행되는 환경이라고 가정하지 않는다. 전략별 시간창과 실행 주기를 확인한다.
 - 기본 일봉 수집 cron은 월~금 `20:15` (`Asia/Seoul`)이며 시작 시 수집은
@@ -123,7 +134,7 @@ docker volume ls --filter "label=com.docker.compose.project=$paperProject"
 JSON 전체와 `$paperResolved` 자체를 출력하거나 공유하면 자격증명이
 노출될 수 있으므로 선택된 항목만 확인한다. 앱 내부의 최종 설정까지
 검증하는 명령은 아니므로 위 프로필과 설정 파일 점검도 필요하다.
-두 스케줄러와 bootstrap의 출력이 선택한 실행 단계의 기대값과 다르면
+두 스케줄러, bootstrap과 바인딩 주소의 출력이 선택한 실행 단계의 기대값과 다르면
 시작을 보류하고 `.env`와 쉘 환경변수를 대조한다.
 
 ```powershell
@@ -133,8 +144,10 @@ if ($LASTEXITCODE -ne 0 -or $null -eq $paperResolved) {
 }
 $paperAppPort = [int]$paperResolved.services.app.ports[0].published
 $paperDbPort = [int]$paperResolved.services.mysql.ports[0].published
+$paperAppBindAddress = $paperResolved.services.app.ports[0].host_ip
+$paperDbBindAddress = $paperResolved.services.mysql.ports[0].host_ip
 $paperResolved.services.app.environment | Select-Object SPRING_PROFILES_ACTIVE, DB_HOST, DB_PORT, HARNESS_SCHEDULER_ENABLED, MARKET_PRICE_HISTORY_COLLECTION_SCHEDULER_ENABLED, MARKET_PRICE_HISTORY_COLLECTION_BOOTSTRAP_ENABLED, AGENT_NEXT_ACTION_PROVIDER_TYPE, MOVING_AVERAGE_ORDER_DECISION_PROVIDER_TYPE, OPENAI_ENABLED
-[pscustomobject]@{ AppHostPort = $paperAppPort; MySqlHostPort = $paperDbPort }
+[pscustomobject]@{ AppBindAddress = $paperAppBindAddress; AppHostPort = $paperAppPort; MySqlBindAddress = $paperDbBindAddress; MySqlHostPort = $paperDbPort }
 Remove-Variable paperResolved
 ```
 
@@ -162,8 +175,8 @@ run app`으로 두 번째 앱을 우회 실행하지 않는다.
 
 ### 4. 포트 충돌 확인
 
-위에서 확인한 실제 호스트 포트를 사용한다. 기본값은 앱 `8080`, DB
-`3307`이고 컨테이너 사이의 DB 포트는 항상 현재 Compose의 `3306`이다.
+위에서 확인한 실제 호스트 포트를 사용한다. 기본값은 앱 `127.0.0.1:8080`,
+DB `127.0.0.1:3307`이고 컨테이너 사이의 DB 포트는 항상 현재 Compose의 `3306`이다.
 
 ```powershell
 Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
@@ -179,8 +192,8 @@ Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
 
 포트가 비어 있어도 다른 포트나 호스트에서 같은 DB·계좌에 연결한 앱이
 없다는 증거는 아니다. 포트 점검과 단일 인스턴스 점검을 모두 통과해야 한다.
-현재 포트 매핑에는 `127.0.0.1` 바인딩이 없으므로 외부 노출 범위와
-방화벽도 확인한다.
+기본 포트 매핑은 `127.0.0.1`에만 바인딩한다. `APP_BIND_ADDRESS`나
+`DB_BIND_ADDRESS`를 변경했다면 실제 외부 노출 범위와 방화벽도 확인한다.
 
 ### 5. 시작을 보류하는 조건
 
@@ -206,7 +219,7 @@ healthcheck가 없으므로 `Up`만으로 서버와 DB가 정상이라고 판정
 선택한 프로젝트의 앱이 하나인지 `docker ps`에서도 다시 확인한다.
 
 스케줄러를 끈 최초 점검이 끝난 뒤 관측을 켜려면 아래 종료 절차로 기존
-앱의 종료를 확인하고, 두 스케줄러 값을 `true`로 변경하여 같은 프로젝트로
+앱의 종료를 확인하고, 필요한 스케줄러 값을 명시적으로 `true`로 변경하여 같은 프로젝트로
 다시 시작한다. `.env` 수정만으로 실행 중 앱에 반영되지는 않는다.
 
 ### 로그와 조회 API
@@ -234,7 +247,7 @@ docker compose -p $paperProject --env-file .\.env -f .\compose.yml logs --follow
 얻은 `$paperAppPort`를 사용한다.
 
 ```powershell
-Invoke-RestMethod -Method Get -Uri "http://localhost:$paperAppPort/api/harness/runs" -TimeoutSec 10
+Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:$paperAppPort/api/harness/runs" -TimeoutSec 10
 ```
 
 정상 응답과 빈 배열은 저장 이력이 없을 수 있다는 뜻이다. Broker 인증,
@@ -288,7 +301,7 @@ Flyway 이력에 현재 migration `V1`~`V3`의 성공이 있는지, 로그의 Ru
 이를 자동으로 처리한다고 가정하지 않는다. `exit`로 MySQL 클라이언트를
 나가면 DB 서버는 계속 실행된다.
 
-호스트 DB 도구에서는 `localhost:$paperDbPort`로 접속한다. 앱의 DB
+기본 바인딩에서는 호스트 DB 도구로 `127.0.0.1:$paperDbPort`에 접속한다. 앱의 DB
 주소는 `mysql:3306`이므로 호스트용 포트를 앱 내부 주소로 사용하지 않는다.
 
 ## 안전한 종료 절차
@@ -364,5 +377,5 @@ Flyway 이력에 현재 migration `V1`~`V3`의 성공이 있는지, 로그의 Ru
 | 종료와 재시작 정합성 | 신규 실행 차단, 진행 작업 완료 대기, SIGTERM/timeout, DB 장애 중 종료를 검증해야 한다. Run·단계·거래·포트폴리오 저장이 모두 함께 완료된다고 가정하지 않는다. 재시작 뒤 같은 볼륨에서 기록·잔고 유지와 중복 실행 여부를 대조한다. |
 | 백업·복원 | 구현·검증 완료로 표시하지 않는다. 백업 시 쓰기 일관성, DB 버전과 도구, 자격증명 취급, 별도 볼륨/DB로 복원, Flyway 이력·Run·단계·거래·포트폴리오 비교를 검증해야 한다. 복원 앱의 스케줄러·bootstrap을 끄고 원본 앱과의 중복 실행을 막아야 한다. named volume 유지와 파일 생성만으로 복구 성공을 판정하지 않는다. |
 | Broker 계좌 정합성 | 가상 잔고와 Broker 모의계좌를 구분하고, 기존 미완료 주문·체결 반영·재시작 후 상태를 확인해야 한다. 현재 프로필에서는 주문 정합성·취소 자동 처리가 꺼져 있다. |
-| 접근 통제와 비밀 보호 | 현재 포트 매핑은 localhost 전용이 아니고 API 인증 통제가 마련되어 있지 않다. 앱·DB의 외부 접근 차단과 로그·설정 출력의 자격증명 노출 여부를 검증해야 한다. |
+| 접근 통제와 비밀 보호 | 기본 호스트 포트는 `127.0.0.1` 전용이지만 API 인증 통제가 마련되어 있지 않다. 기존 `.env`·셸 환경변수의 바인딩 재정의, 실제 외부 접근 차단과 로그·설정 출력의 자격증명 노출 여부를 검증해야 한다. |
 | 저장 공간과 장애 대응 | Compose에 로그 순환과 재시작 정책이 명시되어 있지 않다. 로그·DB 용량, 디스크 부족, API 오류·rate limit, 컨테이너 종료 감지와 복구 절차를 검증해야 한다. |
