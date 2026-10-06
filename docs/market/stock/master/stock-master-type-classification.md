@@ -85,3 +85,5 @@ KOSDAQ의 `EF/2/0`에도 KOSPI 규칙을 자동 적용하지 않는다. 날짜·
 [KRX 최소 실측 사전점검](../../../strategy/swing/validation/stock-eligibility-krx-source-validation-02.md)에서도 인증키·승인·이용 범위·기준일이 확인되지 않아 실응답을 수집하지 않았다. 현재 유형 해석 정책과 기존 보류 사유는 유지되며 실측 완료나 유형 보완 승인으로 해석하지 않는다.
 
 후속 [KRX 실응답 관측 및 KIS 식별 대조](../../../strategy/swing/validation/stock-eligibility-krx-source-validation-03.md)에서 `2026-10-02` 기준의 두 시장 응답을 각각 1회 조회했다. 기존 파서로 읽은 KRX 2,766행이 모두 KIS 식별자·시장과 일치했고 KIS 잔여 1,637행은 따로 보존했다. 주식종류·증권구분·소속부 값은 관측 분포로만 기록하며 현재 정책·유형 보완·종목 자격 승인에는 연결하지 않는다.
+
+별도 [KRX 현재 유형 해석 정책](krx-stock-basic-info-type-classification.md)은 주권의 보통주·구형우선주·신형우선주를 제한적으로 해석한다. 기존 KIS 정책의 null 유형·원문·사유는 그대로 유지하며 두 원천의 결과를 자동 결합하지 않는다. 현재 유형 해석이 종목 자격·과거 정보 가용성·주문 승인을 의미하지 않는다.
