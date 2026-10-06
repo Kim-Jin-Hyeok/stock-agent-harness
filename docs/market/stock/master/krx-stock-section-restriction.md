@@ -109,3 +109,7 @@ Git 제외 경로 `build/krx-stock-section-restriction-observation-01/`에 `Veri
 기존 유형·식별 연결 정책·원문 파서와 `StockEligibilityPolicy`·`StockEligibilityInput`은 변경하지 않았다. KIS 거래정지·정리매매 해석, 상장 상태·기업행위·과거 모집단·실제 거래 가능 여부의 검증은 추가하지 않았다.
 
 운영 후보·백테스트·주문·스케줄·Risk에 연결하지 않는다. `DESIGN_ONLY`, `runtimeSelectionImplemented=false`, `eligibilityOrHistoricalPopulationVerified=false`와 이전 관측의 당시 승인 상태를 유지한다. DB·스키마·Spring 빈·라이브러리·설정·`.env`·Docker 변경, Broker·계좌·주문·OpenAI 호출은 없으며 커밋과 Push도 실행하지 않았다.
+
+## 후속 KIS 관측 해석
+
+[KIS 거래정지 정리매매 관측 상태 해석](kis-stock-trading-restriction.md)은 같은 유형 입력의 KIS 원문에서 두 필드를 독립적으로 기록한다. 이 문서의 소속부 규칙·보고서·당시 검증 결과는 변경하지 않았으며, 두 정책의 관측으로 실제 종목 자격·거래 가능 여부를 승인하지 않는다.
