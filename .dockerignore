@@ -8,3 +8,4 @@ out
 .env.*
 *.md
 data/stock-master-observations
+data/backups/mysql

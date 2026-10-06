@@ -48,3 +48,6 @@ bin/
 
 ### Local stock master observations ###
 /data/stock-master-observations/
+
+### Local database backups and verification evidence ###
+/data/backups/mysql/

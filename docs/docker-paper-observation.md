@@ -343,7 +343,7 @@ WHERE status IN ('PENDING', 'PARTIALLY_FILLED')
    OR cumulative_filled_amount_krw > portfolio_applied_amount_krw;
 ```
 
-Flyway 이력에 현재 migration `V1`~`V3`의 성공이 있는지, 로그의 Run이
+Flyway 이력에 현재 migration `V1`~`V6`의 성공이 있는지, 로그의 Run이
 전략·버전별로 저장되었는지, 포트폴리오 JSON이 유효한지 확인한다.
 필요한 Run의 `harness_step_entity`, `trade_record_entity`,
 `current_price_observation`도 `run_id`로 대조한다. JSON 문법의 유효성만으로
@@ -430,7 +430,7 @@ Flyway 이력에 현재 migration `V1`~`V3`의 성공이 있는지, 로그의 Ru
 | 실제 기동과 상태 확인 | Docker 빌드, 앱 한 인스턴스, DB 인증, Flyway, 조회 API, 예정 수집과 Run 저장을 실제 환경에서 확인해야 한다. MySQL healthcheck와 앱 `Up`만으로 전체 정상 판정은 불가능하다. |
 | 다중 실행 차단 | 현재 Harness의 이력 조회와 실행 사이에 분산 잠금이 없다. 다른 프로젝트·호스트 또는 수동 요청과 스케줄러의 동시 실행에 대한 차단은 별도 검증/개선이 필요하다. 단일 인스턴스 운영 규칙만으로 모든 동시 호출을 막지는 못한다. |
 | 종료와 재시작 정합성 | 신규 실행 차단, 진행 작업 완료 대기, SIGTERM/timeout, DB 장애 중 종료를 검증해야 한다. Run·단계·거래·포트폴리오 저장이 모두 함께 완료된다고 가정하지 않는다. 재시작 뒤 같은 볼륨에서 기록·잔고 유지와 중복 실행 여부를 대조한다. |
-| 백업·복원 | 구현·검증 완료로 표시하지 않는다. 백업 시 쓰기 일관성, DB 버전과 도구, 자격증명 취급, 별도 볼륨/DB로 복원, Flyway 이력·Run·단계·거래·포트폴리오 비교를 검증해야 한다. 복원 앱의 스케줄러·bootstrap을 끄고 원본 앱과의 중복 실행을 막아야 한다. named volume 유지와 파일 생성만으로 복구 성공을 판정하지 않는다. |
+| 백업·복원 | [백업 및 격리 복원 도구와 절차](operations/mysql-backup-restore-verification.md)를 추가했다. 실제 DB 복원 성공은 미확인이다. 쓰기 주체를 중지한 상태에서 새 볼륨·네트워크 없는 MySQL에만 복원하고, 행 수·Flyway 이력과 SQL 내용 해시를 비교한다. 복원 앱은 실행하지 않으며, named volume 유지나 파일 생성만으로 복구 성공을 판정하지 않는다. |
 | Broker 계좌 정합성 | 가상 잔고와 Broker 모의계좌를 구분하고, 기존 미완료 주문·체결 반영·재시작 후 상태를 확인해야 한다. 현재 프로필에서는 주문 정합성·취소 자동 처리가 꺼져 있다. |
 | 접근 통제와 비밀 보호 | 기본 호스트 포트는 `127.0.0.1` 전용이지만 API 인증 통제가 마련되어 있지 않다. 기존 `.env`·셸 환경변수의 바인딩 재정의, 실제 외부 접근 차단과 로그·설정 출력의 자격증명 노출 여부를 검증해야 한다. |
 | 저장 공간과 장애 대응 | Compose에 로그 순환과 재시작 정책이 명시되어 있지 않다. 로그·DB 용량, 디스크 부족, API 오류·rate limit, 컨테이너 종료 감지와 복구 절차를 검증해야 한다. |
