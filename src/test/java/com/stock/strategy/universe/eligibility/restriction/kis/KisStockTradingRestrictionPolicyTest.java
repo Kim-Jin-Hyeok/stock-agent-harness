@@ -16,6 +16,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import java.util.stream.Stream;
 
 import static com.stock.market.stock.master.provider.kis.KisStockMasterMarket.KOSPI;
+import static com.stock.market.stock.master.provider.kis.KisStockMasterMarket.KOSDAQ;
 import static com.stock.strategy.universe.eligibility.classification.kiskrx.support.KisKrxStockTypeResolutionFixture.baseBatch;
 import static com.stock.strategy.universe.eligibility.classification.kiskrx.support.KisKrxStockTypeResolutionFixture.batch;
 import static com.stock.strategy.universe.eligibility.classification.kiskrx.support.KisKrxStockTypeResolutionFixture.etfRow;
@@ -43,9 +44,73 @@ class KisStockTradingRestrictionPolicyTest {
         assertThat(result.typeResolution()).isSameAs(input);
         assertThat(result.typeResolution().kisClassification().rawRecord().rawSuspension()).isEqualTo(suspension);
         assertThat(result.typeResolution().kisClassification().rawRecord().rawLiquidation()).isEqualTo(liquidation);
-        assertThat(result.restrictionVersion()).isEqualTo("KIS_STOCK_TRADING_FLAG_OBSERVATION_V1");
+        assertThat(result.restrictionVersion()).isEqualTo("KIS_STOCK_TRADING_FLAG_OBSERVATION_V2");
         assertThat(result.sourceRevision()).isEqualTo("277ec0eb7a9b7f63b6807829286c80f36649dad2");
         assertThat(restrictionPolicy.evaluate(input)).isEqualTo(result);
+    }
+
+    @ParameterizedTest
+    @MethodSource("additionalFlagCombinations")
+    void observesAdditionalFieldsIndependentlyWithoutChangingTheInput(
+            KisStockMasterMarket market, String spac, String management, String caution
+    ) {
+        var input = resolution(market, "Y", "N", spac, management, caution);
+
+        var result = restrictionPolicy.evaluate(input);
+
+        assertThat(result.spacStatus()).isEqualTo(expected(spac));
+        assertThat(result.managementStatus()).isEqualTo(expected(management));
+        assertThat(result.investmentCautionStatus()).isEqualTo(expected(caution));
+        assertThat(result.suspensionStatus()).isEqualTo(KisStockTradingFlagStatus.Y_OBSERVED);
+        assertThat(result.liquidationStatus()).isEqualTo(KisStockTradingFlagStatus.N_OBSERVED);
+        assertThat(result.typeResolution()).isSameAs(input);
+        assertThat(result.typeResolution().kisClassification().rawRecord().rawSpac()).isEqualTo(spac);
+        assertThat(result.typeResolution().kisClassification().rawRecord().rawManagement()).isEqualTo(management);
+        assertThat(result.typeResolution().kisClassification().rawRecord().rawInvestmentCaution()).isEqualTo(caution);
+        assertThat(restrictionPolicy.evaluate(input)).isEqualTo(result);
+    }
+
+    @ParameterizedTest
+    @MethodSource("unreviewedFlags")
+    void preservesOtherObservationsWhenAnAdditionalFieldIsUnverified(KisStockMasterMarket market, String rawFlag) {
+        String caution = market == KOSPI ? null : "Y";
+        var spacUnknown = restrictionPolicy.evaluate(resolution(market, "Y", "N", rawFlag, "Y", caution));
+        var managementUnknown = restrictionPolicy.evaluate(resolution(market, "Y", "N", "Y", rawFlag, caution));
+
+        assertThat(spacUnknown.spacStatus()).isEqualTo(KisStockTradingFlagStatus.VALUE_UNVERIFIED);
+        assertThat(spacUnknown.managementStatus()).isEqualTo(KisStockTradingFlagStatus.Y_OBSERVED);
+        assertThat(spacUnknown.investmentCautionStatus()).isEqualTo(expected(caution));
+        assertThat(managementUnknown.spacStatus()).isEqualTo(KisStockTradingFlagStatus.Y_OBSERVED);
+        assertThat(managementUnknown.managementStatus()).isEqualTo(KisStockTradingFlagStatus.VALUE_UNVERIFIED);
+        assertThat(managementUnknown.investmentCautionStatus()).isEqualTo(expected(caution));
+        if (market == KOSDAQ) {
+            var cautionUnknown = restrictionPolicy.evaluate(resolution(market, "Y", "N", "Y", "Y", rawFlag));
+            assertThat(cautionUnknown.investmentCautionStatus()).isEqualTo(KisStockTradingFlagStatus.VALUE_UNVERIFIED);
+            assertThat(cautionUnknown.spacStatus()).isEqualTo(KisStockTradingFlagStatus.Y_OBSERVED);
+            assertThat(cautionUnknown.managementStatus()).isEqualTo(KisStockTradingFlagStatus.Y_OBSERVED);
+        }
+    }
+
+    @Test
+    void distinguishesUnprovidedKospiCautionFromBlankAndNegativeKosdaqObservations() {
+        var kospi = restrictionPolicy.evaluate(resolution(KOSPI, "N", "N", "N", "N", null));
+        var blank = restrictionPolicy.evaluate(resolution(KOSDAQ, "N", "N", "N", "N", " "));
+        var negative = restrictionPolicy.evaluate(resolution(KOSDAQ, "N", "N", "N", "N", "N"));
+
+        assertThat(kospi.investmentCautionStatus()).isEqualTo(KisStockTradingFlagStatus.FIELD_NOT_PROVIDED);
+        assertThat(blank.investmentCautionStatus()).isEqualTo(KisStockTradingFlagStatus.VALUE_UNVERIFIED);
+        assertThat(negative.investmentCautionStatus()).isEqualTo(KisStockTradingFlagStatus.N_OBSERVED);
+    }
+
+    @Test
+    void retainsAllFiveSimultaneousPositiveObservations() {
+        var result = restrictionPolicy.evaluate(resolution(KOSDAQ, "Y", "Y", "Y", "Y", "Y"));
+
+        assertThat(result.suspensionStatus()).isEqualTo(KisStockTradingFlagStatus.Y_OBSERVED);
+        assertThat(result.liquidationStatus()).isEqualTo(KisStockTradingFlagStatus.Y_OBSERVED);
+        assertThat(result.spacStatus()).isEqualTo(KisStockTradingFlagStatus.Y_OBSERVED);
+        assertThat(result.managementStatus()).isEqualTo(KisStockTradingFlagStatus.Y_OBSERVED);
+        assertThat(result.investmentCautionStatus()).isEqualTo(KisStockTradingFlagStatus.Y_OBSERVED);
     }
 
     @ParameterizedTest
@@ -86,6 +151,8 @@ class KisStockTradingRestrictionPolicyTest {
         byte[] row = etfRow();
         KisStockMasterParsingFixture.put(row, 121, "Y");
         KisStockMasterParsingFixture.put(row, 122, "Y");
+        KisStockMasterParsingFixture.put(row, 90, "Y");
+        KisStockMasterParsingFixture.put(row, 123, "?");
         var input = policy().resolve(matching(batch(row), stock(KOSPI, "111111", "KR7111111111")))
                 .rowResults().getFirst();
 
@@ -97,6 +164,9 @@ class KisStockTradingRestrictionPolicyTest {
         assertThat(result.typeResolution()).isSameAs(input);
         assertThat(result.suspensionStatus()).isEqualTo(KisStockTradingFlagStatus.Y_OBSERVED);
         assertThat(result.liquidationStatus()).isEqualTo(KisStockTradingFlagStatus.Y_OBSERVED);
+        assertThat(result.spacStatus()).isEqualTo(KisStockTradingFlagStatus.Y_OBSERVED);
+        assertThat(result.managementStatus()).isEqualTo(KisStockTradingFlagStatus.VALUE_UNVERIFIED);
+        assertThat(result.investmentCautionStatus()).isEqualTo(KisStockTradingFlagStatus.FIELD_NOT_PROVIDED);
     }
 
     @Test
@@ -124,6 +194,14 @@ class KisStockTradingRestrictionPolicyTest {
         assertThat(first.liquidationStatus()).isEqualTo(KisStockTradingFlagStatus.N_OBSERVED);
         assertThat(second.suspensionStatus()).isEqualTo(KisStockTradingFlagStatus.N_OBSERVED);
         assertThat(second.liquidationStatus()).isEqualTo(KisStockTradingFlagStatus.Y_OBSERVED);
+        var positive = restrictionPolicy.evaluate(resolution(KOSDAQ, "Y", "Y", "Y", "Y", "Y"));
+        var negative = restrictionPolicy.evaluate(resolution(KOSDAQ, "N", "N", "N", "N", "N"));
+        assertThat(positive.spacStatus()).isEqualTo(KisStockTradingFlagStatus.Y_OBSERVED);
+        assertThat(positive.managementStatus()).isEqualTo(KisStockTradingFlagStatus.Y_OBSERVED);
+        assertThat(positive.investmentCautionStatus()).isEqualTo(KisStockTradingFlagStatus.Y_OBSERVED);
+        assertThat(negative.spacStatus()).isEqualTo(KisStockTradingFlagStatus.N_OBSERVED);
+        assertThat(negative.managementStatus()).isEqualTo(KisStockTradingFlagStatus.N_OBSERVED);
+        assertThat(negative.investmentCautionStatus()).isEqualTo(KisStockTradingFlagStatus.N_OBSERVED);
     }
 
     @Test
@@ -142,14 +220,35 @@ class KisStockTradingRestrictionPolicyTest {
                 .map(flag -> Arguments.of(market, flag)));
     }
 
+    private static Stream<Arguments> additionalFlagCombinations() {
+        return Stream.of(KisStockMasterMarket.values()).flatMap(market -> Stream.of("Y", "N", " ")
+                .flatMap(spac -> Stream.of("Y", "N", " ").flatMap(management ->
+                        (market == KOSPI ? Stream.<String>of((String) null) : Stream.of("Y", "N", " "))
+                                .map(caution -> Arguments.of(market, spac, management, caution)))));
+    }
+
     private static KisStockTradingFlagStatus expected(String value) {
+        if (value == null) {
+            return KisStockTradingFlagStatus.FIELD_NOT_PROVIDED;
+        }
         return "Y".equals(value) ? KisStockTradingFlagStatus.Y_OBSERVED
                 : "N".equals(value) ? KisStockTradingFlagStatus.N_OBSERVED : KisStockTradingFlagStatus.VALUE_UNVERIFIED;
     }
 
     private static KisKrxStockTypeResolutionResult resolution(KisStockMasterMarket market, String suspension, String liquidation) {
-        var raw = new KisStockMasterParser().parse(market,
-                KisStockMasterParsingFixture.content(flaggedRow(market, suspension, liquidation))).records().getFirst();
+        return resolution(market, suspension, liquidation, "N", "N", market == KOSPI ? null : "N");
+    }
+
+    private static KisKrxStockTypeResolutionResult resolution(
+            KisStockMasterMarket market, String suspension, String liquidation, String spac, String management, String caution
+    ) {
+        byte[] row = flaggedRow(market, suspension, liquidation);
+        KisStockMasterParsingFixture.put(row, market == KOSPI ? 90 : 85, spac);
+        KisStockMasterParsingFixture.put(row, market == KOSPI ? 123 : 118, management);
+        if (market == KOSDAQ) {
+            KisStockMasterParsingFixture.put(row, 91, caution);
+        }
+        var raw = new KisStockMasterParser().parse(market, KisStockMasterParsingFixture.content(row)).records().getFirst();
         var classified = new KisStockMasterTypeClassificationPolicy().classify(market, raw);
         return new KisKrxStockTypeResolutionResult(classified, null, null, classified.securityType(),
                 classified.securityType() == null ? KisKrxStockTypeResolutionReasonCode.TYPE_UNVERIFIED

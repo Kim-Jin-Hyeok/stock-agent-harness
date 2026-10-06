@@ -93,7 +93,9 @@ CRLF·단독 CR·마지막 LF 누락·빈 행은 현재 관측 레이아웃과 �
 
 2026-10-06 [주식기본조회 실측](validation/kis-stock-basic-info-observation-01.md)에서 SPAC이 보통주 코드 `101`을 반환했고, 투자주의환기·정리매매 전용 원문 필드는 제공되지 않았다. V2는 해당 API의 성공으로 종목 자격을 승인하는 대신 기존 마스터에서 필요한 제한 원문을 꺼낸다. 유형 해석·KIS 및 KRX 제한 정책·`StockEligibilityPolicy`는 변경하지 않았다.
 
-관련 테스트는 458개 중 **457개 성공·1개 건너뜀·실패 및 오류 0개**다. 기존 `StockMasterBatchParsingServiceTest`의 심볼릭 링크 거절 테스트는 현재 파일 시스템에서 링크 생성이 허용되지 않아 assumption으로 건너뛰었다. 새 필드 추출·원문 폭·공백과 미정의 문자 보존·시장별 미제공 검사·JSON 왕복, 기존 바이트 복원·유형 및 제한 해석 회귀를 확인했다. 전체 프로젝트 테스트는 실행하지 않았다.
+새 필드 추출·원문 폭·공백과 미정의 문자 보존·시장별 미제공 검사·JSON 왕복, 기존 바이트 복원·유형 및 제한 해석 회귀가 통과했다. 기존 `StockMasterBatchParsingServiceTest`의 심볼릭 링크 거절 테스트는 현재 파일 시스템에서 링크 생성이 허용되지 않아 assumption으로 건너뛰었다. 전체 프로젝트 테스트는 실행하지 않았다.
+
+당시 문서의 458개 집계는 `TEST-*.xml` 파일명만 사용해 긴 클래스명의 축약 파일을 빠뜨린 부분 집계였다. 이를 전체 테스트 수로 사용하지 않는다. 후속 관측 상태 V2 확장 후 같은 범위 전체를 다시 확인한 결과는 **740개 중 739개 성공·1개 건너뜀·실패 및 오류 0개**이며 [제한 관측 상태 문서](kis-stock-trading-restriction.md)에 기록했다. 이 수치는 후속 테스트가 추가된 현재 결과이며 최초 원문 추출 작업의 테스트 수로 소급하지 않는다.
 
 ```powershell
 .\gradlew.bat test --tests 'com.stock.market.stock.master.*' --tests 'com.stock.strategy.universe.eligibility.classification.*' --tests 'com.stock.strategy.universe.eligibility.restriction.*' --offline --no-daemon
@@ -129,3 +131,5 @@ V1 JSON을 새 record로 직접 읽으면서 누락 필드를 N이나 null로 �
 ## 후속 배치 해석
 
 후속 [보존된 배치 해석 서비스](stock-master-batch-parsing.md)는 완료 manifest와 시장별 관측, ZIP·MST 크기·해시를 대조한 뒤 이 파서를 호출한다. 두 시장이 모두 성공하고 시장 간 식별자 충돌도 없을 때만 전체 결과를 반환한다. 원문 파서 자체의 입력·책임은 바꾸지 않았으며, 수집 Runner·DB·종목 자격·운영 주문에는 연결하지 않는다.
+
+추출된 다섯 제한 원문은 [KIS 종목 제한 관측 상태 V2](kis-stock-trading-restriction.md)에서 Y·N·미확인·원천 미제공으로 독립 해석한다. 이 후속 정책은 파서·원문·유형 결과를 변경하지 않으며 운영 후보나 주문 허가를 생성하지 않는다.
