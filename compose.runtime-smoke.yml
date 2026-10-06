@@ -1,0 +1,56 @@
+# Use with compose.yml, an explicit empty --env-file, and a new -p project name.
+# !override requires Docker Compose 2.24.4 or later.
+# These are disposable test DB credentials, never broker credentials.
+services:
+  app:
+    environment: !override
+      SPRING_PROFILES_ACTIVE: local
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: runtime_smoke
+      DB_USERNAME: smoke
+      DB_PASSWORD: smoke-only-password
+      BROKER_KIS_ENABLED: "false"
+      BROKER_KIS_BASEURL: http://127.0.0.1:9
+      KIS_APP_KEY: ""
+      KIS_APP_SECRET: ""
+      KIS_ACCOUNT_NUMBER: ""
+      KIS_ACCOUNT_PRODUCT_CODE: ""
+      BROKER_ORDER_RECONCILIATION_SCHEDULER_ENABLED: "false"
+      BROKER_ORDER_CANCELLATION_SCHEDULER_ENABLED: "false"
+      HARNESS_SCHEDULER_ENABLED: "false"
+      MARKET_PRICE_HISTORY_COLLECTION_BOOTSTRAP_ENABLED: "false"
+      MARKET_PRICE_HISTORY_COLLECTION_SCHEDULER_ENABLED: "false"
+      MARKET_PRICE_HISTORY_COLLECTION_TRADINGVALUEBACKFILL_ENABLED: "false"
+      MARKET_INDEX_HISTORY_COLLECTION_BOOTSTRAP_ENABLED: "false"
+      MARKET_INDEX_HISTORY_COLLECTION_SCHEDULER_ENABLED: "false"
+      MARKET_INDEX_HISTORY_COLLECTION_BACKFILL_ENABLED: "false"
+      MARKET_STOCK_MASTER_COLLECTION_MANUAL_ENABLED: "false"
+      BACKTEST_SWINGV1_EXPERIMENT_MANUAL_ENABLED: "false"
+      STRATEGY_UNIVERSE_CANDIDATE_EVALUATION_MANUAL_ENABLED: "false"
+      STRATEGY_UNIVERSE_LIQUIDITY_EVALUATION_MANUAL_ENABLED: "false"
+      TRADE_EXECUTION_MODE: VIRTUAL
+      TRADE_EXECUTION_ORDERS_ENABLED: "false"
+      AGENT_NEXT_ACTION_PROVIDER_TYPE: RULE_BASED
+      MOVING_AVERAGE_ORDER_DECISION_PROVIDER_TYPE: RULE_BASED
+      OPENAI_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      OPENAI_BASE_URL: http://127.0.0.1:9
+      JAVA_TOOL_OPTIONS: -Duser.timezone=Asia/Seoul
+    ports: !override
+      - "127.0.0.1:18080:8080"
+
+  mysql:
+    environment: !override
+      MYSQL_DATABASE: runtime_smoke
+      MYSQL_USER: smoke
+      MYSQL_PASSWORD: smoke-only-password
+      MYSQL_ROOT_PASSWORD: smoke-only-root-password
+      TZ: Asia/Seoul
+    ports: !override
+      - "127.0.0.1:13307:3306"
+    volumes: !override
+      - runtime-smoke-mysql-data:/var/lib/mysql
+
+volumes: !override
+  runtime-smoke-mysql-data:
