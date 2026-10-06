@@ -29,9 +29,7 @@ public class KisStockBasicInfoClient {
     }
 
     public KisStockBasicInfoRawResponse getStockBasicInfo(String symbol, String accessToken) {
-        if (symbol == null || !symbol.matches("[0-9A-Z]{6}")) {
-            throw new IllegalArgumentException("symbol must be exactly 6 uppercase alphanumeric characters.");
-        }
+        validateSymbol(symbol);
         String validatedAccessToken = requireHeaderValue(accessToken, "accessToken");
         Instant startedAt = clock.instant();
         try {
@@ -76,6 +74,12 @@ public class KisStockBasicInfoClient {
         } catch (RuntimeException failure) {
             // HTTP bodies, headers and transport exception causes can contain credentials.
             throw new IllegalStateException("KIS stock basic info request failed.");
+        }
+    }
+
+    static void validateSymbol(String symbol) {
+        if (symbol == null || !symbol.matches("[0-9A-Z]{6}")) {
+            throw new IllegalArgumentException("symbol must be exactly 6 uppercase alphanumeric characters.");
         }
     }
 

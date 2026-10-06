@@ -15,7 +15,7 @@
 | `KisStockBasicInfoClient` | `RestClient`, 조회용 키·secret과 `Clock`을 생성자로 받는다. `getStockBasicInfo(String symbol, String accessToken)`으로 단건을 조회한다. |
 | `dto.KisStockBasicInfoRawResponse` | 요청 종목코드, 요청 시작·응답 수신 시각, HTTP 상태와 원문 바이트를 보존한다. |
 
-Client 클래스 자체에는 Spring 어노테이션이 없다. Client는 토큰 Provider를 의존하거나 인증 요청을 수행하지 않으며 호출자가 같은 실전 조회 환경에서 발급한 토큰을 전달해야 한다. 요청마다 새 토큰을 발급하는 구조가 아니다. 빈 등록은 후속 [전용 인증 구성](kis-stock-basic-info-configuration.md)에서 명시적으로 활성화한 경우에만 수행한다.
+Client 클래스 자체에는 Spring 어노테이션이 없다. Client는 토큰 Provider를 의존하거나 인증 요청을 수행하지 않으며 같은 실전 조회 환경에서 발급한 토큰을 전달받는다. 후속 인증 연계 `KisStockBasicInfoProvider`를 사용하면 호출자는 종목만 전달하고, Provider가 전용 토큰을 확보하여 Client에 전달한다. 요청마다 새 토큰을 발급하는 구조가 아니다. 빈 등록은 후속 [전용 인증 구성](kis-stock-basic-info-configuration.md)에서 명시적으로 활성화한 경우에만 수행한다.
 
 기존 `KisConfiguration`의 모의투자 `RestClient`와 토큰을 연결하지 않는다. 전용 구성은 기존 인증 환경과 분리된 RestClient·토큰 Client·토큰 Provider를 등록하며 기본값은 비활성화다. 여기서 읽기 전용은 이 Client가 허용한 경로와 메서드의 용도이며 증권사가 키에 별도의 읽기 전용 권한을 부여했다는 뜻이 아니다.
 
@@ -97,7 +97,7 @@ Git 제외 경로 `build/kis-stock-basic-info-client-observation-01/`에 `Verify
 
 Client 구현과 위 보존 응답 재현 단계에서는 빈 등록이나 Provider·수집 서비스·저장·캐시·스케줄 연결을 하지 않았다. 주입할 `RestClient`의 request factory·interceptor가 본문을 미리 버퍼링하거나 자동 재시도·리다이렉트를 수행하는지, 연결·읽기 타임아웃이 있는지는 당시 Mock 검증으로 보장하지 않았다. Client 자체의 한 번 실행을 실제 네트워크 요청 횟수 보장으로 확대하지 않는다.
 
-후속 [전용 인증 구성](kis-stock-basic-info-configuration.md)은 기본 비활성화 빈 등록, 인증 환경 분리, 리다이렉트 금지와 연결·응답 제한을 추가했다. 빈 생성 자체는 외부 요청을 하지 않으며 Provider·수집·저장·후보 선정에는 연결하지 않는다. 위 당시 테스트 수와 원문 재현 보고서·해시는 그대로 유지한다.
+후속 [전용 인증 구성](kis-stock-basic-info-configuration.md)은 기본 비활성화 빈 등록, 인증 환경 분리, 리다이렉트 금지와 연결·응답 제한을 추가했고, 인증 연계 Provider에서 종목만 받아 원문 조회를 실행할 수 있다. 빈 생성 자체는 외부 요청을 하지 않으며 수집·저장·후보 선정에는 연결하지 않는다. 위 당시 테스트 수와 원문 재현 보고서·해시는 그대로 유지한다.
 
 기존 파서·대조·유형·제한·사전 점검·자격·후보·백테스트·주문은 변경하지 않았다. 전용 키·토큰의 빈 구성은 후속 작업에서 분리했지만 호출 예산·Rate Limit·시세 캐시·영속적 원문 저장은 별도 책임으로 남는다. 코스피 투자주의환기 미제공도 해결하지 않는다.
 

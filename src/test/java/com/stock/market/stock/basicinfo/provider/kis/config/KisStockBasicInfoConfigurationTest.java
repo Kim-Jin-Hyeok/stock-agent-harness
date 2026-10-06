@@ -8,6 +8,7 @@ import com.stock.broker.kis.order.cancellation.KisOrderCancellationClient;
 import com.stock.broker.order.cancellation.provider.BrokerOrderCancellationProvider;
 import com.stock.broker.order.provider.BrokerOrderProvider;
 import com.stock.market.stock.basicinfo.provider.kis.KisStockBasicInfoClient;
+import com.stock.market.stock.basicinfo.provider.kis.KisStockBasicInfoProvider;
 import com.stock.market.stock.basicinfo.provider.kis.config.support.KisStockBasicInfoMockHttp;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -22,8 +23,10 @@ import org.springframework.boot.test.context.assertj.AssertableApplicationContex
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.io.InputStream;
 import java.io.PrintWriter;
@@ -54,6 +57,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 
 class KisStockBasicInfoConfigurationTest {
     private static final String PREFIX = "market.stock.basic-info.kis.";
@@ -94,6 +98,7 @@ class KisStockBasicInfoConfigurationTest {
     void createsSingletonReadOnlyBeansAndBindsDefaultsWithoutIssuingTokensOrCreatingOrders() {
         withSettings(settings()).withUserConfiguration(PropertiesScanConfiguration.class).run(context -> {
             assertThat(context).hasNotFailed().hasSingleBean(KisStockBasicInfoClient.class)
+                    .hasSingleBean(KisStockBasicInfoProvider.class)
                     .hasSingleBean(KisTokenClient.class).hasSingleBean(KisTokenProvider.class).hasSingleBean(HttpClient.class);
             assertNoOrderBeans(context);
             var properties = context.getBean(KisStockBasicInfoProperties.class);
@@ -109,6 +114,8 @@ class KisStockBasicInfoConfigurationTest {
             assertThat(context.getBean(KisStockBasicInfoClient.class))
                     .isSameAs(context.getBean(KisStockBasicInfoClient.class));
             assertThat(context.getBean(KisTokenProvider.class)).isSameAs(context.getBean(KisTokenProvider.class));
+            assertThat(context.getBean(KisStockBasicInfoProvider.class))
+                    .isSameAs(context.getBean(KisStockBasicInfoProvider.class));
             http.verify();
         });
     }
@@ -164,20 +171,55 @@ class KisStockBasicInfoConfigurationTest {
                              "expires_in":3600,"access_token_token_expired":"2026-10-06 11:00:00"}
                             """, MediaType.APPLICATION_JSON));
             String body = "{\"synthetic\":\"basic-info\"}";
-            server.expect(requestTo(BASE_URL
-                            + "/uapi/domestic-stock/v1/quotations/search-stock-info?PRDT_TYPE_CD=300&PDNO=0004Y0"))
-                    .andExpect(method(GET))
-                    .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer " + ACCESS_TOKEN))
-                    .andExpect(header("appkey", APP_KEY)).andExpect(header("appsecret", APP_SECRET))
-                    .andExpect(header("tr_id", "CTPF1002R"))
-                    .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
-            var tokenProvider = context.getBean("kisStockBasicInfoTokenProvider", KisTokenProvider.class);
-            assertThat(tokenProvider.getAccessToken()).isEqualTo(ACCESS_TOKEN);
-            assertThat(tokenProvider.getAccessToken()).isEqualTo(ACCESS_TOKEN);
-            var response = context.getBean(KisStockBasicInfoClient.class)
-                    .getStockBasicInfo("0004Y0", tokenProvider.getAccessToken());
-            assertThat(response.requestedSymbol()).isEqualTo("0004Y0");
-            assertThat(new String(response.content(), StandardCharsets.UTF_8)).isEqualTo(body);
+            String[] symbols = {"0004Y0", "005930"};
+            for (String symbol : symbols) {
+                server.expect(requestTo(BASE_URL
+                                + "/uapi/domestic-stock/v1/quotations/search-stock-info?PRDT_TYPE_CD=300&PDNO=" + symbol))
+                        .andExpect(method(GET))
+                        .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer " + ACCESS_TOKEN))
+                        .andExpect(header("appkey", APP_KEY)).andExpect(header("appsecret", APP_SECRET))
+                        .andExpect(header("tr_id", "CTPF1002R"))
+                        .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+            }
+            var provider = context.getBean(KisStockBasicInfoProvider.class);
+            for (String symbol : symbols) {
+                var response = provider.getStockBasicInfo(symbol);
+                assertThat(response.requestedSymbol()).isEqualTo(symbol);
+                assertThat(response.requestStartedAt()).isEqualTo(Instant.parse("2026-10-06T01:00:00Z"));
+                assertThat(response.responseReceivedAt()).isEqualTo(response.requestStartedAt());
+                assertThat(new String(response.content(), StandardCharsets.UTF_8)).isEqualTo(body);
+            }
+            http.verify();
+        });
+    }
+
+    @Test
+    void rejectsInvalidSymbolThroughRegisteredProviderBeforeAnyHttpRequest() {
+        withSettings(settings()).run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThatThrownBy(() -> context.getBean(KisStockBasicInfoProvider.class).getStockBasicInfo(" 005930"))
+                    .isExactlyInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("symbol must be exactly 6 uppercase alphanumeric characters.");
+            http.verify();
+        });
+    }
+
+    @Test
+    void propagatesSafeTokenFailureThroughRegisteredProviderWithoutBasicInfoRequestOrRetry() {
+        withSettings(settings()).run(context -> {
+            assertThat(context).hasNotFailed();
+            http.server(REST_CLIENT).expect(requestTo(BASE_URL + "/oauth2/tokenP"))
+                    .andExpect(method(POST))
+                    .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS)
+                            .body(APP_KEY + APP_SECRET + ACCESS_TOKEN));
+            assertThatThrownBy(() -> context.getBean(KisStockBasicInfoProvider.class).getStockBasicInfo("005930"))
+                    .isExactlyInstanceOf(RestClientResponseException.class)
+                    .hasMessage("KIS token response HTTP status=429.").hasNoCause()
+                    .satisfies(failure -> {
+                        assertThat(((RestClientResponseException) failure).getStatusCode().value()).isEqualTo(429);
+                        assertThat(((RestClientResponseException) failure).getResponseBodyAsByteArray()).isEmpty();
+                        assertNoSensitiveOutput(failure);
+                    });
             http.verify();
         });
     }
@@ -251,6 +293,7 @@ class KisStockBasicInfoConfigurationTest {
 
     private void assertDisabled(AssertableApplicationContext context) {
         assertThat(context).hasNotFailed().doesNotHaveBean(KisStockBasicInfoClient.class)
+                .doesNotHaveBean(KisStockBasicInfoProvider.class)
                 .doesNotHaveBean(KisTokenClient.class).doesNotHaveBean(KisTokenProvider.class).doesNotHaveBean(HttpClient.class);
         assertNoOrderBeans(context);
     }

@@ -60,6 +60,7 @@ import com.stock.market.price.provider.CurrentPriceProvider;
 import com.stock.market.price.provider.FixedCurrentPriceProvider;
 import com.stock.market.price.provider.kis.KisCurrentPriceProvider;
 import com.stock.market.stock.basicinfo.provider.kis.KisStockBasicInfoClient;
+import com.stock.market.stock.basicinfo.provider.kis.KisStockBasicInfoProvider;
 import com.stock.market.stock.basicinfo.provider.kis.config.KisStockBasicInfoConfiguration;
 import com.stock.market.stock.basicinfo.provider.kis.config.support.KisStockBasicInfoMockHttp;
 import com.stock.portfolio.PortfolioService;
@@ -553,7 +554,8 @@ class KisConfigurationTest {
                 .run(context -> {
                     assertThat(context).hasNotFailed().hasSingleBean(RestClient.class)
                             .hasSingleBean(KisTokenClient.class).hasSingleBean(KisTokenProvider.class)
-                            .hasSingleBean(KisBrokerOrderProvider.class).doesNotHaveBean(KisStockBasicInfoClient.class);
+                            .hasSingleBean(KisBrokerOrderProvider.class).doesNotHaveBean(KisStockBasicInfoClient.class)
+                            .doesNotHaveBean(KisStockBasicInfoProvider.class);
                     http.verify();
                 });
     }
@@ -562,7 +564,8 @@ class KisConfigurationTest {
     void isolatesBothAuthenticationGraphsWithoutIssuingRequestsAtStartup() {
         var http = new KisStockBasicInfoMockHttp();
         withBothConnections(http).run(context -> {
-            assertThat(context).hasNotFailed().hasSingleBean(KisStockBasicInfoClient.class);
+            assertThat(context).hasNotFailed().hasSingleBean(KisStockBasicInfoClient.class)
+                    .hasSingleBean(KisStockBasicInfoProvider.class);
             assertThat(context.getBeansOfType(RestClient.class)).hasSize(2);
             assertThat(context.getBeansOfType(KisTokenClient.class)).hasSize(2);
             assertThat(context.getBeansOfType(KisTokenProvider.class)).hasSize(2);
@@ -581,6 +584,10 @@ class KisConfigurationTest {
             assertThat(ReflectionTestUtils.getField(readOnlyTokenClient, "restClient")).isSameAs(readOnlyRestClient);
             assertThat(ReflectionTestUtils.getField(context.getBean(KisStockBasicInfoClient.class), "restClient"))
                     .isSameAs(readOnlyRestClient);
+            var basicInfoProvider = context.getBean(KisStockBasicInfoProvider.class);
+            assertThat(ReflectionTestUtils.getField(basicInfoProvider, "client"))
+                    .isSameAs(context.getBean(KisStockBasicInfoClient.class));
+            assertThat(ReflectionTestUtils.getField(basicInfoProvider, "tokenProvider")).isSameAs(readOnlyTokenProvider);
             for (Class<?> type : List.of(KisCurrentPriceClient.class, KisDailyPriceHistoryClient.class,
                     KisMarketIndexDailyHistoryClient.class, KisAccountBalanceClient.class, KisCashOrderClient.class,
                     KisOrderInquiryClient.class, KisCancelableOrderInquiryClient.class, KisOrderCancellationClient.class)) {
@@ -629,8 +636,7 @@ class KisConfigurationTest {
             assertThat(readOnlyProvider.getAccessToken()).isEqualTo("synthetic-readonly-token");
             assertThat(brokerProvider.getAccessToken()).isEqualTo("synthetic-broker-token");
             assertThat(readOnlyProvider.getAccessToken()).isEqualTo("synthetic-readonly-token");
-            var response = context.getBean(KisStockBasicInfoClient.class)
-                    .getStockBasicInfo("005930", readOnlyProvider.getAccessToken());
+            var response = context.getBean(KisStockBasicInfoProvider.class).getStockBasicInfo("005930");
             assertThat(response.requestedSymbol()).isEqualTo("005930");
             http.verify();
         });

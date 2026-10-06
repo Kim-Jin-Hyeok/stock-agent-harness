@@ -3,6 +3,7 @@ package com.stock.market.stock.basicinfo.provider.kis.config;
 import com.stock.broker.kis.auth.KisTokenClient;
 import com.stock.broker.kis.auth.KisTokenProvider;
 import com.stock.market.stock.basicinfo.provider.kis.KisStockBasicInfoClient;
+import com.stock.market.stock.basicinfo.provider.kis.KisStockBasicInfoProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -60,5 +61,13 @@ public class KisStockBasicInfoConfiguration {
             Clock clock
     ) {
         return new KisStockBasicInfoClient(restClient, properties.appKey(), properties.appSecret(), clock);
+    }
+
+    @Bean
+    public KisStockBasicInfoProvider kisStockBasicInfoProvider(
+            KisStockBasicInfoClient client,
+            @Qualifier("kisStockBasicInfoTokenProvider") KisTokenProvider tokenProvider
+    ) {
+        return new KisStockBasicInfoProvider(client, tokenProvider);
     }
 }
