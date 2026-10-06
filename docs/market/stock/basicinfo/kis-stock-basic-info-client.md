@@ -19,6 +19,8 @@ Spring 어노테이션과 빈 등록은 없다. Client는 토큰 Provider를 의
 
 기존 `KisConfiguration`의 모의투자 `RestClient`와 토큰을 연결하지 않는다. 향후 실전 조회 전용 구성에서 인증 환경과 토큰 재사용을 명시적으로 분리해야 한다. 여기서 읽기 전용은 이 Client가 허용한 경로와 메서드의 용도이며 증권사가 키에 별도의 읽기 전용 권한을 부여했다는 뜻이 아니다.
 
+공유 인증 코드의 오류와 객체 출력 보호 계약은 [KIS 인증 민감정보 보호](../../../broker/kis/auth/kis-token-secret-protection.md)를 따른다. 인증 코드 보호만으로 이 Client에 토큰 Provider나 실전 조회용 빈이 연결되는 것은 아니다.
+
 ## 요청과 입력 검증
 
 | 항목 | 계약 |

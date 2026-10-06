@@ -89,8 +89,7 @@ public class KisTokenProvider {
                     .toInstant();
         } catch (DateTimeParseException | NullPointerException exception) {
             throw new IllegalStateException(
-                    "KIS access token expiration is invalid.",
-                    exception
+                    "KIS access token expiration is invalid."
             );
         }
     }

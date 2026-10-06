@@ -8,4 +8,9 @@ public record KisTokenResponse(
         @JsonProperty("expires_in") long expiresInSeconds,
         @JsonProperty("access_token_token_expired") String expiresAt
 ) {
+    @Override
+    public String toString() {
+        return "KisTokenResponse[accessToken=<redacted>, tokenType=<redacted>, expiresInSeconds="
+                + expiresInSeconds + ", expiresAt=<redacted>]";
+    }
 }

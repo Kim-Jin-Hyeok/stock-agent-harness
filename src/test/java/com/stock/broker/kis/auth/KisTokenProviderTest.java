@@ -2,7 +2,13 @@ package com.stock.broker.kis.auth;
 
 import com.stock.broker.kis.auth.dto.KisTokenResponse;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.web.client.RestClientResponseException;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -10,6 +16,7 @@ import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -70,6 +77,19 @@ class KisTokenProviderTest {
     }
 
     @Test
+    void reusesTokenUntilImmediatelyBeforeRefreshTime() {
+        KisTokenClient tokenClient = mock(KisTokenClient.class);
+        when(tokenClient.issueToken()).thenReturn(token("access-token"));
+        Clock clock = mock(Clock.class);
+        when(clock.instant()).thenReturn(ISSUED_AT, REFRESH_AT.minusNanos(1));
+        KisTokenProvider provider = provider(tokenClient, clock);
+
+        assertThat(provider.getAccessToken()).isEqualTo("access-token");
+        assertThat(provider.getAccessToken()).isEqualTo("access-token");
+        verify(tokenClient).issueToken();
+    }
+
+    @Test
     void rejectsTokenResponseWithoutAccessToken() {
         KisTokenClient tokenClient = mock(KisTokenClient.class);
         when(tokenClient.issueToken()).thenReturn(token(" "));
@@ -80,17 +100,57 @@ class KisTokenProviderTest {
                 .withMessage("KIS access token must not be blank.");
     }
 
-    @Test
-    void rejectsTokenResponseWithInvalidExpiration() {
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {"invalid", "test-app-key test-app-secret test-access-token"})
+    void rejectsTokenResponseWithInvalidExpirationWithoutLeakingIt(String expiresAt) {
         KisTokenClient tokenClient = mock(KisTokenClient.class);
         when(tokenClient.issueToken()).thenReturn(
-                token("access-token", "invalid")
+                token("test-access-token", expiresAt)
         );
         KisTokenProvider provider = provider(tokenClient, fixedClock(ISSUED_AT));
 
-        assertThatIllegalStateException()
-                .isThrownBy(provider::getAccessToken)
+        assertThatThrownBy(provider::getAccessToken)
+                .isExactlyInstanceOf(IllegalStateException.class)
+                .hasMessage("KIS access token expiration is invalid.")
+                .hasNoCause()
+                .satisfies(failure -> {
+                    assertThat(failure.getSuppressed()).isEmpty();
+                    StringWriter stackTrace = new StringWriter();
+                    failure.printStackTrace(new PrintWriter(stackTrace));
+                    assertThat(stackTrace.toString()).doesNotContain("test-app-key", "test-app-secret", "test-access-token");
+                });
+        verify(tokenClient).issueToken();
+    }
+
+    @Test
+    void doesNotCacheInvalidResponseOrAutomaticallyRetry() {
+        KisTokenClient tokenClient = mock(KisTokenClient.class);
+        when(tokenClient.issueToken())
+                .thenReturn(token("invalid-token", "invalid-expiration"))
+                .thenReturn(token("valid-token"));
+        KisTokenProvider provider = provider(tokenClient, fixedClock(ISSUED_AT));
+
+        assertThatIllegalStateException().isThrownBy(provider::getAccessToken)
                 .withMessage("KIS access token expiration is invalid.");
+        verify(tokenClient).issueToken();
+        assertThat(provider.getAccessToken()).isEqualTo("valid-token");
+        assertThat(provider.getAccessToken()).isEqualTo("valid-token");
+        verify(tokenClient, times(2)).issueToken();
+    }
+
+    @Test
+    void propagatesSanitizedClientFailureWithoutAutomaticallyRetrying() {
+        KisTokenClient tokenClient = mock(KisTokenClient.class);
+        when(tokenClient.issueToken()).thenThrow(new RestClientResponseException(
+                "KIS token response HTTP status=429.", 429, "", null, null, null
+        ));
+        KisTokenProvider provider = provider(tokenClient, fixedClock(ISSUED_AT));
+
+        assertThatThrownBy(provider::getAccessToken)
+                .isExactlyInstanceOf(RestClientResponseException.class)
+                .hasMessage("KIS token response HTTP status=429.").hasNoCause();
+        verify(tokenClient).issueToken();
     }
 
     @Test

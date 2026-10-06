@@ -7,4 +7,8 @@ public record KisTokenRequest(
         @JsonProperty("appkey") String appKey,
         @JsonProperty("appsecret") String appSecret
 ) {
+    @Override
+    public String toString() {
+        return "KisTokenRequest[grantType=<redacted>, appKey=<redacted>, appSecret=<redacted>]";
+    }
 }
