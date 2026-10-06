@@ -100,3 +100,7 @@ Git 제외 경로 `build/krx-stock-basic-info-type-classification-observation-01
 ## 후속 식별 연결
 
 [KIS KRX 종목 식별 연결 검증](kis-krx-stock-identity-matching.md)은 기존 파싱 결과의 코드·시장·중복을 검사해 연결과 미연결을 보존한다. 이 유형 정책의 규칙·원문·근거는 변경하지 않으며 유형 자동 결합이나 종목 자격 승인으로 사용하지 않는다.
+
+## 후속 현재 유형 보완
+
+[KIS KRX 현재 종목 유형 보완 결과](kis-krx-stock-type-resolution.md)는 정확히 연결된 KRX 행에만 이 정책을 적용하고 KIS 해석과 별도의 참고 유형을 만든다. 원천 해석·미확정 사유·근거 메타데이터를 보존하며 두 원천의 충돌은 보류한다. 소속부·거래 조건·시점 자격을 승인하거나 운영 후보·주문에 연결하는 단계는 아니다.

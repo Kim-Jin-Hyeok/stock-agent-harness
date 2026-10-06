@@ -101,3 +101,7 @@ KIS 수집 시각 `2026-10-05T09:32:35.795200200Z`~`2026-10-05T09:32:36.20216850
 기존 [KIS 유형 정책](stock-master-type-classification.md)과 [KRX 유형 정책](krx-stock-basic-info-type-classification.md)을 수정·호출하거나 결과를 자동 결합하지 않았다. `StockEligibilityInput`, 상장 상태·거래정지 판정, 후보 선정·백테스트·주문·스케줄에 연결하지 않는다. `DESIGN_ONLY`, `runtimeSelectionImplemented=false`, `eligibilityOrHistoricalPopulationVerified=false`를 유지한다.
 
 HTTP Client·Provider·DB·스키마·Spring 빈·라이브러리·설정·`.env`·Docker 변경이 없다. Broker 계좌·주문·OpenAI도 호출하지 않았다. 커밋과 Push는 실행하지 않았다.
+
+## 후속 현재 유형 보완
+
+[KIS KRX 현재 종목 유형 보완 결과](kis-krx-stock-type-resolution.md)는 이 정책의 결과를 입력으로 받아 정확한 식별 연결에만 KRX 유형 근거를 붙인다. 식별 연결 정책과 원문·연결 실패·미연결 목록은 변경하지 않고 별도의 참고 유형을 반환한다. 종목 자격·과거 모집단·주문 승인으로 연결하지 않는다.
