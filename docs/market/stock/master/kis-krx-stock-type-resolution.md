@@ -140,3 +140,7 @@ KRX 소속부의 SPAC·관리종목·투자주의환기종목 표시와 KIS 거�
 `StockEligibilityInput`, 운영 후보·백테스트·주문·스케줄에 연결하지 않았다. `DESIGN_ONLY`, `runtimeSelectionImplemented=false`, `eligibilityOrHistoricalPopulationVerified=false`를 유지하고, 이전 관측의 당시 승인 상태도 소급 변경하지 않는다.
 
 기존 원천 정책·파서·식별 연결 코드, DB·스키마·Spring 빈·설정·`.env`·Docker·라이브러리는 변경하지 않았다. Broker 계좌·주문·OpenAI 호출은 없으며 커밋과 Push도 실행하지 않았다.
+
+## 후속 소속부 표시 해석
+
+[KRX 소속부 기반 현재 종목 제한 사유 해석](krx-stock-section-restriction.md)은 이 결과를 그대로 받아 정확히 연결된 KOSDAQ 자료의 SPAC·관리종목·투자주의환기 표시를 별도로 기록한다. 원천 유형·참고 유형·보류 사유는 변경하지 않고, 소속부 미확인과 대상 표시 미관측도 구분한다. 실제 후보 제외·종목 자격·거래 가능 승인으로 연결하지 않는다.
