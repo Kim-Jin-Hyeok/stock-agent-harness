@@ -14,7 +14,8 @@ KIS 모의투자 데이터와 가상 거래 결과를 관측한다. 아래 명�
 | --- | --- |
 | 활성 프로필 | `local,paper-observation` |
 | KIS | 활성화, 모의투자 URL `https://openapivts.koreainvestment.com:29443` |
-| 거래 실행 | `VIRTUAL`: 앱 내부 가상 거래이며 Broker 주문 제출과 구분한다. |
+| 거래 실행 모드 | `VIRTUAL`: 허용된 거래는 앱 내부 가상 거래이며 Broker 주문 제출과 구분한다. |
+| BUY / SELL 실행 허용 | 비활성화 (`TRADE_EXECUTION_ORDERS_ENABLED=false`) |
 | Harness / 일봉 수집 스케줄러 | 둘 다 활성화 |
 | 일봉 시작 시 수집 | 비활성화 (`MARKET_PRICE_HISTORY_COLLECTION_BOOTSTRAP_ENABLED=false`) |
 | Broker 주문 정합성 / 취소 스케줄러 | 둘 다 비활성화 |
@@ -58,6 +59,45 @@ KIS_PAPER_ACCOUNT_PRODUCT_CODE=01
 
 계좌번호는 앞 8자리만 `KIS_PAPER_ACCOUNT_NUMBER`에 넣고, 뒤 2자리는
 `KIS_PAPER_ACCOUNT_PRODUCT_CODE`에 넣는다.
+
+## 주문 실행 허용 설정
+
+`TRADE_EXECUTION_ORDERS_ENABLED`는 `compose.yml`의 앱 `environment`를 통해
+전달된다. 애플리케이션은 `application.yml`에서 이 값을
+`trade.execution.orders-enabled`로 읽는다. 변수 생략 시 Compose와
+애플리케이션의 기본값은 모두 `false`이며 `.env.example`도 `false`다.
+
+| 설정 | Harness 주문 경로의 동작 |
+| --- | --- |
+| 생략 또는 `false` | Risk 승인을 받은 BUY / SELL도 실행하지 않고 `REJECTED`, `ORDER_EXECUTION_DISABLED`로 기록한다. |
+| `true` | 기존 Risk 검증을 통과한 BUY / SELL만 실행 Handler에 전달한다. |
+
+주문 비활성화는 스케줄러나 Agent 실행의 중단이 아니다. 활성 스케줄러는
+데이터 조회와 판단을 계속할 수 있고 Run과 거절 이력을 저장한다.
+Risk 거절과 승인된 HOLD의 기존 동작은 유지된다. 현재 Harness는 주문
+차단에 따른 거래 `REJECTED`를 `EXECUTE_TRADE` 단계와 Run의 `FAILED`로
+기록하므로, 실패 상태만으로 서버 장애라고 판단하지 말고 사유를 확인한다.
+
+비활성 상태에서는 해당 BUY / SELL로 포트폴리오를 변경하거나 Broker에
+주문을 접수하지 않는다. Broker 잔액 조회, 포트폴리오 초기화와 DB 쓰기를
+모두 막는 설정은 아니다. 기존 주문의 체결 조회·취소·체결 반영 경로도
+이 설정으로 차단하지 않으며, 별도 스케줄러 활성화 여부를 확인해야 한다.
+
+이 관측 프로필은 허용 여부와 관계없이 거래 모드를 `VIRTUAL`로 유지한다.
+`true`는 가상 거래를 허용하는 값이지 `BROKER` 모드나 실전 전환을
+허용하는 값이 아니다. 판단만 관측할 때는 다음 값을 유지한다.
+
+```text
+TRADE_EXECUTION_ORDERS_ENABLED=false
+```
+
+가상 거래 결과도 관측하려면 시작 전 점검을 마친 뒤 운영자가 명시적으로
+`true`를 선택한다. 설정 변경은 앱 컨테이너를 생성·재생성하고 새 앱을
+시작해야 적용된다. `.env` 수정이나 기존 컨테이너의 `start`·`restart`만으로
+반영되지 않으며 실행 중 즉시 전환하는 Kill Switch가 아니다. 이미
+접수된 주문을 취소하거나 기존 보유 종목을 자동 청산하지도 않는다.
+Handler 또는 Broker Provider 직접 호출까지 차단하는 전역 권한으로
+간주하지 않는다.
 
 ## 시작 전 점검
 
@@ -106,13 +146,17 @@ docker volume ls --filter "label=com.docker.compose.project=$paperProject"
   실전 URL, 다른 프로필, `BROKER` 실행 모드로 덮어쓰지 않는다.
 - 최초 서버·DB 점검에서는 `.env`의 `HARNESS_SCHEDULER_ENABLED`와
   `MARKET_PRICE_HISTORY_COLLECTION_SCHEDULER_ENABLED`를 `false`로 두고,
-  `MARKET_PRICE_HISTORY_COLLECTION_BOOTSTRAP_ENABLED=false`를 유지한다.
+  `MARKET_PRICE_HISTORY_COLLECTION_BOOTSTRAP_ENABLED=false`와
+  `TRADE_EXECUTION_ORDERS_ENABLED=false`를 유지한다.
   변경된 값은 앱 컨테이너를 생성·재생성할 때 적용되며 실행 중 앱을
   즉시 멈추는 스위치가 아니다. 기존 컨테이너의 `start`나 `restart`만으로
   변경된 `.env`가 반영되지는 않는다.
 - 관측을 시작할 때만 두 스케줄러 값을 `true`로 전환한다. 현재 기본
   Harness 설정에는 단타·스윙·장기 전략이 모두 포함되어 있으므로 스윙만
   실행되는 환경이라고 가정하지 않는다. 전략별 시간창과 실행 주기를 확인한다.
+- 두 스케줄러의 활성화와 주문 허용은 별도로 선택한다. 판단만 관측하면
+  주문 허용은 `false`, 가상 거래까지 관측하면 점검 후 `true`로 정한다.
+  어떤 단계든 설정 해석 결과가 의도와 다르면 앱 시작을 보류한다.
 - 기본 일봉 수집 cron은 월~금 `20:15` (`Asia/Seoul`)이며 시작 시 수집은
   꺼져 있다. 초기 일봉이 없는 DB는 예정 수집 전까지 필요한 데이터가
   부족할 수 있다. 부족한 상태에서 Run을 반복하여 성공으로 처리하지 않는다.
@@ -123,8 +167,8 @@ docker volume ls --filter "label=com.docker.compose.project=$paperProject"
 JSON 전체와 `$paperResolved` 자체를 출력하거나 공유하면 자격증명이
 노출될 수 있으므로 선택된 항목만 확인한다. 앱 내부의 최종 설정까지
 검증하는 명령은 아니므로 위 프로필과 설정 파일 점검도 필요하다.
-두 스케줄러와 bootstrap의 출력이 선택한 실행 단계의 기대값과 다르면
-시작을 보류하고 `.env`와 쉘 환경변수를 대조한다.
+주문 허용, 두 스케줄러와 bootstrap의 출력이 선택한 실행 단계의 기대값과
+다르면 시작을 보류하고 `.env`와 쉘 환경변수를 대조한다.
 
 ```powershell
 $paperResolved = docker compose -p $paperProject --env-file .\.env -f .\compose.yml config --format json | ConvertFrom-Json
@@ -133,7 +177,13 @@ if ($LASTEXITCODE -ne 0 -or $null -eq $paperResolved) {
 }
 $paperAppPort = [int]$paperResolved.services.app.ports[0].published
 $paperDbPort = [int]$paperResolved.services.mysql.ports[0].published
-$paperResolved.services.app.environment | Select-Object SPRING_PROFILES_ACTIVE, DB_HOST, DB_PORT, HARNESS_SCHEDULER_ENABLED, MARKET_PRICE_HISTORY_COLLECTION_SCHEDULER_ENABLED, MARKET_PRICE_HISTORY_COLLECTION_BOOTSTRAP_ENABLED, AGENT_NEXT_ACTION_PROVIDER_TYPE, MOVING_AVERAGE_ORDER_DECISION_PROVIDER_TYPE, OPENAI_ENABLED
+$paperResolved.services.app.environment |
+    Select-Object SPRING_PROFILES_ACTIVE, DB_HOST, DB_PORT,
+        TRADE_EXECUTION_ORDERS_ENABLED, HARNESS_SCHEDULER_ENABLED,
+        MARKET_PRICE_HISTORY_COLLECTION_SCHEDULER_ENABLED,
+        MARKET_PRICE_HISTORY_COLLECTION_BOOTSTRAP_ENABLED,
+        AGENT_NEXT_ACTION_PROVIDER_TYPE,
+        MOVING_AVERAGE_ORDER_DECISION_PROVIDER_TYPE, OPENAI_ENABLED
 [pscustomobject]@{ AppHostPort = $paperAppPort; MySqlHostPort = $paperDbPort }
 Remove-Variable paperResolved
 ```
@@ -207,7 +257,8 @@ healthcheck가 없으므로 `Up`만으로 서버와 DB가 정상이라고 판정
 
 스케줄러를 끈 최초 점검이 끝난 뒤 관측을 켜려면 아래 종료 절차로 기존
 앱의 종료를 확인하고, 두 스케줄러 값을 `true`로 변경하여 같은 프로젝트로
-다시 시작한다. `.env` 수정만으로 실행 중 앱에 반영되지는 않는다.
+다시 시작한다. 주문 허용은 판단만 관측할지 가상 거래까지 관측할지에
+따라 별도로 정한다. `.env` 수정만으로 실행 중 앱에 반영되지는 않는다.
 
 ### 로그와 조회 API
 
@@ -226,6 +277,9 @@ docker compose -p $paperProject --env-file .\.env -f .\compose.yml logs --follow
 - 관측을 켠 상태에서는 `Investment Harness started`, `Investment Harness
   finished` 또는 실패 로그, `Harness scheduler completed`와 저장된 Run을
   대조한다. 실패·Risk 거절·API 한도·인증 오류도 관측 결과로 기록한다.
+- 주문 비활성 상태의 BUY / SELL은 `ORDER_EXECUTION_DISABLED` 거절과
+  Run의 `FAILED`로 기록될 수 있다. 판단과 차단 이력이 남았는지 확인하고
+  Provider 오류나 다른 실패를 설정 차단으로 일괄 분류하지 않는다.
 - 일봉 수집은 `Daily price history scheduled collection completed`의
   `status`, `fetchedCount`, `savedCount`와 DB의 최신 거래일을 함께 확인한다.
   실행 시간창 밖의 skip 로그나 수집 전 빈 테이블 자체는 서버 장애의 증거가 아니다.
@@ -299,8 +353,9 @@ Flyway 이력에 현재 migration `V1`~`V3`의 성공이 있는지, 로그의 Ru
 
 1. 수동 실행 요청을 보내는 클라이언트를 멈추고 다른 앱 인스턴스가 없는지
    확인한다. 계획된 종료는 전략 실행 시간창과 일봉 수집 시각을 피한다.
-   `.env`의 스케줄러 값을 `false`로 바꾸는 것만으로 현재 앱의 신규 실행이
-   차단되지는 않는다. 런타임 차단·작업 배출 기능은 아직 검증 대상이다.
+   `.env`의 스케줄러나 주문 허용 값을 `false`로 바꾸는 것만으로 현재 앱의
+   신규 실행·주문이 즉시 차단되지는 않는다. 런타임 차단·작업 배출 기능은
+   아직 검증 대상이다.
 2. 최근 로그의 Harness 시작과 종료/실패, 수집 완료를 대조하고 DB 저장을
    확인한다. `Investment Harness finished`는 이력 저장 전에 출력되므로
    로그만 보고 저장 완료로 판정하지 않는다. Run 이력은 종료 시 저장되어
