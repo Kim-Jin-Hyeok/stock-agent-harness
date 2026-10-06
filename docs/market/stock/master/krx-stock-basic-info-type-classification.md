@@ -96,3 +96,7 @@ Git 제외 경로 `build/krx-stock-basic-info-type-classification-observation-01
 기존 KIS 유형 정책·원문·보류 사유를 덮어쓰거나 두 원천의 유형을 자동 결합하지 않았다. 새로운 KRX 원문 파서·HTTP Client·Provider·DB 스키마·라이브러리·설정·Spring 빈을 추가하지 않았다. Docker·Broker 계좌·주문·OpenAI를 호출하거나 `.env`를 변경하지 않았다.
 
 유형 정책은 운영 후보·백테스트·스케줄·주문에 연결하지 않는다. `DESIGN_ONLY`, `runtimeSelectionImplemented=false`, `eligibilityOrHistoricalPopulationVerified=false`를 유지한다. 이번 작업의 의미는 제한적인 현재 주식 유형 해석의 구현·검증이며 순수익 개선이나 과거 Universe 검증이 아니다. 커밋과 Push는 실행하지 않았다.
+
+## 후속 식별 연결
+
+[KIS KRX 종목 식별 연결 검증](kis-krx-stock-identity-matching.md)은 기존 파싱 결과의 코드·시장·중복을 검사해 연결과 미연결을 보존한다. 이 유형 정책의 규칙·원문·근거는 변경하지 않으며 유형 자동 결합이나 종목 자격 승인으로 사용하지 않는다.
