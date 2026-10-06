@@ -53,6 +53,7 @@ import com.stock.market.price.provider.kis.KisCurrentPriceClient;
 import com.stock.market.price.provider.kis.KisCurrentPriceProvider;
 import com.stock.portfolio.PortfolioService;
 import jakarta.persistence.EntityManager;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -78,7 +79,7 @@ public class KisConfiguration {
 
     @Bean
     public KisTokenClient kisTokenClient(
-            RestClient kisRestClient,
+            @Qualifier("kisRestClient") RestClient kisRestClient,
             KisProperties properties
     ) {
         return new KisTokenClient(
@@ -90,7 +91,7 @@ public class KisConfiguration {
 
     @Bean
     public KisTokenProvider kisTokenProvider(
-            KisTokenClient kisTokenClient,
+            @Qualifier("kisTokenClient") KisTokenClient kisTokenClient,
             Clock clock,
             KisProperties properties
     ) {
@@ -103,7 +104,7 @@ public class KisConfiguration {
 
     @Bean
     public KisCurrentPriceClient kisCurrentPriceClient(
-            RestClient kisRestClient,
+            @Qualifier("kisRestClient") RestClient kisRestClient,
             KisProperties properties
     ) {
         return new KisCurrentPriceClient(
@@ -116,7 +117,7 @@ public class KisConfiguration {
     @Bean
     public KisCurrentPriceProvider kisCurrentPriceProvider(
             KisCurrentPriceClient kisCurrentPriceClient,
-            KisTokenProvider kisTokenProvider,
+            @Qualifier("kisTokenProvider") KisTokenProvider kisTokenProvider,
             Clock clock
     ) {
         return new KisCurrentPriceProvider(
@@ -128,7 +129,7 @@ public class KisConfiguration {
 
     @Bean
     public KisDailyPriceHistoryClient kisDailyPriceHistoryClient(
-            RestClient kisRestClient,
+            @Qualifier("kisRestClient") RestClient kisRestClient,
             KisProperties properties,
             Clock clock
     ) {
@@ -144,7 +145,7 @@ public class KisConfiguration {
     @Bean
     public KisMarketIndexDailyHistoryClient
     kisMarketIndexDailyHistoryClient(
-            RestClient kisRestClient,
+            @Qualifier("kisRestClient") RestClient kisRestClient,
             KisProperties properties,
             Clock clock
     ) {
@@ -168,7 +169,7 @@ public class KisConfiguration {
     public MarketIndexDailyHistoryProvider
     marketIndexDailyHistoryProvider(
             KisMarketIndexDailyHistoryClient historyClient,
-            KisTokenProvider tokenProvider,
+            @Qualifier("kisTokenProvider") KisTokenProvider tokenProvider,
             KisMarketIndexDailyHistoryRequestWaiter requestWaiter,
             KisProperties properties
     ) {
@@ -250,7 +251,7 @@ public class KisConfiguration {
     @Bean
     public KisDailyPriceHistoryProvider kisDailyPriceHistoryProvider(
             KisDailyPriceHistoryClient kisDailyPriceHistoryClient,
-            KisTokenProvider kisTokenProvider,
+            @Qualifier("kisTokenProvider") KisTokenProvider kisTokenProvider,
             KisDailyPriceHistoryRequestWaiter requestWaiter,
             KisProperties properties
     ) {
@@ -336,7 +337,7 @@ public class KisConfiguration {
 
     @Bean
     public KisAccountBalanceClient kisAccountBalanceClient(
-            RestClient kisRestClient,
+            @Qualifier("kisRestClient") RestClient kisRestClient,
             KisProperties properties
     ) {
         return new KisAccountBalanceClient(
@@ -350,7 +351,7 @@ public class KisConfiguration {
     @Bean
     public KisBrokerAccountProvider kisBrokerAccountProvider(
             KisAccountBalanceClient kisAccountBalanceClient,
-            KisTokenProvider kisTokenProvider,
+            @Qualifier("kisTokenProvider") KisTokenProvider kisTokenProvider,
             KisProperties properties,
             Clock clock
     ) {
@@ -364,7 +365,7 @@ public class KisConfiguration {
 
     @Bean
     public KisCashOrderClient kisCashOrderClient(
-            RestClient kisRestClient,
+            @Qualifier("kisRestClient") RestClient kisRestClient,
             KisProperties properties
     ) {
         return new KisCashOrderClient(
@@ -376,7 +377,7 @@ public class KisConfiguration {
 
     @Bean
     public KisOrderInquiryClient kisOrderInquiryClient(
-            RestClient kisRestClient,
+            @Qualifier("kisRestClient") RestClient kisRestClient,
             KisProperties properties
     ) {
         return new KisOrderInquiryClient(
@@ -389,7 +390,7 @@ public class KisConfiguration {
 
     @Bean
     public KisCancelableOrderInquiryClient kisCancelableOrderInquiryClient(
-            RestClient kisRestClient,
+            @Qualifier("kisRestClient") RestClient kisRestClient,
             KisProperties properties
     ) {
         return new KisCancelableOrderInquiryClient(
@@ -402,7 +403,7 @@ public class KisConfiguration {
 
     @Bean
     public KisOrderCancellationClient kisOrderCancellationClient(
-            RestClient kisRestClient,
+            @Qualifier("kisRestClient") RestClient kisRestClient,
             KisProperties properties
     ) {
         return new KisOrderCancellationClient(
@@ -415,7 +416,7 @@ public class KisConfiguration {
     @Bean
     public KisBrokerOrderProvider kisBrokerOrderProvider(
             KisCashOrderClient kisCashOrderClient,
-            KisTokenProvider kisTokenProvider,
+            @Qualifier("kisTokenProvider") KisTokenProvider kisTokenProvider,
             KisProperties properties,
             Clock clock
     ) {
@@ -430,7 +431,7 @@ public class KisConfiguration {
     @Bean
     public KisBrokerOrderInquiryProvider kisBrokerOrderInquiryProvider(
             KisOrderInquiryClient kisOrderInquiryClient,
-            KisTokenProvider kisTokenProvider,
+            @Qualifier("kisTokenProvider") KisTokenProvider kisTokenProvider,
             KisProperties properties,
             Clock clock
     ) {
@@ -447,7 +448,7 @@ public class KisConfiguration {
     kisBrokerOrderCancellationProvider(
             KisCancelableOrderInquiryClient cancelableOrderInquiryClient,
             KisOrderCancellationClient orderCancellationClient,
-            KisTokenProvider kisTokenProvider,
+            @Qualifier("kisTokenProvider") KisTokenProvider kisTokenProvider,
             KisProperties properties,
             Clock clock
     ) {

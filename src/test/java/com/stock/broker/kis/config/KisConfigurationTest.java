@@ -59,22 +59,37 @@ import com.stock.market.price.provider.kis.KisCurrentPriceClient;
 import com.stock.market.price.provider.CurrentPriceProvider;
 import com.stock.market.price.provider.FixedCurrentPriceProvider;
 import com.stock.market.price.provider.kis.KisCurrentPriceProvider;
+import com.stock.market.stock.basicinfo.provider.kis.KisStockBasicInfoClient;
+import com.stock.market.stock.basicinfo.provider.kis.config.KisStockBasicInfoConfiguration;
+import com.stock.market.stock.basicinfo.provider.kis.config.support.KisStockBasicInfoMockHttp;
 import com.stock.portfolio.PortfolioService;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.web.client.RestClient;
 
 import java.net.URI;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalTime;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.springframework.http.HttpMethod.GET;
+import static org.springframework.http.HttpMethod.POST;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 class KisConfigurationTest {
     private final ApplicationContextRunner contextRunner =
@@ -83,7 +98,7 @@ class KisConfigurationTest {
                             KisConfiguration.class,
                             FixedCurrentPriceProvider.class
                     )
-                    .withBean(Clock.class, Clock::systemUTC)
+                    .withBean(Clock.class, () -> Clock.fixed(Instant.parse("2026-10-06T01:00:00Z"), ZoneOffset.UTC))
                     .withBean(EntityManager.class, () -> mock(EntityManager.class))
                     .withBean(PlatformTransactionManager.class, () -> mock(PlatformTransactionManager.class))
                     .withBean(
@@ -526,6 +541,115 @@ class KisConfigurationTest {
                     );
                     assertThat(first).isSameAs(second);
                 });
+    }
+
+    @Test
+    void preservesBrokerBeansWhenBasicInfoConfigurationIsDisabledWithoutReadOnlyCredentials() {
+        var http = new KisStockBasicInfoMockHttp();
+        contextRunner.withUserConfiguration(KisStockBasicInfoConfiguration.class)
+                .withInitializer(context -> context.getBeanFactory().addBeanPostProcessor(http))
+                .withPropertyValues("broker.kis.enabled=true", "market.stock.basic-info.kis.enabled=false")
+                .withBean(KisProperties.class, this::enabledProperties)
+                .run(context -> {
+                    assertThat(context).hasNotFailed().hasSingleBean(RestClient.class)
+                            .hasSingleBean(KisTokenClient.class).hasSingleBean(KisTokenProvider.class)
+                            .hasSingleBean(KisBrokerOrderProvider.class).doesNotHaveBean(KisStockBasicInfoClient.class);
+                    http.verify();
+                });
+    }
+
+    @Test
+    void isolatesBothAuthenticationGraphsWithoutIssuingRequestsAtStartup() {
+        var http = new KisStockBasicInfoMockHttp();
+        withBothConnections(http).run(context -> {
+            assertThat(context).hasNotFailed().hasSingleBean(KisStockBasicInfoClient.class);
+            assertThat(context.getBeansOfType(RestClient.class)).hasSize(2);
+            assertThat(context.getBeansOfType(KisTokenClient.class)).hasSize(2);
+            assertThat(context.getBeansOfType(KisTokenProvider.class)).hasSize(2);
+            var brokerRestClient = context.getBean("kisRestClient", RestClient.class);
+            var readOnlyRestClient = context.getBean("kisStockBasicInfoRestClient", RestClient.class);
+            var brokerTokenClient = context.getBean("kisTokenClient", KisTokenClient.class);
+            var readOnlyTokenClient = context.getBean("kisStockBasicInfoTokenClient", KisTokenClient.class);
+            var brokerTokenProvider = context.getBean("kisTokenProvider", KisTokenProvider.class);
+            var readOnlyTokenProvider = context.getBean("kisStockBasicInfoTokenProvider", KisTokenProvider.class);
+            assertThat(brokerRestClient).isNotSameAs(readOnlyRestClient);
+            assertThat(brokerTokenClient).isNotSameAs(readOnlyTokenClient);
+            assertThat(brokerTokenProvider).isNotSameAs(readOnlyTokenProvider);
+            assertThat(ReflectionTestUtils.getField(brokerTokenProvider, "tokenClient")).isSameAs(brokerTokenClient);
+            assertThat(ReflectionTestUtils.getField(readOnlyTokenProvider, "tokenClient")).isSameAs(readOnlyTokenClient);
+            assertThat(ReflectionTestUtils.getField(brokerTokenClient, "restClient")).isSameAs(brokerRestClient);
+            assertThat(ReflectionTestUtils.getField(readOnlyTokenClient, "restClient")).isSameAs(readOnlyRestClient);
+            assertThat(ReflectionTestUtils.getField(context.getBean(KisStockBasicInfoClient.class), "restClient"))
+                    .isSameAs(readOnlyRestClient);
+            for (Class<?> type : List.of(KisCurrentPriceClient.class, KisDailyPriceHistoryClient.class,
+                    KisMarketIndexDailyHistoryClient.class, KisAccountBalanceClient.class, KisCashOrderClient.class,
+                    KisOrderInquiryClient.class, KisCancelableOrderInquiryClient.class, KisOrderCancellationClient.class)) {
+                assertThat(ReflectionTestUtils.getField(context.getBean(type), "restClient")).isSameAs(brokerRestClient);
+            }
+            for (Class<?> type : List.of(KisCurrentPriceProvider.class, KisDailyPriceHistoryProvider.class,
+                    KisMarketIndexDailyHistoryProvider.class, KisBrokerAccountProvider.class, KisBrokerOrderProvider.class,
+                    KisBrokerOrderInquiryProvider.class, KisBrokerOrderCancellationProvider.class)) {
+                assertThat(ReflectionTestUtils.getField(context.getBean(type), "tokenProvider")).isSameAs(brokerTokenProvider);
+            }
+            http.verify();
+        });
+    }
+
+    @Test
+    void keepsBrokerAndReadOnlyCredentialsRequestsAndTokenCachesIndependent() {
+        var http = new KisStockBasicInfoMockHttp();
+        withBothConnections(http).run(context -> {
+            assertThat(context).hasNotFailed();
+            http.verify();
+            var brokerServer = http.server("kisRestClient");
+            var readOnlyServer = http.server("kisStockBasicInfoRestClient");
+            brokerServer.expect(requestTo("https://openapivts.koreainvestment.com:29443/oauth2/tokenP"))
+                    .andExpect(method(POST))
+                    .andExpect(content().json("""
+                            {"grant_type":"client_credentials","appkey":"test-app-key","appsecret":"test-app-secret"}
+                            """))
+                    .andRespond(withSuccess(tokenResponse("synthetic-broker-token"), MediaType.APPLICATION_JSON));
+            readOnlyServer.expect(requestTo("https://openapi.koreainvestment.com:9443/oauth2/tokenP"))
+                    .andExpect(method(POST))
+                    .andExpect(content().json("""
+                            {"grant_type":"client_credentials","appkey":"synthetic-readonly-key",
+                             "appsecret":"synthetic-readonly-secret"}
+                            """))
+                    .andRespond(withSuccess(tokenResponse("synthetic-readonly-token"), MediaType.APPLICATION_JSON));
+            readOnlyServer.expect(requestTo("https://openapi.koreainvestment.com:9443"
+                            + "/uapi/domestic-stock/v1/quotations/search-stock-info?PRDT_TYPE_CD=300&PDNO=005930"))
+                    .andExpect(method(GET))
+                    .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer synthetic-readonly-token"))
+                    .andExpect(header("appkey", "synthetic-readonly-key"))
+                    .andExpect(header("appsecret", "synthetic-readonly-secret"))
+                    .andRespond(withSuccess("{\"synthetic\":\"basic-info\"}", MediaType.APPLICATION_JSON));
+            var brokerProvider = context.getBean("kisTokenProvider", KisTokenProvider.class);
+            var readOnlyProvider = context.getBean("kisStockBasicInfoTokenProvider", KisTokenProvider.class);
+            assertThat(brokerProvider.getAccessToken()).isEqualTo("synthetic-broker-token");
+            assertThat(readOnlyProvider.getAccessToken()).isEqualTo("synthetic-readonly-token");
+            assertThat(brokerProvider.getAccessToken()).isEqualTo("synthetic-broker-token");
+            assertThat(readOnlyProvider.getAccessToken()).isEqualTo("synthetic-readonly-token");
+            var response = context.getBean(KisStockBasicInfoClient.class)
+                    .getStockBasicInfo("005930", readOnlyProvider.getAccessToken());
+            assertThat(response.requestedSymbol()).isEqualTo("005930");
+            http.verify();
+        });
+    }
+
+    private ApplicationContextRunner withBothConnections(KisStockBasicInfoMockHttp http) {
+        return contextRunner.withUserConfiguration(KisStockBasicInfoConfiguration.class)
+                .withInitializer(context -> context.getBeanFactory().addBeanPostProcessor(http))
+                .withPropertyValues("broker.kis.enabled=true", "market.stock.basic-info.kis.enabled=true",
+                        "market.stock.basic-info.kis.app-key=synthetic-readonly-key",
+                        "market.stock.basic-info.kis.app-secret=synthetic-readonly-secret")
+                .withBean(KisProperties.class, this::enabledProperties);
+    }
+
+    private String tokenResponse(String accessToken) {
+        return """
+                {"access_token":"%s","token_type":"Bearer","expires_in":3600,
+                 "access_token_token_expired":"2026-10-06 11:00:00"}
+                """.formatted(accessToken);
     }
 
     private KisProperties enabledProperties() {

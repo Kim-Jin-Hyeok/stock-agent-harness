@@ -43,6 +43,15 @@ broker:
     daily-price-history-market: INTEGRATED
 
 market:
+  stock:
+    basic-info:
+      kis:
+        enabled: false
+        app-key: ${KIS_READONLY_APP_KEY:}
+        app-secret: ${KIS_READONLY_APP_SECRET:}
+        token-refresh-before-expiration: 1m
+        connect-timeout: 5s
+        request-timeout: 15s
   calendar:
     closed-dates:
       - "2026-01-01"
