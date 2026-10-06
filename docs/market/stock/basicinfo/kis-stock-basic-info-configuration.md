@@ -6,6 +6,8 @@
 
 등록된 Client는 종목 하나와 토큰을 전달받아 조회하는 기존 계약을 유지한다. 인증 연계 `KisStockBasicInfoProvider`는 호출자로부터 종목만 받아 전용 토큰 Provider와 원문 Client를 연결한다. 자동 수집, DB 저장, 주식기본정보 캐시, 스케줄이나 후보 선정 연결은 추가하지 않는다. 빈 생성 자체는 인증이나 종목 조회를 실행하지 않는다.
 
+반환 응답의 저장·복원은 별도 [원문 관측 이력 Store](kis-stock-basic-info-observation-storage.md)가 담당한다. 인증 구성과 Provider는 Store를 의존하지 않으며 조회 후 저장 호출을 자동으로 실행하지 않는다.
+
 ## 패키지와 파일
 
 설정 패키지는 `com.stock.market.stock.basicinfo.provider.kis.config`다. 인증 연계 Provider는 기존 Client와 같은 `com.stock.market.stock.basicinfo.provider.kis`에 둔다.
