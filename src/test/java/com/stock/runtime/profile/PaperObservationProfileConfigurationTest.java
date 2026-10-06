@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PaperObservationProfileConfigurationTest {
 
     @Test
-    void enablesObservationWithoutBrokerOrderExecution() throws IOException {
+    void configuresPaperObservationWithSchedulersDisabledByDefault() throws IOException {
         ConfigurableEnvironment environment = loadEnvironment();
 
         assertThat(environment.getProperty("broker.kis.enabled", Boolean.class))
@@ -27,11 +27,11 @@ class PaperObservationProfileConfigurationTest {
         assertThat(environment.getProperty("broker.kis.base-url"))
                 .isEqualTo("https://openapivts.koreainvestment.com:29443");
         assertThat(environment.getProperty("harness.scheduler.enabled", Boolean.class))
-                .isTrue();
+                .isFalse();
         assertThat(environment.getProperty(
                 "market.price.history.collection.scheduler.enabled",
                 Boolean.class
-        )).isTrue();
+        )).isFalse();
         assertThat(environment.getProperty("trade.execution.mode"))
                 .isEqualTo("VIRTUAL");
         assertThat(environment.getProperty(
