@@ -112,3 +112,7 @@ Git 제외 경로 `build/kis-stock-basic-info-parsing-observation-01/`에 `Verif
 기존 마스터·KRX 파서, 식별 연결·유형 및 제한 정책·`StockEligibilityInput`·`StockEligibilityPolicy`는 변경하지 않았다. `AS_OF_VERIFIED`, `informationAvailableAt`, 상장 상태, 후보 목록이나 주문 허가를 생성하지 않는다. `DESIGN_ONLY`, `runtimeSelectionImplemented=false`, `eligibilityOrHistoricalPopulationVerified=false`를 유지한다.
 
 HTTP Client·인증·Provider·수집 스케줄·DB·스키마·Spring 빈·의존성·설정·`.env`·Docker는 이번 변경에 포함하지 않는다. 서버 시작·정지·재배포, 계좌·주문·OpenAI 호출과 커밋·Push도 실행하지 않았다.
+
+## 후속 종목 유형 해석
+
+후속 [KIS 주식기본조회 현재 종목 유형 해석](kis-stock-basic-info-type-classification.md)은 이 파서의 입력 해시·버전·원문·메시지를 포함한 결과 전체를 보존하고 제한적인 조합만 보통주·우선주로 해석한다. 파서의 필드 추출 계약과 기존 검증은 그대로 유지하며 식별 연결·제한 해소·후보 자격·주문 허가를 생성하지 않는다.
