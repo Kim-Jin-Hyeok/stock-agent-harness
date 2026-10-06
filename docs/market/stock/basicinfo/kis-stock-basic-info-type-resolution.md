@@ -8,6 +8,8 @@
 
 이 정책은 현재 보존 관측의 유형을 조합한다. 서로 다른 관측 시점을 같게 만들거나 현재 자료를 과거 시점의 근거로 소급하지 않는다.
 
+후속 [마스터와 주식기본조회 제한 관측](kis-stock-basic-info-restriction-observation.md)은 이 결과를 받아 원천별 제한 문자를 독립적으로 기록한다. 대조 실패 시 API 관측은 연결하지 않으며 유형·참고 유형·사유와 후보 자격은 변경하지 않는다.
+
 ## 패키지와 호출 계약
 
 패키지는 `com.stock.strategy.universe.eligibility.classification.kis.basicinfo.resolution`이다. 기존 마스터 정책과 [주식기본조회 유형 정책](kis-stock-basic-info-type-classification.md)을 생성자로 받아 재사용한다. KIS·KRX 보완 정책이나 원천별 지원 조합은 변경하지 않는다.

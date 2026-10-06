@@ -1,10 +1,11 @@
 package com.stock.strategy.universe.eligibility.restriction.kis;
 
 import com.stock.strategy.universe.eligibility.classification.kiskrx.result.KisKrxStockTypeResolutionResult;
-import com.stock.strategy.universe.eligibility.restriction.kis.result.KisStockTradingFlagStatus;
 import com.stock.strategy.universe.eligibility.restriction.kis.result.KisStockTradingRestrictionResult;
 
 import java.util.Objects;
+
+import static com.stock.strategy.universe.eligibility.restriction.kis.result.KisStockTradingFlagStatus.fromRawValue;
 
 public class KisStockTradingRestrictionPolicy {
     public static final String RESTRICTION_VERSION = "KIS_STOCK_TRADING_FLAG_OBSERVATION_V2";
@@ -14,17 +15,7 @@ public class KisStockTradingRestrictionPolicy {
         Objects.requireNonNull(typeResolution, "typeResolution must not be null.");
         var raw = typeResolution.kisClassification().rawRecord();
         return new KisStockTradingRestrictionResult(typeResolution,
-                observe(raw.rawSuspension()), observe(raw.rawLiquidation()), observe(raw.rawSpac()),
-                observe(raw.rawManagement()), observe(raw.rawInvestmentCaution()), RESTRICTION_VERSION, SOURCE_REVISION);
-    }
-
-    private static KisStockTradingFlagStatus observe(String rawValue) {
-        // These states describe literal field observations, not current or historical trading permission.
-        return switch (rawValue) {
-            case null -> KisStockTradingFlagStatus.FIELD_NOT_PROVIDED;
-            case "Y" -> KisStockTradingFlagStatus.Y_OBSERVED;
-            case "N" -> KisStockTradingFlagStatus.N_OBSERVED;
-            default -> KisStockTradingFlagStatus.VALUE_UNVERIFIED;
-        };
+                fromRawValue(raw.rawSuspension()), fromRawValue(raw.rawLiquidation()), fromRawValue(raw.rawSpac()),
+                fromRawValue(raw.rawManagement()), fromRawValue(raw.rawInvestmentCaution()), RESTRICTION_VERSION, SOURCE_REVISION);
     }
 }

@@ -6,6 +6,8 @@ KIS 마스터의 거래정지·정리매매·SPAC·관리종목·투자주의환
 
 다섯 상태를 단일 사유로 축약하지 않는다. 예를 들어 거래정지 `Y`와 관리종목 `Y`가 함께 나타나면 두 관측을 모두 남기고, 한 필드가 미확인이어도 다른 필드의 확인된 관측을 유지한다. 이 결과는 실제 거래 허가, 종목 자격, 상장 상태나 과거 모집단을 승인하지 않는다.
 
+후속 [KIS 마스터와 주식기본조회 제한 관측](../basicinfo/kis-stock-basic-info-restriction-observation.md)은 새 유형 보완 경로에 별도 정책을 추가한다. 이 정책과 새 정책은 `KisStockTradingFlagStatus.fromRawValue`로 같은 문자 변환을 공유한다. 기존 입력·결과·V2 버전·근거 revision과 아래 당시 검증 기록은 유지하며, 새 API 경로로 교체하지 않는다.
+
 ## 패키지와 호출 계약
 
 기준 패키지는 `com.stock.strategy.universe.eligibility.restriction.kis`다. 기존 `restriction.krx`의 소속부 해석과 원천별 책임을 구분한다. 정책은 Spring 빈이 아닌 무상태 일반 클래스이며 파일·HTTP·DB 접근 없이 동작한다.
