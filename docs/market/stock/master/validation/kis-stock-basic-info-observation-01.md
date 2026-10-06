@@ -110,3 +110,7 @@ ETF `069500`은 그룹 `EF`를 반환했지만 주식종류는 빈 값이었다.
 `StockEligibilityInput`, `StockEligibilityPolicy`, 기존 KIS·KRX 유형/제한 정책과 운영 후보 목록은 변경하지 않았다. `AS_OF_VERIFIED`, `informationAvailableAt`, 상장 상태나 주문 허가를 생성하지 않는다. KRX를 삭제하거나 KIS만으로 과거 모집단 검증이 끝났다고 선언하지 않는다.
 
 운영 Java·설정·DB·스키마·Harness·Risk·AI Prompt·스케줄·Docker·`.env` 변경은 없다. 서버를 시작·정지·재배포하지 않았고 OpenAI 호출·실제 주문·커밋·Push는 수행하지 않았다. 운영 코드 변경이 없어 Gradle 테스트를 재실행하지 않고 경로 통제 검사와 원문 오프라인 재현으로 검증했다.
+
+## 후속 원문 파서
+
+후속 [KIS 주식기본조회 원문 응답 파서](../../basicinfo/kis-stock-basic-info-raw-parsing.md)는 이 관측의 보존 바이트 10건을 다시 읽어 선택 필드를 추출한다. 당시 실전 호출 기록과 보고서는 그대로 유지하며, 후속 파서 검증은 외부 API·토큰 요청 없이 수행했다. 상품번호 정규화·유형 및 자격 판정·운영 후보 연결은 포함하지 않는다.
