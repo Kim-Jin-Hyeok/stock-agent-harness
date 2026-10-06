@@ -264,8 +264,13 @@ docker compose -p $paperProject --env-file .\.env -f .\compose.yml up -d --build
 docker compose -p $paperProject --env-file .\.env -f .\compose.yml ps --all
 ```
 
-`mysql`은 healthcheck 통과 후 앱 시작의 선행 조건이다. `app`에는 별도
-healthcheck가 없으므로 `Up`만으로 서버와 DB가 정상이라고 판정하지 않는다.
+`mysql`은 healthcheck 통과 후 앱 시작의 선행 조건이다. `app`은 컨테이너
+내부의 `GET /api/health`를 curl로 확인한다. DB 연결이 정상이면 HTTP 200,
+실패하면 503을 반환하므로 HTTP 오류도 healthcheck 실패로 처리한다.
+10초 간격, 요청 제한 3초, healthcheck 제한 5초, 시작 유예 60초,
+재시도 12회다. 런타임 이미지에 curl을 설치한다. `Up`만으로 정상이라고
+판정하지 않고 `healthy`와 응답 본문을 확인한다. healthcheck는 상태를
+표시하며 컨테이너를 자동 재시작하는 정책은 아니다.
 선택한 프로젝트의 앱이 하나인지 `docker ps`에서도 다시 확인한다.
 
 스케줄러를 끈 최초 점검이 끝난 뒤 관측을 켜려면 아래 종료 절차로 기존
@@ -434,3 +439,165 @@ Flyway 이력에 현재 migration `V1`~`V6`의 성공이 있는지, 로그의 Ru
 | Broker 계좌 정합성 | 가상 잔고와 Broker 모의계좌를 구분하고, 기존 미완료 주문·체결 반영·재시작 후 상태를 확인해야 한다. 현재 프로필에서는 주문 정합성·취소 자동 처리가 꺼져 있다. |
 | 접근 통제와 비밀 보호 | 기본 호스트 포트는 `127.0.0.1` 전용이지만 API 인증 통제가 마련되어 있지 않다. 기존 `.env`·셸 환경변수의 바인딩 재정의, 실제 외부 접근 차단과 로그·설정 출력의 자격증명 노출 여부를 검증해야 한다. |
 | 저장 공간과 장애 대응 | Compose에 로그 순환과 재시작 정책이 명시되어 있지 않다. 로그·DB 용량, 디스크 부족, API 오류·rate limit, 컨테이너 종료 감지와 복구 절차를 검증해야 한다. |
+
+## 격리 Runtime Smoke 검증 기록 — 2026-10-06
+
+**1차 시도 결과: `BLOCKED_DOCKER_ENGINE`. 이 시도는 실제 기동 성공으로 판정하지 않았다.**
+루트 `AGENTS.md`를 읽고 요청된 Compose healthcheck와 격리 설정만 변경했다.
+Docker context는 `desktop-linux`, Docker Client는 `29.5.3`, Compose는 `v5.1.4`다.
+`docker version`과 `docker info --format '{{.ServerVersion}}'`에서 다음 오류가
+발생했다. 서버 버전은 확인되지 않았다.
+
+```text
+failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine
+open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.
+```
+
+엔진 연결 실패 후 이미지 빌드, `up`, `stop`, `restart`, `down`을 실행하지
+않았다. Docker Desktop이나 다른 Docker context를 임의로 시작·전환하지
+않았다. 실제 `.env`와 KIS 인증정보를 읽거나 전달하지 않았고, 기존
+컨테이너·DB 볼륨에 접근하거나 변경하지 않았다. 커밋과 푸시도 하지 않았다.
+
+| 확인 항목 | 결과와 근거 |
+| --- | --- |
+| 앱 healthcheck 연결 | `compose.yml`에서 컨테이너 내부 `/api/health`를 curl로 조회하고 HTTP 오류를 실패로 처리한다. Dockerfile 런타임에 curl을 설치하도록 변경했다. 이미지 빌드는 미실행이다. |
+| 격리 Compose 정적 검증 | 빈 전용 env 파일을 명시하고 `compose.yml` + `compose.runtime-smoke.yml`의 `config --quiet`, JSON 해석 및 설정 단언을 통과했다. 엔진 연결이나 런타임 성공을 의미하지 않는다. |
+| 프로젝트명 | 정적 검증에 `stock-agent-runtime-smoke-20261006-b48dc792`를 사용했다. 실제 리소스 생성은 없었다. |
+| 프로필·외부 연동 | `local`만 활성화. KIS, Harness, 주식·지수 일봉 bootstrap/scheduler/backfill, 주문 정합성·취소 scheduler, 수동 runner, 주문 실행, OpenAI 등 비활성화 플래그 16개가 모두 `false`다. Provider는 둘 다 `RULE_BASED`, 거래 모드는 `VIRTUAL`이다. |
+| 인증정보·환경 격리 | KIS 인증정보 4개와 OpenAI API key는 공란이다. `KIS_PAPER_*`는 상속하지 않는다. 앱·MySQL environment 전체를 `!override`로 교체하고 전용 테스트 DB 자격증명만 사용한다. |
+| 포트·DB·볼륨 | 앱 `127.0.0.1:18080`, MySQL `127.0.0.1:13307`, DB `runtime_smoke`. 기존 기본 포트는 병합되지 않았다. 볼륨은 `stock-agent-runtime-smoke-20261006-b48dc792_runtime-smoke-mysql-data`, 네트워크는 같은 프로젝트의 `_default`로 해석됐다. 포트 충돌과 실제 mount는 미검증이다. |
+| 기존 health API 테스트 | `./gradlew.bat test --tests com.stock.health.api.HealthControllerTest --no-daemon` 성공. 7개, 실패·오류·skip 0개. DB 정상/실패의 200/503과 Broker 조회·포트폴리오 초기화 미호출을 검증한다. Mockito/H2 테스트이며 Compose/MySQL 기동 검증이 아니다. |
+| 앱·MySQL 실제 상태 | **미검증** — Docker 엔진 연결 실패. |
+| Flyway V1~V6 적용·Hibernate validate | **미검증** — 격리 MySQL과 앱을 기동하지 못했다. |
+| 정상 종료·재시작·격리 DB 데이터 유지 | **미검증** — 데이터 삽입이나 재시작을 실행하지 않았다. |
+
+### 격리 검증 재현 절차
+
+아래는 엔진 연결 복구 후 격리 검증을 재현하는 절차다. 기존 관측 환경의 `.env`를 사용하는
+앞 절 명령과 혼용하지 않는다. `!override`를 위해 Compose 2.24.4 이상이
+필요하다. 새 프로젝트명을 매번 생성하고, 모든 명령에 같은 `$smokeArgs`를
+사용한다. 전용 빈 env 파일은 `.gradle` 아래에 두어 실제 `.env` 자동 로딩을
+막는다. 고정 포트가 사용 중이면 기존 프로세스를 종료하지 않고 검증을 중단한다.
+
+```powershell
+docker info --format '{{.ServerVersion}}'
+if ($LASTEXITCODE -ne 0) { throw 'Docker 엔진 연결 실패: 실제 기동 검증 중단.' }
+$smokeProject = ('stock-agent-runtime-smoke-' + [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ') + '-' + [Guid]::NewGuid().ToString('N').Substring(0, 8)).ToLowerInvariant()
+$smokeEnvDirectory = Join-Path (Get-Location) '.gradle\runtime-smoke'
+[void][IO.Directory]::CreateDirectory($smokeEnvDirectory)
+$smokeEnvFile = Join-Path $smokeEnvDirectory 'empty.env'
+[IO.File]::WriteAllText($smokeEnvFile, '')
+$smokeArgs = @('compose', '-p', $smokeProject, '--env-file', $smokeEnvFile, '-f', '.\compose.yml', '-f', '.\compose.runtime-smoke.yml')
+docker @smokeArgs config --quiet
+if ($LASTEXITCODE -ne 0) { throw 'Compose 설정 오류: 시작하지 않는다.' }
+Get-NetTCPConnection -State Listen -ErrorAction Stop |
+    Where-Object { $_.LocalPort -in @(18080, 13307) } |
+    Select-Object LocalAddress, LocalPort, OwningProcess
+```
+
+시작 전에 선택한 프로젝트의 컨테이너·네트워크와
+`${smokeProject}_runtime-smoke-mysql-data` 볼륨이 이미 존재하지 않는지 확인한다.
+기존 리소스가 있거나 포트가 점유돼 있으면 진행하지 않는다. 설정 JSON에서
+위 표의 비활성화·인증정보·단일 포트·전용 볼륨 값을 재확인한다. 아래 각
+Docker 명령은 종료 코드 0을 확인한 뒤 다음 단계로 진행한다.
+
+| 단계 | 명령과 통과 기준 |
+| --- | --- |
+| 최초 기동 | `docker @smokeArgs up --build --detach --wait --wait-timeout 180 --scale app=1`. `docker @smokeArgs ps --all`에서 앱 한 개와 MySQL이 모두 `healthy`여야 한다. |
+| 앱·DB health | `Invoke-RestMethod http://127.0.0.1:18080/api/health -TimeoutSec 10`의 `status`, `app`, `db`가 모두 `UP`이어야 한다. `docker @smokeArgs logs --no-color app`에서 Flyway 적용·Hibernate validate·앱 시작 완료를 확인한다. 자동 수집·Harness 실행·외부 호출 흔적이 있으면 실패다. |
+| DB 기준값 저장 | 아래 SQL로 V1~V6 성공 이력, checksum, 실행·거래·주문 행 수를 저장하고 격리 DB에만 표식 행을 삽입한다. `docker @smokeArgs ps -q mysql`로 얻은 컨테이너의 `/var/lib/mysql` mount가 전용 볼륨인지 확인한다. |
+| 정상 종료 | `docker @smokeArgs stop --timeout 30 app`, 이어서 `docker @smokeArgs stop --timeout 30 mysql`. `ps --all`과 State에서 둘 다 `exited`인지 확인한다. JVM은 SIGTERM 종료 코드 143일 수 있으므로 Docker 이벤트의 signal 15, Tomcat graceful shutdown 및 Hikari shutdown 완료 로그를 함께 확인한다. MySQL은 종료 코드 0과 shutdown 완료를 확인한다. SIGKILL/timeout, OOM 또는 shutdown 오류가 있으면 실패다. |
+| 종료 후 재기동 | `docker @smokeArgs up --detach --wait --wait-timeout 180 --scale app=1`. health, Flyway 이력·checksum, mount, 표식 행과 실행·거래·주문 행 수가 기준값과 같아야 한다. |
+| 재시작 | 앱 `stop --timeout 30 app` → DB `restart --timeout 30 mysql` → DB `up --detach --wait --wait-timeout 180 mysql` → 앱 `up --detach --wait --wait-timeout 180 --scale app=1 app` 순서로 각각 `docker @smokeArgs`를 실행한다. 앱을 DB의 `healthy` 확인 뒤 시작하고 health와 DB 기준값을 비교한다. 일괄 `restart` 뒤 복구됐다는 사실만으로 재시작 성공을 판정하지 않는다. |
+| 검증 후 정리 | 로그·조회 결과를 기록한 뒤 앱, MySQL 순서로 `stop --timeout 30`하고 `docker @smokeArgs down --timeout 30`한다. 해당 프로젝트의 컨테이너·네트워크만 제거되고 전용 DB 볼륨은 유지돼야 한다. `-v`, volume 삭제·prune은 사용하지 않는다. |
+
+격리 MySQL 접속은 `docker @smokeArgs exec mysql mysql -u smoke -p runtime_smoke`를
+사용하고 프롬프트에 전용 테스트 비밀번호를 입력한다. 앱 API로 Harness나
+포트폴리오를 실행·초기화하지 않는다. 다음 표식 테이블은 격리 DB 검증용이며
+프로젝트 migration에 추가하지 않는다.
+
+```sql
+SELECT version, description, checksum, success
+FROM flyway_schema_history WHERE version IS NOT NULL ORDER BY installed_rank;
+SELECT COUNT(*) AS run_count FROM harness_run_entity;
+SELECT COUNT(*) AS trade_count FROM trade_record_entity;
+SELECT COUNT(*) AS order_count FROM broker_order;
+CREATE TABLE runtime_smoke_probe (
+    probe_id VARCHAR(64) PRIMARY KEY,
+    marker VARCHAR(64) NOT NULL
+);
+INSERT INTO runtime_smoke_probe VALUES ('restart-probe', 'persist-after-restart');
+SELECT probe_id, marker FROM runtime_smoke_probe;
+```
+
+최초 기동에서 Flyway 버전 `1`~`6`이 각각 한 번 성공하고, 실행·거래·주문
+행 수가 모두 0이어야 한다. 재기동·재시작 뒤에는 `CREATE`/`INSERT`를 반복하지
+않고 `SELECT`만 수행한다. 동일한 표식 행, migration checksum과 행 수 유지가
+확인돼야 데이터 유지로 판정한다. 실제 통과 여부와 종료 시각을 새 검증 기록에
+남기고 이번 `BLOCKED_DOCKER_ENGINE` 결과를 기동 성공으로 덮어쓰지 않는다.
+
+## 실제 격리 검증 결과 — 2026-10-06 재시도
+
+**최종 결과: `PASS_WITH_ORDERED_RESTART`. 기동, 정상 종료, DB 준비를 기다리는
+재시작 절차와 데이터 유지가 확인됐다. 일괄 `compose restart`는 실패 사례다.**
+앞 절의 엔진 연결 실패 기록은 1차 시도 이력으로 보존한다. 이번에는 Docker
+Desktop 실행 후 `desktop-linux` 엔진 `29.5.3`, Compose `v5.1.4`에 연결했다.
+실제 검증·정리 시간은 `2026-10-06 11:04:37`~`11:16:51` KST다.
+
+| 환경 | 실제 사용값 |
+| --- | --- |
+| 새 프로젝트 | `stock-agent-runtime-smoke-20261006t020355z-9798d4b7` |
+| 호스트 포트 | 앱 `127.0.0.1:18080`, MySQL `127.0.0.1:13307`; 시작 전 점유 없음 확인 |
+| DB·새 볼륨 | DB `runtime_smoke`, `stock-agent-runtime-smoke-20261006t020355z-9798d4b7_runtime-smoke-mysql-data`; 사전 목록에 없었고 실제 mount와 Compose 소유 label 확인 |
+| 프로필·인증정보 | `local`만 활성화. 빈 전용 `--env-file` 사용. 실제 앱 environment를 inspect해 KIS 인증정보 4개와 OpenAI API key 공란, `KIS_PAPER_*` 미상속 확인 |
+| 실행 차단 | 실제 앱 environment의 비활성화 플래그 16개를 해석된 설정과 대조. KIS·Harness·주식/지수 일봉 수집·주문·OpenAI 비활성화, `VIRTUAL` 및 두 `RULE_BASED` Provider 확인 |
+| 빌드 이미지 | `Dockerfile`의 Java 21 런타임과 curl로 빌드. 앱 image ID `sha256:79b21434d13fcfdaac05056326ebd9646a5eb03f4abe4c5fe1f889a60918d802` |
+
+| 검증 단계 | 관측 시각 KST | 실제 결과 |
+| --- | --- | --- |
+| 이미지 빌드·최초 확인 | 11:08:35 | Docker build/up 종료 코드 0. 앱·MySQL 모두 `healthy`; `/api/health` HTTP 200, `{"status":"UP","app":"UP","db":"UP"}`. 새 DB에 V1~V6 성공 이력 확인, Hibernate validate 후 앱 시작 완료. |
+| 앱 → DB 정상 종료 | 11:09:17 / 11:10:27 | 앱 SIGTERM(signal 15), 종료 코드 143. Tomcat graceful shutdown, JPA·Hikari shutdown 완료. MySQL 종료 코드 0 및 shutdown 완료. OOM·SIGKILL 없음. |
+| 종료 후 재기동 | 11:11:56 | 두 컨테이너 `healthy`, HTTP 200/UP. 동일 볼륨, 표식 행, V1~V6 checksum 유지. |
+| 일괄 `compose restart` | 11:12:17 | **실패 사례**: DB 준비 중 앱이 시작돼 Flyway의 DB 연결 실패(`Communications link failure`)로 앱 초기화가 한 번 실패했다. 뒤이은 `up --wait`로 11:12:55에 복구됐고 데이터는 유지됐으나, 이를 오류 없는 재시작 성공으로 판정하지 않았다. |
+| 순서를 제어한 재시작 | 11:14:21~11:15:01 | 앱 stop → MySQL restart → MySQL healthy 대기 → 앱 up/healthy 대기. 모든 Docker 명령 종료 코드 0. 해당 구간에 앱 초기화 오류 없이 Flyway 6개 검증·앱 시작 완료. HTTP 200/UP, 동일 표식과 checksum 유지. |
+| 최종 종료·정리 | 11:16:02~11:16:51 | 앱 graceful 종료(143), DB shutdown 완료(0). `down` 종료 코드 0. 이번 프로젝트 컨테이너·네트워크 제거, 이번 DB 볼륨 유지. 볼륨 삭제·prune 미실행. |
+
+`runtime_smoke_probe`에 최초 확인 때만 넣은
+`restart-probe|persist-after-restart` 행은 재기동·재시작 후 모두 정확히 1개로
+유지됐다. 비교 단계에서 표식 재삽입은 하지 않았다. 각 단계의 Run, 거래,
+Broker 주문, 포트폴리오, 주식·지수 일봉 행 수는 모두 0이다. 실제 기동 로그에
+`Harness scheduler is disabled`가 있고 자동 수집·주문 실행 흔적은 없었다.
+
+Flyway 이력은 각 버전이 한 번 성공했으며 아래 checksum은 모든 비교 단계에서
+동일했다.
+
+| 버전 | checksum | success |
+| --- | --- | --- |
+| 1 | -854770445 | 1 |
+| 2 | -174800260 | 1 |
+| 3 | -1797630604 | 1 |
+| 4 | -575525917 | 1 |
+| 5 | 1968956706 | 1 |
+| 6 | -822632640 | 1 |
+
+실제 `.env`와 KIS 인증정보는 읽거나 사용하지 않았다. 모든 SQL·inspect·stop·
+restart·down 대상은 소유 label과 전용 mount를 확인한 이번 프로젝트였다.
+기존 DB에는 접속하거나 SQL을 실행하지 않았다. 전후 메타데이터 목록을 비교해
+기존 컨테이너 4개의 ID·실행 상태, 기존 볼륨 2개와 기존 네트워크 목록이
+동일함을 확인했다. 추가된 DB 볼륨은 위 전용 볼륨 1개뿐이며 검토를 위해 유지한다.
+
+관측된 제한은 두 가지다. 일괄 재시작의 DB 준비 순서 문제 때문에 위의 순서
+제어 절차를 사용해야 한다. 또한 기동 로그에 Flyway가 MySQL 8.4를 지원 검증
+범위 밖으로 알리는 경고가 남았다. 이번 V1~V6 적용·검증은 통과했지만 이 결과가
+해당 버전 조합의 모든 migration 호환성을 보증하지는 않는다.
+
+PowerShell의 Docker progress stderr가 `NativeCommandError`로 처리된 첫
+빌드 래퍼와 대문자 날짜를 넣은 프로젝트명 검사 실패도 실제 리소스 기동
+결과와 구분했다. 프로젝트명은 소문자로 고쳤고 Docker stdout/stderr를 별도
+파일로 수집해 프로세스 종료 코드를 확인했다. 기존 health API 테스트 7개는
+앞선 실행에서 통과했고 Java 소스 변경은 없다.
+
+원시 로그, 컨테이너 State, 단계별 health/Flyway/표식 비교, 전후 리소스 목록과
+`final-result.json`은 로컬 `.gradle/runtime-smoke/20261006T020355Z-9798d4b7/`에
+보관한다. 이 디렉터리는 Git에서 제외하며, 검증 요약은 이 문서에 남긴다.
+이 검증은 외부 연동과 자동 실행을 끈 앱·DB 기동 확인 범위다.

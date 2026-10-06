@@ -15,7 +15,8 @@ FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 
-RUN addgroup -S spring \
+RUN apk add --no-cache curl \
+    && addgroup -S spring \
     && adduser -S spring -G spring
 
 COPY --from=builder --chown=spring:spring /workspace/build/libs/*.jar app.jar
