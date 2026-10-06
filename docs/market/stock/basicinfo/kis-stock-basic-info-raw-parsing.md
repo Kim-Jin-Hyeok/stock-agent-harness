@@ -6,6 +6,8 @@
 
 근거는 [KIS 주식기본조회 실전 응답 검증](../master/validation/kis-stock-basic-info-observation-01.md)의 보존 응답 10건과 해당 검증에서 고정한 공식 규격이다. 실전 전용 조회의 원문 해석을 추가하는 작업이며, 기존 모의투자 서버 설정을 바꾸거나 실전 주문 기능을 연결하지 않는다.
 
+후속 [주식기본조회 원문 Client](kis-stock-basic-info-client.md)는 제한한 단건 GET의 바이트와 수집 메타데이터를 반환한다. Client는 이 파서를 자동 호출하거나 빈·운영 수집에 연결하지 않으며 HTTP 200과 파서의 업무 성공 검증을 구분한다. 기존 파서 계약과 아래 당시 검증 기록은 유지한다.
+
 ## 패키지와 호출 계약
 
 기준 패키지는 `com.stock.market.stock.basicinfo.provider.kis.parsing`이다. MST 파일을 읽는 `stock.master.provider.kis.parsing`과 분리한다. 두 출처는 구조와 제공 필드가 다르며, API 응답으로 마스터의 제한 정보를 덮어쓰지 않는다.
