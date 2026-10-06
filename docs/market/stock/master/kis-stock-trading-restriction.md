@@ -113,3 +113,7 @@ Git 제외 경로 `build/kis-stock-trading-restriction-observation-01/`에 `Veri
 기존 파서·식별 연결·유형 정책·KRX 소속부 정책, `StockEligibilityPolicy`·`StockEligibilityInput`은 변경하지 않았다. 후보·백테스트·주문·스케줄·Risk에 연결하지 않으며 `DESIGN_ONLY`, `runtimeSelectionImplemented=false`, `eligibilityOrHistoricalPopulationVerified=false`를 유지한다. 이전 관측의 당시 승인 상태도 소급 변경하지 않는다.
 
 DB·스키마·새 Spring 빈·인터페이스·라이브러리·설정·`.env`·Docker 변경, Broker 계좌·주문·OpenAI 호출은 없다. 커밋과 Push도 실행하지 않았다. 실제 주문에 사용하려면 관측 신선도·시점·다른 제한과 실행 통제를 별도로 검증해야 한다.
+
+## KIS 단독 원천 확인
+
+후속 [KIS 종목 자격 대체 원천 검증](validation/kis-stock-eligibility-source-validation-01.md)은 KRX를 운영 필수 출처로 확정하기 전에 KIS 주식기본조회 코드 정의와 마스터의 SPAC·관리종목·투자주의환기 필드를 확인한다. 주식기본조회는 공식 규격상 모의투자 미지원이라 실제 응답 확인은 별도 실전 조회 자격 증명 준비가 필요하다. 기존 관측 입력과 정책을 변경하거나 두 출처의 상태를 합치지 않으며 운영 후보·과거 자격 승인은 보류한다.
