@@ -8,6 +8,8 @@
 
 현재 지원 범위는 프로젝트 계약이다. 공식 정의가 있는 다른 코드까지 모두 해석하거나, 같은 필드의 마스터·KRX 표현을 이 API에 그대로 적용하지 않는다. KIS 마스터의 ETP 공백이나 미확정 유형을 이번 결과로 덮어쓰지 않는다.
 
+후속 [마스터와 표준코드 대조](../master/kis-stock-basic-info-matching.md)는 요청 종목의 마스터 행과 API 표준코드·시장을 비교하는 별도 정책이다. 두 결과를 자동 결합하거나 대조 성공으로 유형·투자 자격을 승인하지 않는다.
+
 ## 패키지와 호출 계약
 
 패키지는 `com.stock.strategy.universe.eligibility.classification.kis.basicinfo`다. 기존 마스터 정책은 `classification.kis`에 그대로 두며 기존 `StockSecurityType`을 재사용한다.
