@@ -1,5 +1,6 @@
 package com.stock.market.stock.master.provider.kis.parsing.record;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.market.stock.master.provider.kis.KisStockMasterMarket;
 import com.stock.market.stock.master.provider.kis.parsing.KisStockMasterParser;
 import org.junit.jupiter.api.Test;
@@ -14,13 +15,46 @@ class KisStockMasterRawRecordTest {
     void preservesBlankAndUnknownFixedWidthFieldsWithoutClassification() {
         var source = record();
         var record = new KisStockMasterRawRecord(1, source.symbol(), source.standardCode(), source.name(),
-                "ZZ", " ", "9", "NOTADATE", "?", "U", "        ", source.rawLine());
+                "ZZ", " ", "9", "NOTADATE", "?", "U", " ", "y", "?", "        ", source.rawLine());
 
         assertThat(record.rawGroup()).isEqualTo("ZZ");
         assertThat(record.rawEtp()).isEqualTo(" ");
         assertThat(record.rawPreferred()).isEqualTo("9");
         assertThat(record.rawListingDate()).isEqualTo("NOTADATE");
         assertThat(record.rawBaseDate()).isEqualTo("        ");
+        assertThat(record.rawSpac()).isEqualTo(" ");
+        assertThat(record.rawManagement()).isEqualTo("y");
+        assertThat(record.rawInvestmentCaution()).isEqualTo("?");
+    }
+
+    @Test
+    void rejectsMissingOrWrongWidthRequiredRestrictionFields() {
+        var source = record();
+        for (String value : new String[]{null, "", "NN"}) {
+            assertThatThrownBy(() -> copyRestrictions(source, value, "N", null))
+                    .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("rawSpac");
+            assertThatThrownBy(() -> copyRestrictions(source, "N", value, null))
+                    .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("rawManagement");
+        }
+        for (String value : new String[]{"", "NN"}) {
+            assertThatThrownBy(() -> copyRestrictions(source, "N", "N", value))
+                    .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("rawInvestmentCaution");
+        }
+    }
+
+    @Test
+    void preservesUnprovidedAndBlankCautionAsDistinctJsonValues() throws Exception {
+        var json = new ObjectMapper();
+        var unprovided = copyRestrictions(record(), "Y", "N", null);
+        var blank = copyRestrictions(record(), "Y", "N", " ");
+
+        assertThat(unprovided.rawInvestmentCaution()).isNull();
+        assertThat(blank.rawInvestmentCaution()).isEqualTo(" ");
+        assertThat(unprovided).isNotEqualTo(blank);
+        assertThat(json.valueToTree(unprovided).get("rawInvestmentCaution").isNull()).isTrue();
+        assertThat(json.valueToTree(blank).get("rawInvestmentCaution").textValue()).isEqualTo(" ");
+        assertThat(json.readValue(json.writeValueAsBytes(unprovided), KisStockMasterRawRecord.class)).isEqualTo(unprovided);
+        assertThat(json.readValue(json.writeValueAsBytes(blank), KisStockMasterRawRecord.class)).isEqualTo(blank);
     }
 
     @Test
@@ -57,6 +91,16 @@ class KisStockMasterRawRecordTest {
     ) {
         return new KisStockMasterRawRecord(line, symbol, standardCode, source.name(), source.rawGroup(), etp,
                 source.rawPreferred(), source.rawListingDate(), source.rawSuspension(), source.rawLiquidation(),
+                source.rawSpac(), source.rawManagement(), source.rawInvestmentCaution(),
                 source.rawBaseDate(), rawLine);
+    }
+
+    private static KisStockMasterRawRecord copyRestrictions(
+            KisStockMasterRawRecord source, String spac, String management, String caution
+    ) {
+        return new KisStockMasterRawRecord(source.lineNumber(), source.symbol(), source.standardCode(), source.name(),
+                source.rawGroup(), source.rawEtp(), source.rawPreferred(), source.rawListingDate(),
+                source.rawSuspension(), source.rawLiquidation(), spac, management, caution,
+                source.rawBaseDate(), source.rawLine());
     }
 }

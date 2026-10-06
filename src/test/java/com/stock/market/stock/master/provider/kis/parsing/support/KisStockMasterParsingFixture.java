@@ -32,6 +32,8 @@ public final class KisStockMasterParsingFixture {
             put(row, 166, "19750611");
             put(row, 121, "N");
             put(row, 122, "N");
+            put(row, 90, "N");
+            put(row, 123, "N");
             put(row, 265, "20260630");
         } else {
             put(row, 79, " ");
@@ -39,6 +41,9 @@ public final class KisStockMasterParsingFixture {
             put(row, 161, "19750611");
             put(row, 116, "N");
             put(row, 117, "N");
+            put(row, 85, "N");
+            put(row, 118, "N");
+            put(row, 91, "N");
             put(row, 259, "20260630");
         }
         return row;

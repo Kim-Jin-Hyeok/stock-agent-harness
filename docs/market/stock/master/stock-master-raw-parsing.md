@@ -13,7 +13,7 @@
 | 클래스 | 책임 |
 | --- | --- |
 | `KisStockMasterParser` | `parse(KisStockMasterMarket market, byte[] content)`로 한 시장의 전체 MST 바이트를 읽는다. 외부 의존성과 실행 간 가변 상태가 없다. |
-| `record.KisStockMasterRawRecord` | 행 번호·단축 코드·표준 코드·이름·일곱 원문 필드·LF 제외 원문 행을 문자열로 보존한다. 날짜와 enum으로 변환하지 않는다. |
+| `record.KisStockMasterRawRecord` | 행 번호·단축 코드·표준 코드·이름·열 개 원문 필드·LF 제외 원문 행을 보존한다. 날짜와 enum으로 변환하지 않으며 코스피 투자주의환기 미제공은 null로 남긴다. |
 | `result.KisStockMasterParseResult` | 시장·입력 SHA-256·우리 파서 및 레이아웃 버전·불변 레코드 목록을 반환한다. 원문 순서와 연속 행 번호를 유지한다. |
 
 전체 입력은 LF를 포함하는 추출 파일 바이트다. null·빈 입력을 거절하고 입력 크기는 최대 32 MiB로 제한한다. 이 값은 파서의 자원 보호 한도이며 KIS 공식 파일 규격이 아니다. 바이트를 전달하기 전의 파일 읽기·메모리 할당이나 manifest 대조는 이 API가 담당하지 않는다.
@@ -22,7 +22,9 @@
 
 ## 관측 레이아웃
 
-파서 버전은 `KIS_STOCK_MASTER_RAW_V1`, 레이아웃 버전은 `OBSERVED_2026_10_05_LF_V1`이다. 두 값 모두 **프로젝트의 해석 계약**이며 KIS 공식 규격 버전이 아니다. 공개 upstream 규격의 commit·파일 해시는 아직 고정하지 않았다.
+현재 파서 버전은 `KIS_STOCK_MASTER_RAW_V2`, 레이아웃 버전은 `OBSERVED_2026_10_05_LF_V1`이다. V2는 SPAC·관리종목·코스닥 투자주의환기의 원문 추출 계약을 추가한 버전이며 파일 길이·LF 형식·기존 위치는 바꾸지 않았다. 두 값 모두 **프로젝트의 해석 계약**이며 KIS 공식 규격 버전이 아니다. 최초 V1 대조와 당시 보고서는 그대로 보존한다.
+
+추가 필드 위치는 후속 [KIS 대체 원천 검증](validation/kis-stock-eligibility-source-validation-01.md)에서 보존한 공식 레이아웃과 원문으로 확인했다. 고정 revision은 `277ec0eb7a9b7f63b6807829286c80f36649dad2`이며, 해당 자료를 모든 과거·미래 파일의 보편 규격으로 확대하지 않는다.
 
 | 구간 | KOSPI | KOSDAQ |
 | --- | --- | --- |
@@ -41,11 +43,18 @@
 | `rawListingDate` | 8 | 166 | 161 |
 | `rawSuspension` | 1 | 121 | 116 |
 | `rawLiquidation` | 1 | 122 | 117 |
+| `rawSpac` | 1 | 90 | 85 |
+| `rawManagement` | 1 | 123 | 118 |
+| `rawInvestmentCaution` | 1 | 필드 없음, null | 91 |
 | `rawBaseDate` | 8 | 265 | 259 |
 
 Java의 `MS949` Charset으로 CP949 바이트를 엄격하게 디코딩하고 재인코딩하여 원문 바이트가 복원되는지 검사한다. 단축·표준 코드와 뒷부분은 출력 가능한 ASCII만 허용하며 이름의 제어문자는 거절한다. 이름의 40바이트 경계를 넘는 다중 바이트 문자도 거절한다.
 
-단축·표준 코드·이름의 표시값에서 오른쪽 ASCII 공백 패딩만 제거한다. 앞자리 0·영문자·이름의 앞쪽 공백은 유지하고 `rawLine`에는 모든 패딩을 남긴다. 일곱 원문 필드에는 패딩 제거를 적용하지 않는다. ETP 한 칸 공백, 우선주 `9`, 날짜의 여덟 칸 공백이나 `NOTADATE` 같은 문자열도 원문으로 유지한다. 날짜 문자열의 보존은 날짜 검증 성공을 뜻하지 않는다.
+단축·표준 코드·이름의 표시값에서 오른쪽 ASCII 공백 패딩만 제거한다. 앞자리 0·영문자·이름의 앞쪽 공백은 유지하고 `rawLine`에는 모든 패딩을 남긴다. 제공되는 원문 필드에는 패딩 제거를 적용하지 않는다. ETP 한 칸 공백, 우선주 `9`, 날짜의 여덟 칸 공백이나 `NOTADATE` 같은 문자열도 원문으로 유지한다. 날짜 문자열의 보존은 날짜 검증 성공을 뜻하지 않는다.
+
+`rawSpac`·`rawManagement`는 정확히 한 글자의 원문을 요구한다. `rawInvestmentCaution`은 코스닥에서 한 글자를 그대로 추출하고 코스피에서는 null을 반환한다. null은 원천 레이아웃의 미제공, `" "`는 필드가 존재하는 공백 관측, `"N"`은 문자 N 관측으로 서로 다르다. 결과 객체는 코스피의 nonnull 투자주의환기나 코스닥의 null 투자주의환기를 거절한다. 원문 필드만 가진 record는 시장을 모르므로 이 제공 여부 검사는 시장이 있는 `KisStockMasterParseResult`에서 수행한다.
+
+SPAC 필드는 `etpr_undt_objt_co_yn`, 관리종목은 `mang_issu_yn`, 코스닥 투자주의환기는 `invt_alrm_yn`이다. 투자주의환기를 별도 `mrkt_alrm_cls_code`의 투자주의·투자경고·투자위험으로 대체하지 않는다. Y·N·공백·소문자·미정의 문자는 boolean·자격·주문 허가로 변환하지 않는다.
 
 ## 실패와 미확인의 구분
 
@@ -55,7 +64,7 @@ CRLF·단독 CR·마지막 LF 누락·빈 행은 현재 관측 레이아웃과 �
 
 반면 미정의 그룹·ETP·우선주·거래정지 코드는 구조가 맞으면 그대로 반환한다. 공백을 `0`으로, 알 수 없는 유형을 보통주·`OTHER`로 바꾸지 않는다. 상장일·기준일을 `asOfDate`·`informationAvailableAt`으로 복사하지 않는다. 레이아웃 길이가 일치해도 동일 폭의 필드 의미 변경이나 모집단 완전성을 증명하지 못한다.
 
-## 검증 결과
+## 최초 V1 검증 결과
 
 2026-10-05 아래 관련 테스트 37개가 실패·오류·건너뜀 없이 통과했다. 테스트는 별도 고정폭 합성 데이터를 사용하며 로컬 원본이나 외부 서비스를 요구하지 않는다. 기존 수집용 ZIP Fixture의 짧은 `CONTENT`를 마스터 레코드로 재사용하지 않았다. 전체 프로젝트 테스트와 수집기를 재실행하지 않았다.
 
@@ -79,6 +88,43 @@ CRLF·단독 CR·마지막 LF 누락·빈 행은 현재 관측 레이아웃과 �
 로컬 대조 시각은 `2026-10-05T10:22:18.470872700Z`다. 이전 검증 JSON의 SHA-256은 `08f2c7a40a738d99b05df6b0eef215cee109bed3d3307e3882b5ea1402fbea87`로 고정했다. 두 시장 간 단축·표준 코드 충돌은 각각 0이었고 검사 전후 기존 7개 보존 파일의 길이와 SHA-256은 동일했다. 대조 도구의 외부 요청 수는 0이며 DB·Docker·계좌·주문·OpenAI 연동을 실행하지 않았다.
 
 현재 확인한 것은 원문 구조·추출·재현성이다. 미정의 값의 의미, upstream 규격 버전, 과거 시장 소속·상장 상태·모집단과 정보 가용 시각은 여전히 미확인이다. `eligibilityOrHistoricalPopulationVerified=false`를 유지하고 원문 읽기 성공을 종목 자격이나 전략 순성과 승인으로 사용하지 않는다.
+
+## 제한 원문 추출 V2 검증
+
+2026-10-06 [주식기본조회 실측](validation/kis-stock-basic-info-observation-01.md)에서 SPAC이 보통주 코드 `101`을 반환했고, 투자주의환기·정리매매 전용 원문 필드는 제공되지 않았다. V2는 해당 API의 성공으로 종목 자격을 승인하는 대신 기존 마스터에서 필요한 제한 원문을 꺼낸다. 유형 해석·KIS 및 KRX 제한 정책·`StockEligibilityPolicy`는 변경하지 않았다.
+
+관련 테스트는 458개 중 **457개 성공·1개 건너뜀·실패 및 오류 0개**다. 기존 `StockMasterBatchParsingServiceTest`의 심볼릭 링크 거절 테스트는 현재 파일 시스템에서 링크 생성이 허용되지 않아 assumption으로 건너뛰었다. 새 필드 추출·원문 폭·공백과 미정의 문자 보존·시장별 미제공 검사·JSON 왕복, 기존 바이트 복원·유형 및 제한 해석 회귀를 확인했다. 전체 프로젝트 테스트는 실행하지 않았다.
+
+```powershell
+.\gradlew.bat test --tests 'com.stock.market.stock.master.*' --tests 'com.stock.strategy.universe.eligibility.classification.*' --tests 'com.stock.strategy.universe.eligibility.restriction.*' --offline --no-daemon
+```
+
+기존 배치 `4ebd57c2-dd69-4b99-86c7-8efed3e531f7`를 V2로 다시 파싱하고, 고정한 공식 C 레이아웃의 필드 폭으로 위치를 독립 계산해 4,403행의 세 필드를 바이트와 대조했다. 집계는 이전 KIS 대체 원천 검증의 고정 `preflight.json`과 일치했다.
+
+| 원문 필드 | KOSPI Y | KOSPI N | KOSPI 미제공 | KOSDAQ Y | KOSDAQ N | KOSDAQ 미제공 |
+| --- | --- | --- | --- | --- | --- | --- |
+| SPAC | 0 | 2,578 | 0 | 71 | 1,754 | 0 |
+| 관리종목 | 47 | 2,531 | 0 | 136 | 1,689 | 0 |
+| 투자주의환기 | 0 | 0 | 2,578 | 87 | 1,738 | 0 |
+
+이 자료의 제공 필드에는 공백·미정의 값이 없지만, 이후 파일도 그렇다고 가정하지 않는다. 제한이 같은 행에 겹칠 수 있어 세 필드의 Y 건수를 서로 다른 종목 수로 더하지 않는다.
+
+기존 V1 거래정지 관측 보고서의 모든 원문 record와 V2에서 추가 필드만 제외한 record를 JSON 값으로 대조했다. 모든 기존 필드·행 번호·시장·순서가 같고 전체 MST 바이트와 입력 해시도 유지됐다. 이전 원문·보고서·규격·주식기본조회 증적 61개는 실행 전후 SHA-256이 같았다. V2 결과 전체의 JSON 왕복도 일치했다.
+
+V1 JSON을 새 record로 직접 읽으면서 누락 필드를 N이나 null로 채우지 않는다. 기존 보고서는 V1 증적으로 남기고 원래 MST 바이트에서 V2 결과를 새로 생성한다. 특히 코스피의 원천 미제공과 과거 버전의 미추출은 같은 의미가 아니다.
+
+로컬 검증 도구와 보고서는 Git 제외 경로 `build/kis-stock-master-restriction-parsing-observation-01/`에 보관한다. 저장 JSON과 메모리 숫자 노드 타입 차이로 최초 재현 비교가 실패했으며, 비교 양쪽을 저장 JSON 형식으로 다시 읽도록 도구를 보정한 후 재현이 성공했다. 최초 보고서를 덮어쓰지 않았고 검증 시각을 제외한 전체 JSON 값·배열 순서가 일치했다.
+
+- 최초 보고서 SHA-256: `cf439ca56af7732db20959a2842a43064f6594b86d00ee90bf7109f001f6b719`
+- 재현 보고서 SHA-256: `c9f7658f44619b0f58e74e5bb2c228199c9d5ba043401374e53b94d87c83068c`
+
+```powershell
+.\gradlew.bat -I build/kis-stock-master-restriction-parsing-observation-01/observation.init.gradle verifyKisRestrictionParsing '-PobservationReport=verification-replay.json' --offline --no-daemon
+```
+
+이미 존재하는 보고서는 덮어쓰기를 거절한다. 위 최초·재현 보고서를 보존하고 증적이 필요한 동안 `gradlew clean`을 실행하지 않는다. 검증 도구는 운영 빌드에 연결하지 않았다. 외부 API·토큰 발급·계좌·주문·OpenAI 호출과 DB·Docker·스케줄·설정·`.env` 변경은 없다.
+
+추출된 값은 보존 자료의 문자 관측이다. 최신성·적용 시점·원천 간 불일치·후보 제외 정책은 별도 검증이 필요하며 `AS_OF_VERIFIED`, `informationAvailableAt`, 후보·과거 모집단·주문 가능 여부를 생성하지 않는다.
 
 ## 후속 배치 해석
 

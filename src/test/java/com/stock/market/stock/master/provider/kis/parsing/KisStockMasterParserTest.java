@@ -35,6 +35,7 @@ class KisStockMasterParserTest {
         assertThat(result.market()).isEqualTo(market);
         assertThat(result.inputSha256()).isEqualTo(sha256(input));
         assertThat(result.parserVersion()).isEqualTo(KisStockMasterParser.PARSER_VERSION);
+        assertThat(result.parserVersion()).isEqualTo("KIS_STOCK_MASTER_RAW_V2");
         assertThat(result.layoutVersion()).isEqualTo(KisStockMasterParser.LAYOUT_VERSION);
         assertThat(result.records()).hasSize(1);
         assertThat(record.lineNumber()).isEqualTo(1);
@@ -47,11 +48,55 @@ class KisStockMasterParserTest {
         assertThat(record.rawListingDate()).isEqualTo("19750611");
         assertThat(record.rawSuspension()).isEqualTo("N");
         assertThat(record.rawLiquidation()).isEqualTo("N");
+        assertThat(record.rawSpac()).isEqualTo("N");
+        assertThat(record.rawManagement()).isEqualTo("N");
+        assertThat(record.rawInvestmentCaution()).isEqualTo(market == KisStockMasterMarket.KOSPI ? null : "N");
         assertThat(record.rawBaseDate()).isEqualTo("20260630");
         assertThat(record.rawLine()).isEqualTo(new String(row, CP949));
         assertThat(record.rawLine().getBytes(CP949)).isEqualTo(row);
         assertThat(input).isEqualTo(before);
         assertThat(parser.parse(market, input)).isEqualTo(result);
+    }
+
+    @ParameterizedTest
+    @EnumSource(KisStockMasterMarket.class)
+    void extractsRestrictionFieldsIndependentlyAtTheirByteOffsets(KisStockMasterMarket market) {
+        byte[] row = row(market);
+        boolean kospi = market == KisStockMasterMarket.KOSPI;
+        put(row, kospi ? 90 : 85, "Y");
+        put(row, kospi ? 123 : 118, "?");
+        if (!kospi) {
+            put(row, 91, " ");
+        }
+
+        var record = parser.parse(market, content(row)).records().getFirst();
+
+        assertThat(record.rawSpac()).isEqualTo("Y");
+        assertThat(record.rawManagement()).isEqualTo("?");
+        assertThat(record.rawInvestmentCaution()).isEqualTo(kospi ? null : " ");
+        assertThat(record.rawSuspension()).isEqualTo("N");
+        assertThat(record.rawLiquidation()).isEqualTo("N");
+        assertThat(record.rawLine().getBytes(CP949)).isEqualTo(row);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Y", "N", " ", "y", "?"})
+    void retainsRestrictionCodesWithoutTrimmingOrNormalizing(String value) {
+        for (var market : KisStockMasterMarket.values()) {
+            byte[] row = row(market);
+            boolean kospi = market == KisStockMasterMarket.KOSPI;
+            put(row, kospi ? 90 : 85, value);
+            put(row, kospi ? 123 : 118, value);
+            if (!kospi) {
+                put(row, 91, value);
+            }
+            var record = parser.parse(market, content(row)).records().getFirst();
+
+            assertThat(record.rawSpac()).isEqualTo(value);
+            assertThat(record.rawManagement()).isEqualTo(value);
+            assertThat(record.rawInvestmentCaution()).isEqualTo(kospi ? null : value);
+            assertThat(record.rawLine().getBytes(CP949)).isEqualTo(row);
+        }
     }
 
     @ParameterizedTest

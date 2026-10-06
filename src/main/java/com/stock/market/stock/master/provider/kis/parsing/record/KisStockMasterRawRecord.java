@@ -13,6 +13,9 @@ public record KisStockMasterRawRecord(
         String rawListingDate,
         String rawSuspension,
         String rawLiquidation,
+        String rawSpac,
+        String rawManagement,
+        String rawInvestmentCaution,
         String rawBaseDate,
         String rawLine
 ) {
@@ -28,6 +31,12 @@ public record KisStockMasterRawRecord(
         requireWidth(rawListingDate, 8, "rawListingDate");
         requireWidth(rawSuspension, 1, "rawSuspension");
         requireWidth(rawLiquidation, 1, "rawLiquidation");
+        requireWidth(rawSpac, 1, "rawSpac");
+        requireWidth(rawManagement, 1, "rawManagement");
+        // Null means the source layout has no field; blank is an observed one-byte value.
+        if (rawInvestmentCaution != null) {
+            requireWidth(rawInvestmentCaution, 1, "rawInvestmentCaution");
+        }
         requireWidth(rawBaseDate, 8, "rawBaseDate");
         if (rawLine == null || rawLine.isEmpty() || rawLine.indexOf('\n') >= 0 || rawLine.indexOf('\r') >= 0) {
             throw new IllegalArgumentException("rawLine must preserve one payload without a line terminator.");

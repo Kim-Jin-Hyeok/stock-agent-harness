@@ -25,8 +25,12 @@ public record KisStockMasterParseResult(
             throw new IllegalArgumentException("Stock master parse result must contain records.");
         }
         for (int index = 0; index < records.size(); index++) {
-            if (records.get(index).lineNumber() != index + 1) {
+            var record = records.get(index);
+            if (record.lineNumber() != index + 1) {
                 throw new IllegalArgumentException("Stock master records must retain consecutive source line numbers.");
+            }
+            if ((market == KisStockMasterMarket.KOSPI) != (record.rawInvestmentCaution() == null)) {
+                throw new IllegalArgumentException("Investment caution field presence must match the source market layout.");
             }
         }
     }

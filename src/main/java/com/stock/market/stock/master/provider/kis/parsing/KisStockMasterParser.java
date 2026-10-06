@@ -20,14 +20,14 @@ import java.util.Map;
 import java.util.Objects;
 
 public class KisStockMasterParser {
-    public static final String PARSER_VERSION = "KIS_STOCK_MASTER_RAW_V1";
+    public static final String PARSER_VERSION = "KIS_STOCK_MASTER_RAW_V2";
     public static final String LAYOUT_VERSION = "OBSERVED_2026_10_05_LF_V1";
     public static final int MAX_CONTENT_BYTES = 32 * 1024 * 1024;
     private static final Charset CP949 = Charset.forName("MS949");
     private static final int PREFIX_BYTES = 61;
     // Byte offsets from the retained observation, not a provider-wide schema version.
-    private static final Layout KOSPI = new Layout(288, 83, 219, 166, 121, 122, 265);
-    private static final Layout KOSDAQ = new Layout(282, 79, 214, 161, 116, 117, 259);
+    private static final Layout KOSPI = new Layout(288, 83, 219, 166, 121, 122, 90, 123, null, 265);
+    private static final Layout KOSDAQ = new Layout(282, 79, 214, 161, 116, 117, 85, 118, 91, 259);
 
     public KisStockMasterParseResult parse(KisStockMasterMarket market, byte[] content) {
         Objects.requireNonNull(market, "market must not be null.");
@@ -92,6 +92,8 @@ public class KisStockMasterParser {
                 tail.substring(0, 2), field(tail, layout.etpOffset(), 1),
                 field(tail, layout.preferredOffset(), 1), field(tail, layout.listingDateOffset(), 8),
                 field(tail, layout.suspensionOffset(), 1), field(tail, layout.liquidationOffset(), 1),
+                field(tail, layout.spacOffset(), 1), field(tail, layout.managementOffset(), 1),
+                layout.investmentCautionOffset() == null ? null : field(tail, layout.investmentCautionOffset(), 1),
                 field(tail, layout.baseDateOffset(), 8), rawLine);
     }
 
@@ -170,7 +172,8 @@ public class KisStockMasterParser {
 
     private record Layout(
             int rowBytes, int etpOffset, int preferredOffset, int listingDateOffset,
-            int suspensionOffset, int liquidationOffset, int baseDateOffset
+            int suspensionOffset, int liquidationOffset, int spacOffset, int managementOffset,
+            Integer investmentCautionOffset, int baseDateOffset
     ) {
     }
 }

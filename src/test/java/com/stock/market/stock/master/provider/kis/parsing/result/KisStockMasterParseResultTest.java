@@ -1,5 +1,6 @@
 package com.stock.market.stock.master.provider.kis.parsing.result;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.market.stock.master.provider.kis.KisStockMasterMarket;
 import com.stock.market.stock.master.provider.kis.parsing.KisStockMasterParser;
 import org.junit.jupiter.api.Test;
@@ -23,6 +24,29 @@ class KisStockMasterParseResultTest {
 
         assertThat(copy.records()).hasSize(2);
         assertThatThrownBy(() -> copy.records().clear()).isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void rejectsCautionPresenceThatDoesNotMatchTheMarketLayout() {
+        var kospi = new KisStockMasterParser().parse(KisStockMasterMarket.KOSPI, content(row(KisStockMasterMarket.KOSPI)));
+        var kosdaq = new KisStockMasterParser().parse(KisStockMasterMarket.KOSDAQ, content(row(KisStockMasterMarket.KOSDAQ)));
+
+        assertThatThrownBy(() -> new KisStockMasterParseResult(KisStockMasterMarket.KOSDAQ, kospi.inputSha256(),
+                kospi.parserVersion(), kospi.layoutVersion(), kospi.records()))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("field presence");
+        assertThatThrownBy(() -> new KisStockMasterParseResult(KisStockMasterMarket.KOSPI, kosdaq.inputSha256(),
+                kosdaq.parserVersion(), kosdaq.layoutVersion(), kosdaq.records()))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("field presence");
+    }
+
+    @Test
+    void preservesMarketSpecificCautionPresenceThroughJsonRoundTrip() throws Exception {
+        var json = new ObjectMapper();
+        for (var market : KisStockMasterMarket.values()) {
+            var original = new KisStockMasterParser().parse(market, content(row(market)));
+
+            assertThat(json.readValue(json.writeValueAsBytes(original), KisStockMasterParseResult.class)).isEqualTo(original);
+        }
     }
 
     @Test
