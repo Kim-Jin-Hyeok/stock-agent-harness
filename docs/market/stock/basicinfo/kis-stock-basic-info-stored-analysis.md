@@ -8,6 +8,8 @@
 
 명령으로 보존된 마스터와 DB 관측을 함께 분석하려면 별도 [분석 수동 실행기](kis-stock-basic-info-manual-analysis.md)를 사용한다. 서비스 자체의 호출 계약은 유지하며 실행기가 마스터 파싱과 분석을 연결한다.
 
+시장경보까지 함께 점검하려면 후속 [종합 분석 서비스](kis-stock-restriction-stored-analysis.md)가 이 서비스를 한 번 호출한 뒤 반환된 V2 결과와 준비된 경보 관측을 결합한다. 이 문서의 서비스·반환 타입·수동 실행기는 그대로 유지하며 종합 분석도 후보 선정·주문에는 연결하지 않는다.
+
 ## 패키지와 파일
 
 기준 경로는 `src/main/java/com/stock/market/stock/basicinfo/observation/analysis/`이다.
