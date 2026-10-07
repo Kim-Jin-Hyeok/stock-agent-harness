@@ -4,7 +4,7 @@
 
 종합 제한 점검과 관측 신선도를 함께 확인해, 해당 평가시각의 사전 점검을 통과했는지 판정한다. [저장된 종합 분석](kis-stock-restriction-stored-analysis.md)에는 제외 신호가 없어도 입력이 만료됐을 수 있다. 제한 상태만 보고 진행하거나 `FRESH`만 보고 제외 신호를 무시하지 않도록 두 조건을 하나의 정책으로 고정한다.
 
-입력은 기존 `KisStockRestrictionFreshnessResult` 한 개다. 그 안의 전체 종합 분석·보존 응답·마스터·경보·제한 사유와 평가시각·유효기간·신선도 사유를 그대로 보존한다. 새 조회·분석 재실행·시각 추론·사유 번역은 하지 않는다.
+순수 정책의 입력은 기존 `KisStockRestrictionFreshnessResult` 한 개다. 그 안의 전체 종합 분석·보존 응답·마스터·경보·제한 사유와 평가시각·유효기간·신선도 사유를 그대로 보존한다. 정책 자체는 새 조회·분석 재실행·시각 추론·사유 번역을 하지 않는다. 저장 관측에서 이 결과를 준비하는 연결 서비스는 아래 별도 책임으로 구분한다.
 
 **`CLEAR`는 제한·신선도의 사전 점검 통과이지 투자 적격·종목 유형 허용·상장 상태·실시간 거래 가능 여부·유동성·전략 성과·Risk 통과나 주문 승인이 아니다.** 이 정책은 수익 개선을 입증하는 전략이 아니라 오래된 입력과 제한 신호를 함께 차단하기 위한 준비다.
 
@@ -58,7 +58,43 @@ Result 생성자는 필수 입력·상태, 지원 버전과 입력에서 계산�
 
 Policy에 `@Component`·`@Service`를 붙이지 않고 자동 빈 등록을 추가하지 않았다. [수동 분석 실행기](kis-stock-basic-info-manual-analysis.md)는 여전히 기존 종합·신선도 진단까지만 호출한다. Harness·후보 평가·Scheduler·Risk Guard·주문에는 연결하지 않았다. Controller·테이블·외부 API·자동 재수집·재시도·설정 변경도 없다.
 
-## 검증 결과
+## 저장 관측 연결 서비스
+
+`KisStockRestrictionPrecheckService`는 저장 관측의 종합 분석 → 신선도 계산 → 사전 점검을 한 호출로 연결한다. 기존 정책을 바꾸거나 판정 규칙을 서비스에 복제하지 않는다. 새 클래스 경로는 다음과 같다.
+
+```text
+src/main/java/com/stock/market/stock/basicinfo/observation/analysis/restriction/precheck/KisStockRestrictionPrecheckService.java
+```
+
+생성자는 기존 `KisStockRestrictionAnalysisService`, `KisStockRestrictionFreshnessPolicy`, `KisStockRestrictionPrecheckPolicy`를 받는다. 생성만으로 조회하거나 판단하지 않으며 자동 빈 등록 어노테이션도 없다. 기존 분석 서비스의 생성자·호출·반환 계약은 변경하지 않았다.
+
+`precheck(observationId, masterBatch, marketWarningObservation, freshnessRequest)`의 입력과 반환은 다음과 같다.
+
+| 항목 | 계약 |
+| --- | --- |
+| `observationId` | 필수인 양의 `Long`. 지정한 저장 관측만 읽으며 최신 관측이나 같은 종목의 다른 성공 응답으로 대체하지 않는다. |
+| `masterBatch` | 준비된 전체 `StockMasterBatchParseResult`. 서비스는 파일을 다운로드·파싱하거나 배치를 자동 선택하지 않는다. |
+| `marketWarningObservation` | 준비된 전체 경보 관측. 지정한 경보를 보존하며 다른 시장의 관측으로 자동 교체하지 않는다. |
+| `freshnessRequest` | 필수인 기존 `KisStockRestrictionFreshnessRequest`. 평가시각·두 유효기간은 호출자가 명시한다. |
+| 반환 | 기존 `KisStockRestrictionPrecheckResult`. 새 DTO·상태·사유 enum은 추가하지 않는다. |
+
+서비스의 실행 순서는 다음과 같다.
+
+1. 필수 입력과 관측 ID를 검증한다. 잘못된 입력이면 의존성을 호출하지 않는다.
+2. 기존 종합 분석 서비스를 한 번 호출한다. 내부의 기존 기본 분석 서비스·Store를 통해 관측을 한 번 조회한다.
+3. 반환 관측 ID·전체 마스터·전체 경보가 요청과 같은지 확인한다.
+4. 명시한 평가 조건과 전체 분석을 신선도 정책에 한 번 전달하고 반환 요청·전체 분석의 일치를 확인한다.
+5. 전체 신선도 결과를 사전 점검 정책에 한 번 전달하고 반환 입력의 일치를 확인한 뒤 결과를 반환한다.
+
+각 단계의 null 반환이나 다른 입력의 결과는 다음 단계 전에 예외로 거절한다. 관측 없음·DB 오류·파싱 오류·무결성 오류·정책 예외는 원래 실패를 전파하고 자동 재시도·기본 통과·빈 결과로 대체하지 않는다. 분석·신선도·사전 점검의 상태와 사유는 기존 계약을 그대로 사용한다.
+
+`BLOCKED`는 실행 실패와 다르다. 사용자가 유효한 다른 시장의 경보를 명시한 경우에는 종합 점검의 `REVIEW_REQUIRED`·`MARKET_WARNING_MARKET_NOT_MATCHED`, 신선도의 `TIME_UNVERIFIED`·`MASTER_OBSERVATION_SOURCE_UNVERIFIED`를 보존한 정상 `BLOCKED` 결과를 반환한다. 반대로 의존성이 요청과 다른 경보를 반환하면 연결 오류로 거절한다.
+
+서비스는 분석 결과를 재사용해 신선도와 사전 점검을 수행한다. 두 번째 관측 조회·별도 종목 조회·현재 시각 읽기·DB 저장·캐시·전체 트랜잭션 추가는 없다. 재호출하면 명시한 ID를 다시 조회해 전달된 평가 조건으로 판단하며 이전 `CLEAR`를 재사용하지 않는다. 읽기 전용 Store의 기존 트랜잭션 계약을 유지한다.
+
+이 연결을 추가해도 수동 Runner·정상 서버·Harness·후보 선정에는 아직 연결하지 않았다. MySQL·Docker·설정·`.env`·스키마 변경도 없다. 과거 자격을 생성하거나 `AS_OF_VERIFIED`로 승격하지 않으며 매도·주문 취소·계좌 정합성 허용 여부를 결정하는 전역 통제로 사용하지 않는다.
+
+## 정책 구현 검증 결과
 
 2026-10-07 관련 **8개 클래스·172개 테스트**가 실패·오류·건너뜀 없이 통과했다. 신규 Policy 15개·Result 24개, 기존 신선도 81개·종합 제한 52개를 합한 수다. 각 상태 조합과 JSON 왕복 검증은 두 시장 모두 실행하며, 테스트 수와 내부 조합 검증 횟수를 혼동하지 않는다.
 
@@ -74,4 +110,31 @@ Policy에 `@Component`·`@Service`를 붙이지 않고 자동 빈 등록을 추�
 
 전체 프로젝트 테스트·MySQL·Docker·KIS·계좌·주문·OpenAI 실행은 하지 않았다. 기존 실환경 증적을 덮어쓰거나 `gradlew clean`을 실행하지 않았다. 자동 후보 선정과 운영상 차단 효과는 후속 연결·실환경 검증 대상이다.
 
-추천 커밋 메시지는 `feat: KIS 제한·신선도 통합 사전 점검 추가`다.
+정책 구현의 커밋 메시지는 `feat: KIS 제한·신선도 통합 사전 점검 추가`다.
+
+## 서비스 연결 검증 결과
+
+2026-10-07 연결 서비스 추가 후 관련 **10개 클래스·253개 테스트**가 실패·오류·건너뜀 없이 통과했다. 신규 서비스 테스트 69개, 기존 종합 분석 64개·신선도 81개·사전 점검 39개를 합한 수다. 앞의 172개는 순수 정책 구현 단계의 기록으로 유지한다. 이번 실행의 XML suite 이름과 시각으로 집계했고 전체 프로젝트 테스트는 실행하지 않았다.
+
+| 신규 테스트 클래스 | 테스트 수 | 주요 검증 |
+| --- | --- | --- |
+| `KisStockRestrictionPrecheckServiceTest` | 46 | 입력·의존성 검증, 두 시장의 9가지 상태 조합, 단계별 단일 호출 순서, 실제 분석 경로의 Store 조회 한 번, null·예외·다른 반환 입력 거절, 명시적 평가 조건과 반복 실행 |
+| `KisStockRestrictionPrecheckServiceIntegrationTest` | 23 | H2의 실제 저장 관측 조회와 직접 정책 대조, 원본·시각·해시·행 수 보존, 다른 시장의 경보 진단, 관측 없음·업무 실패·손상 입력 처리 |
+
+```powershell
+.\gradlew.bat test --tests 'com.stock.market.stock.basicinfo.observation.analysis.restriction.*' --tests 'com.stock.strategy.universe.eligibility.restriction.kis.freshness.*' --tests 'com.stock.strategy.universe.eligibility.restriction.kis.precheck.*' --offline --no-daemon
+```
+
+단위 테스트에서 기존 기본 분석 서비스·Store·종합 정책·신선도 정책·사전 점검의 순서와 각각 한 번의 호출을 확인했다. 명시한 ID·전체 마스터·전체 경보·평가시각·두 유효기간·전체 분석·신선도 결과를 바꾼 반환은 다음 단계 전에 거절했다. 실패를 재시도하거나 다른 성공 관측으로 대체하지 않았다.
+
+H2에서는 두 시장의 9가지 상태 조합마다 실제 저장한 응답을 복원해 같은 기존 정책의 직접 계산과 결과를 대조했다. **단일 서비스 호출 구간의 관측 엔티티 로드는 1건**이고 그 구간의 엔티티 INSERT·UPDATE·DELETE는 0건이었다. 테스트 준비·전후 메타데이터 확인을 포함한 테스트 전체가 조회 한 번이라는 뜻은 아니다.
+
+원문 바이트·길이·해시·요청 및 응답 시각·기록 시각·관측 행 수를 유지했고 서비스 결과의 바이트 배열을 변경해도 보존 원문은 바뀌지 않았다. JDBC 저장 시각은 기존 Store의 마이크로초 정규화 규칙으로 직접 계산과 대조했고 마스터 시각·평가 요청을 DB 기록 시각으로 대체하지 않았다.
+
+관측 ID가 없을 때는 기존 성공 관측이 있어도 대체하지 않았다. 지정한 응답의 업무 실패·잘못된 JSON·손상 해시는 다음 정책 호출 없이 실패했고 원본을 보정하지 않았다. 이후 명시적으로 다른 성공 ID를 호출하면 별도 결과를 반환한다. 다른 시장 경보를 명시한 정상 진단과 의존성이 요청과 다른 경보를 반환한 연결 오류도 구분했다.
+
+테스트는 일시적인 H2와 합성 마스터를 사용했다. 새 서비스·사전 점검 정책·KIS Provider·Client·토큰 Provider의 빈이 해당 JPA 테스트 Context에 없음을 확인했다. 이는 정상 서버의 전체 빈 구성이나 운영 DB·MySQL 호출 지연·동시 갱신·실환경 최신 거래 가능성 검증은 아니다.
+
+이번 구현에서는 수동 실행기·정상 서버·Harness·후보 선정·외부 API·계좌·주문·OpenAI를 실행하거나 연결하지 않았다. 실제 MySQL·Docker·`.env`·설정·스키마를 변경하지 않았고 기존 실환경 증적을 덮어쓰거나 `gradlew clean`을 실행하지 않았다.
+
+서비스 연결 작업의 추천 커밋 메시지는 `feat: 저장된 KIS 관측의 통합 사전 점검 서비스 추가`다.
