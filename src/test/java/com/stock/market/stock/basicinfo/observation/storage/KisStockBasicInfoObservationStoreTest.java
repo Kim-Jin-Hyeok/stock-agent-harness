@@ -5,22 +5,28 @@ import com.stock.market.stock.basicinfo.observation.persistence.KisStockBasicInf
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Clock;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Optional;
 
 import static com.stock.market.stock.basicinfo.observation.support.KisStockBasicInfoObservationFixture.RECORDED_AT;
+import static com.stock.market.stock.basicinfo.observation.support.KisStockBasicInfoObservationFixture.SYMBOL;
 import static com.stock.market.stock.basicinfo.observation.support.KisStockBasicInfoObservationFixture.normalized;
 import static com.stock.market.stock.basicinfo.observation.support.KisStockBasicInfoObservationFixture.response;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -143,6 +149,64 @@ class KisStockBasicInfoObservationStoreTest {
                 .isExactlyInstanceOf(NullPointerException.class).hasMessage("repository must not be null.");
         assertThatThrownBy(() -> new KisStockBasicInfoObservationStore(repository, null))
                 .isExactlyInstanceOf(NullPointerException.class).hasMessage("clock must not be null.");
+    }
+
+    @Test
+    void selectsOnlyOneIdUsingExplicitCutoffWithoutReadingRawContentOrClock() {
+        var unusedClock = mock(Clock.class);
+        var selector = new KisStockBasicInfoObservationStore(repository, unusedClock);
+        var cutoff = RECORDED_AT.truncatedTo(ChronoUnit.MICROS);
+        when(repository.findObservationIdsAvailableAt(eq(SYMBOL), eq(cutoff), any())).thenReturn(List.of(17L));
+
+        assertThat(selector.findLatestObservationId(SYMBOL, RECORDED_AT)).contains(17L);
+
+        var pageable = ArgumentCaptor.forClass(Pageable.class);
+        verify(repository).findObservationIdsAvailableAt(eq(SYMBOL), eq(cutoff), pageable.capture());
+        assertThat(pageable.getValue().getPageNumber()).isZero();
+        assertThat(pageable.getValue().getPageSize()).isEqualTo(1);
+        assertThat(pageable.getValue().getSort().isUnsorted()).isTrue();
+        verifyNoMoreInteractions(repository);
+        verifyNoInteractions(unusedClock);
+    }
+
+    @Test
+    void returnsEmptyWhenNoObservationIdIsAvailableWithoutFallbackOrWrites() {
+        var cutoff = RECORDED_AT.truncatedTo(ChronoUnit.MICROS);
+        when(repository.findObservationIdsAvailableAt(SYMBOL, cutoff, PageRequest.of(0, 1))).thenReturn(List.of());
+
+        assertThat(store.findLatestObservationId(SYMBOL, RECORDED_AT)).isEmpty();
+
+        verify(repository).findObservationIdsAvailableAt(SYMBOL, cutoff, PageRequest.of(0, 1));
+        verifyNoMoreInteractions(repository);
+    }
+
+    @Test
+    void propagatesIdSelectionFailureWithoutReturningEmptyOrRetrying() {
+        var failure = new DataAccessResourceFailureException("database unavailable");
+        var cutoff = RECORDED_AT.truncatedTo(ChronoUnit.MICROS);
+        when(repository.findObservationIdsAvailableAt(SYMBOL, cutoff, PageRequest.of(0, 1))).thenThrow(failure);
+
+        assertThatThrownBy(() -> store.findLatestObservationId(SYMBOL, RECORDED_AT)).isSameAs(failure);
+
+        verify(repository).findObservationIdsAvailableAt(SYMBOL, cutoff, PageRequest.of(0, 1));
+        verifyNoMoreInteractions(repository);
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" ", "00593", "0059300", "0004y0", " 005930", "005930 ", "005-30"})
+    void rejectsInvalidSelectionSymbolBeforeDatabaseAccess(String symbol) {
+        assertThatThrownBy(() -> store.findLatestObservationId(symbol, RECORDED_AT))
+                .isExactlyInstanceOf(IllegalArgumentException.class)
+                .hasMessage("symbol must be exactly 6 uppercase alphanumeric characters.");
+        verifyNoInteractions(repository);
+    }
+
+    @Test
+    void rejectsNullEvaluationTimeBeforeDatabaseAccess() {
+        assertThatThrownBy(() -> store.findLatestObservationId(SYMBOL, null))
+                .isExactlyInstanceOf(NullPointerException.class).hasMessage("evaluatedAt must not be null.");
+        verifyNoInteractions(repository);
     }
 
     private KisStockBasicInfoObservationEntity persisted(Long id) {

@@ -19,8 +19,8 @@ HTTP 200으로 받은 업무 실패 응답이나 잘못된 JSON, UTF-8로 해석
 | 파일 | 책임 |
 | --- | --- |
 | `persistence/KisStockBasicInfoObservationEntity.java` | 원문과 메타데이터를 보존하고 복원 시 길이·해시·메타데이터를 검증한다. |
-| `persistence/KisStockBasicInfoObservationRepository.java` | 기존 `JpaRepository` 패턴으로 저장과 ID 조회를 제공한다. |
-| `storage/KisStockBasicInfoObservationStore.java` | 저장 트랜잭션과 읽기 전용 복원을 담당한다. |
+| `persistence/KisStockBasicInfoObservationRepository.java` | 저장·ID 조회와 평가시각 기준 ID 전용 JPQL 조회를 제공한다. |
+| `storage/KisStockBasicInfoObservationStore.java` | 저장 트랜잭션, 읽기 전용 복원과 관측 ID 선택을 담당한다. |
 | `src/main/resources/db/migration/V7__create_kis_stock_basic_info_observation.sql` | 새 관측 테이블만 추가한다. |
 
 Store는 `@Component`이며 Repository와 기존 공통 `Clock` 빈을 주입받는다. 조회 인증 설정이 꺼져 있어도 이미 받은 응답을 저장·복원할 수 있으며, 빈 생성 시 외부 조회를 실행하지 않는다. 새 설정이나 별도 응답 DTO·공통 인터페이스는 없다.
@@ -67,9 +67,30 @@ Store는 `@Component`이며 Repository와 기존 공통 `Clock` 빈을 주입받
 
 해시 검사는 저장 내용과 기록된 해시의 일치 검사다. 원천의 진위, 메타데이터 전체의 변조 방지, 데이터 신선도나 거래 가능성을 증명하지 않는다. 원문과 해시를 함께 바꾼 경우를 탐지하는 서명이나 외부 원장 기능은 없다.
 
+## 평가시각 기준 관측 ID 선택
+
+`findLatestObservationId(String symbol, Instant evaluatedAt)`는 읽기 전용 트랜잭션에서 `Optional<Long>`을 반환한다. 호출자가 종목과 평가시각을 명시하며, 조회 중 현재 `Clock`을 읽지 않는다. 종목은 기존 원문 DTO와 같은 6자리 대문자 영숫자 규칙을 따르고 공백 제거·대문자 변환은 하지 않는다. 잘못된 종목이나 null 평가시각은 DB 접근 전에 거절한다.
+
+선택 조건과 우선순위는 다음과 같다.
+
+1. `requested_symbol`이 요청 종목과 같아야 한다.
+2. `response_received_at <= evaluatedAt`와 `recorded_at <= evaluatedAt`를 모두 만족해야 한다. 수신했어도 평가시각 이후에 저장된 행은 제외한다.
+3. `request_started_at DESC`, `response_received_at DESC`, `id DESC` 순으로 정렬한다. 늦게 도착하거나 저장된 과거 요청이 더 최근에 시작한 요청을 대신하지 않는다.
+4. DB에서 첫 행의 ID 하나만 조회한다. 조건에 맞는 행이 없을 때만 빈 결과를 반환하며 DB 오류를 빈 결과로 숨기거나 재시도하지 않는다.
+
+동일 시각도 허용한다. 저장 시각은 마이크로초 정밀도이므로 조회에 바인딩하는 평가시각도 마이크로초로 **내림**한다. 저장된 시각에 대한 `<=` 비교 결과는 유지하면서 JDBC 반올림으로 평가시각 직후의 행이 포함되는 것을 막는다. 예를 들어 기준시각이 `.123456999`이면 `.123456000` 행은 허용하고 `.123457000` 행은 제외한다.
+
+조회는 `select observation.id`와 `PageRequest.of(0, 1)`을 사용한다. Entity나 `raw_content` LOB를 로드하거나 모든 행을 가져온 뒤 Java에서 정렬하지 않는다. 새 DTO·설정·스키마·인덱스는 추가하지 않았다. 현재의 기능 검증은 데이터 증가 시 조회 성능을 보장하지 않으며, 실제 실행계획과 조회량을 확인한 뒤 인덱스 필요성을 판단한다.
+
+**성공한 응답만 고르지 않는다.** HTTP·JSON·업무 성공·원문 해시는 이 ID 조회의 필터가 아니다. 최신 행이 실패 응답이나 손상된 원문이면 그 ID를 그대로 반환하며, 기존 `findById`와 분석 경로가 오류를 드러내게 한다. 과거 정상 응답으로 조용히 대체하지 않는다. 신선도 만료도 ID 선택에서 걸러내지 않고 기존 신선도 정책이 판정한다.
+
+이 선택은 저장 메타데이터에 대한 시간 경계일 뿐 정보의 실제 효력·가용 시각을 인증하지 않는다. `AS_OF_VERIFIED`, 과거 백테스트 적격, 신선도 통과나 주문 허가를 생성하지 않는다. 선택 후 별도 `findById` 또는 분석 서비스를 호출한다면 **ID 조회 1회와 원문 조회 1회는 각각 별도의 DB 조회**다.
+
+현재 Harness·Scheduler·통합 사전 점검 서비스와는 연결하지 않았다. 기존 수동 실행의 명시적 관측 ID 계약도 유지한다. 관측이 없거나 만료된 경우의 실행 차단·수집 정책을 이 메서드가 결정하지 않는다.
+
 ## 검증 결과
 
-2026-10-07 관련 7개 클래스의 122개 테스트가 모두 통과했다. 실패·오류·건너뛴 테스트는 0개다. 신규 관측 저장 테스트는 78개이고 기존 관련 회귀 테스트는 44개다. 전체 테스트 모음은 실행하지 않았다.
+저장 기능 최초 구현 시 2026-10-07 관련 7개 클래스의 122개 테스트가 모두 통과했다. 실패·오류·건너뛴 테스트는 0개다. 당시 신규 관측 저장 테스트는 78개이고 기존 관련 회귀 테스트는 44개다. 전체 테스트 모음은 실행하지 않았다. 아래 수치와 명령은 최초 구현 당시의 검증 기록이다.
 
 | 검증 클래스 | 테스트 수 |
 | --- | --- |
@@ -92,6 +113,25 @@ Entity와 Store의 단위 테스트는 바이트·해시 유지, JSON 미해석,
 H2 JPA 테스트는 영속성 컨텍스트를 비운 뒤 실제 저장된 행을 재조회한다. 1MiB의 임의 바이트와 업무 실패·잘못된 JSON·비 UTF-8 응답을 보존했고, 같은 관측의 반복 저장과 앞선 실패 응답의 유지를 확인했다. 정상 응답을 기존 파서로 재평가한 결과와 입력 해시는 저장 전과 같았다. 직접 SQL로 손상시킨 행은 복원을 거절하고 그대로 남았다.
 
 V7 SQL은 H2 MySQL 모드에서 적용해 1MiB BLOB·중복 관측·모든 관측 컬럼의 NOT NULL을 확인했다. 먼저 저장한 V6 후보 평가 행도 유지됐다. 이 검증은 실제 MySQL의 Flyway 적용이나 성능 검증을 대신하지 않는다.
+
+### ID 선택 추가 검증
+
+2026-10-07 ID 선택 구현 후 관련 4개 클래스의 121개 테스트가 모두 통과했다. 신규 검증은 29개이며 실패·오류·건너뛴 테스트는 0개다. 전체 테스트 모음은 실행하지 않았다.
+
+| 검증 클래스 | 테스트 수 |
+| --- | --- |
+| `KisStockBasicInfoObservationStoreTest` | 28 |
+| `KisStockBasicInfoObservationStoreIntegrationTest` | 33 |
+| `KisStockBasicInfoObservationEntityTest` | 37 |
+| `KisStockRestrictionPrecheckServiceIntegrationTest` | 23 |
+
+```powershell
+.\gradlew.bat test --tests 'com.stock.market.stock.basicinfo.observation.storage.*' --tests 'com.stock.market.stock.basicinfo.observation.persistence.KisStockBasicInfoObservationEntityTest' --tests 'com.stock.market.stock.basicinfo.observation.analysis.restriction.precheck.KisStockRestrictionPrecheckServiceIntegrationTest' --offline --no-daemon
+```
+
+단위 테스트는 명시적 평가시각의 내림, 첫 페이지 크기 1, 추가 원문 조회·Clock 접근·쓰기 없음, 입력 오류와 DB 오류 전파를 확인했다. H2 테스트는 종목 분리, 미래 수신·저장 제외, 기준시각 동일 및 -1ns·+999ns 경계, 늦게 도착한 과거 요청, 수신시각·ID 동률 정렬, 없는 관측, 업무 실패·잘못된 JSON·손상된 행의 선택과 기존 복원 거절을 확인했다.
+
+영속성 컨텍스트와 Hibernate 통계를 초기화한 후 ID 조회는 SQL 1회·조회 1행·Entity 로드 0건·Entity 삽입/수정/삭제 0건이었다. 생성 SQL도 ID 컬럼만 선택하고 `fetch first ? rows only`로 제한했다. 기존 통합 사전 점검 서비스의 명시적 ID 조회·실패 차단 회귀 테스트도 유지됐다. 실제 MySQL 조회 성능, 인덱스와 실행계획은 이번에 검증하지 않았다. Docker와 실제 DB를 기동하거나 외부 API·토큰·OpenAI·계좌·주문을 호출하지 않았다.
 
 ## 운영 경계
 
