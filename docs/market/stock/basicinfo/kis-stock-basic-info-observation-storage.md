@@ -8,6 +8,8 @@ Store는 이미 수신한 응답만 받는다. HTTP·토큰·파서·종목 대�
 
 조회 후 저장을 한 번에 수행하려면 별도 [단일 종목 수집 서비스](kis-stock-basic-info-collection.md)의 `collect(symbol)`을 명시적으로 호출한다. Provider와 Store 자체의 계약은 유지하며, 이 서비스가 요청 메타데이터를 대조한 뒤 Store에 원문을 전달한다.
 
+저장된 ID를 파서·식별 대조·유형·제한 정책으로 분석하려면 별도 [저장된 주식기본정보 분석 서비스](kis-stock-basic-info-stored-analysis.md)의 `analyze(observationId, masterBatch)`를 호출한다. Store는 분석을 자동으로 시작하지 않으며, 이 경로는 외부 API 재수집이나 투자 적격 승인이 아니다.
+
 HTTP 200으로 받은 업무 실패 응답이나 잘못된 JSON, UTF-8로 해석할 수 없는 바이트도 원문으로 보존한다. 저장 ID가 있다는 사실은 API 업무 성공, 종목 일치, 거래 가능 여부나 투자 적격의 승인이 아니다. 인증·통신 실패로 원문을 받지 못했으면 저장할 응답이 없으며, null 입력을 정상 관측으로 대체하지 않는다.
 
 ## 패키지와 파일
