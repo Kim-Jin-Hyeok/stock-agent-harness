@@ -64,6 +64,8 @@ V2가 인정하는 입력 계약도 고정한다. 아래 값 중 하나라도 �
 
 별도 [시장경보 관측 상태 해석](../master/kis-stock-market-warning-observation.md)도 추가됐지만, 이 점검의 규칙에는 연결하지 않았다. 경보·예고의 원문과 관측 상태를 보존하는 것과 해당 신호를 후보 제외 규칙으로 사용하는 것은 구분한다. 기존 점검 V1·V2의 입력·판정·사유·JSON은 유지한다.
 
+후속 [시장경보 포함 종합 점검](kis-stock-restriction-screening.md)은 기존 V2 결과와 시장경보 관측 전체를 감싸는 별도 계약이다. 같은 시장의 원문 전체와 요청 행을 확인한 뒤 경보·예고를 추가 점검하며, 이 문서의 V1·V2 자체나 현재 분석 서비스의 반환 결과를 변경하지 않는다. 종합 결과도 운영 후보와 주문에는 아직 연결하지 않았다.
+
 ## 사유 목록과 결과 정합성
 
 사유 이름은 원천·필드·관측을 구분한다. 예를 들어 `MASTER_SUSPENSION_Y_OBSERVED`와 `BASIC_INFO_SUSPENSION_Y_OBSERVED`는 별개다. 미확인은 해당 필드의 `*_VALUE_UNVERIFIED`, 코스피 투자주의환기 미제공은 `MASTER_INVESTMENT_CAUTION_FIELD_NOT_PROVIDED`로 기록한다.

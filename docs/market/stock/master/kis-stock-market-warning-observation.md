@@ -64,6 +64,8 @@ trim·대소문자 변경·코드 보정·상태 간 우선순위는 없다. 잘
 
 이번 관측 결과의 존재만으로 기존 점검이 시장경보까지 검사했다고 간주하지 않는다. 경보·예고·미확인 상태를 어떤 후보 제외 규칙으로 사용할지는 별도 정책이며, 현재 후보 선정·유동성 평가·백테스트·Risk Guard·주문·스케줄·AI Prompt에 연결하지 않는다.
 
+후속 [시장경보 포함 종합 점검](../basicinfo/kis-stock-restriction-screening.md)은 기존 V2 제한 점검과 이 관측을 같은 마스터 원문·요청 종목으로 연결하여 평가한다. 관측 계약·원문·버전·JSON은 유지하며, 다른 시장·원문을 요청 종목의 경보로 붙이지 않는다. 종합 점검 추가도 실제 후보 선정·주문 차단 연결을 뜻하지 않는다.
+
 `runtimeSelectionImplemented=false`, `eligibilityOrHistoricalPopulationVerified=false`를 유지한다. DB·스키마·설정·`.env`·Docker·라이브러리 변경은 없다. 계좌·주문·OpenAI 호출도 없다.
 
 ## 관련 테스트
