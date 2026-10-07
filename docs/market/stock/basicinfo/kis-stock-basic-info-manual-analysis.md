@@ -193,4 +193,10 @@ H2와 합성 보존 파일로 두 시장의 경보·예고 및 미확인 사례�
 .\gradlew.bat analyzeStockBasicInfo --args='--market.stock.basic-info.analysis.manual.enabled=false --market.stock.basic-info.analysis.manual.include-market-warnings=true --broker.kis.enabled=true --market.stock.basic-info.kis.enabled=true --harness.scheduler.enabled=true --agent.provider.ai.openai.enabled=true' --offline --no-daemon
 ```
 
-종합 모드를 실제 MySQL이나 기존 운영 관측 ID로 실행한 검증은 아니다. 기존 실제 입력의 증적을 이번 H2 검증으로 대체하지 않는다. KIS·계좌·주문·OpenAI 호출, Docker·서버 상태 변경과 후보 선정·주문 연결은 없다. 현재 관측을 과거 자격이나 `AS_OF_VERIFIED`로 승격하지 않는다.
+위 H2 검증은 종합 모드를 실제 MySQL이나 기존 운영 관측 ID로 실행한 결과가 아니다. 기존 실제 입력의 증적을 이번 H2 검증으로 대체하지 않는다. 이 구현 검증에서는 KIS·계좌·주문·OpenAI 호출, Docker·서버 상태 변경과 후보 선정·주문 연결이 없다. 현재 관측을 과거 자격이나 `AS_OF_VERIFIED`로 승격하지 않는다.
+
+## 종합 모드 실환경 검증 결과
+
+2026-10-07 [기존 입력의 종합 모드 실환경 검증](validation/kis-stock-restriction-analysis-observation-01.md)을 완료했다. Docker 엔진 정상화 후 MySQL 관측 ID 1과 같은 보존 마스터를 사용해 실제 Gradle 실행기와 별도 점검 Context를 실행했다. 두 기본·종합 요약과 전체 서비스 결과가 직접 정책 결과와 같았고 실제 종합 상태는 `NO_EXCLUSION_SIGNAL_OBSERVED`였다.
+
+최종 상태는 `PASSED`다. 전체 DB 12개 테이블의 덤프 1,852,760바이트가 전후 같았고 보존 파일 1,086개의 길이·해시도 유지됐다. 분석 풀과 MySQL은 정상 종료했으며 투자 앱은 기동하지 않았다. 이전 `MYSQL_VERIFICATION_PENDING` 기록과 V1 실환경 검증·종합 정책 로컬 대조 증적은 덮어쓰지 않고 유지한다. 외부 API·후보 선정·주문은 실행하지 않았으며 이 분석 재현 성공은 최신 거래 가능 여부나 투자 적격 승인이 아니다.
