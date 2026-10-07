@@ -6,6 +6,8 @@
 
 이 서비스는 원천을 수집하는 서비스와 분리한다. 관측 ID와 이미 파싱된 종목 마스터를 입력받고 분석 결과만 반환한다. 새 관측이나 분석 결과를 DB에 저장하지 않으며 후보 선정, 투자 적격 승인과 주문 경로에 연결하지 않는다.
 
+명령으로 보존된 마스터와 DB 관측을 함께 분석하려면 별도 [분석 수동 실행기](kis-stock-basic-info-manual-analysis.md)를 사용한다. 서비스 자체의 호출 계약은 유지하며 실행기가 마스터 파싱과 분석을 연결한다.
+
 ## 패키지와 파일
 
 기준 경로는 `src/main/java/com/stock/market/stock/basicinfo/observation/analysis/`이다.
@@ -15,9 +17,9 @@
 | `KisStockBasicInfoAnalysisService.java` | ID 조회와 기존 분석 정책의 호출 순서를 연결한다. |
 | `result/KisStockBasicInfoAnalysisResult.java` | 관측 ID, 복원 응답과 전체 정책 결과를 보존하고 입력 연결을 검사한다. |
 
-서비스는 Spring 빈이 아닌 일반 Java 클래스다. 생성자에는 Store, Parser, MatchingPolicy, TypeResolutionPolicy, RestrictionObservationPolicy와 RestrictionScreeningPolicy를 전달한다. 생성자 실행만으로 DB를 조회하거나 분석하지 않는다. 기존 Store의 읽기 전용 조회 트랜잭션을 사용하며 서비스 전체를 새 트랜잭션으로 감싸지 않는다.
+서비스는 컴포넌트 등록 어노테이션이 없는 일반 Java 클래스다. 생성자에는 Store, Parser, MatchingPolicy, TypeResolutionPolicy, RestrictionObservationPolicy와 RestrictionScreeningPolicy를 전달한다. 생성자 실행만으로 DB를 조회하거나 분석하지 않는다. 기존 Store의 읽기 전용 조회 트랜잭션을 사용하며 서비스 전체를 새 트랜잭션으로 감싸지 않는다.
 
-Controller, 자동 실행기, Scheduler, 설정, 새 라이브러리와 테이블은 추가하지 않는다. Provider, Client, 토큰 발급기와 종목 마스터 다운로드 서비스는 의존하지 않는다.
+서비스 자체에는 Controller, 자동 실행기, Scheduler, 설정, 새 라이브러리와 테이블을 추가하지 않는다. Provider, Client, 토큰 발급기와 종목 마스터 다운로드 서비스는 의존하지 않는다. 후속 수동 실행기는 전용 구성에서 이 일반 Java 서비스를 빈으로 등록하고 호출한다.
 
 ## 분석 계약
 
@@ -84,7 +86,7 @@ DB의 `recorded_at`은 기존 Store 반환 DTO에 포함되지 않으므로 분�
 .\gradlew.bat test --tests 'com.stock.market.stock.basicinfo.observation.analysis.*' --offline --no-daemon
 ```
 
-2026-10-07 신규 3개 클래스의 **57개 테스트**와 직접 의존하는 기존 Store·Parser·대조·유형·제한 정책의 517개 회귀 테스트가 통과했다. 합계 10개 클래스·574개이며 실패·오류·건너뜀은 0개다. 최신 HTML 보고서의 클래스 목록과 XML의 suite 이름으로 집계했다. 전체 프로젝트 테스트는 실행하지 않았다.
+분석 서비스 구현 당시인 2026-10-07 신규 3개 클래스의 **57개 테스트**와 직접 의존하는 기존 Store·Parser·대조·유형·제한 정책의 517개 회귀 테스트가 통과했다. 합계 10개 클래스·574개이며 실패·오류·건너뜀은 0개다. 당시 HTML 보고서의 클래스 목록과 XML의 suite 이름으로 집계했다. 전체 프로젝트 테스트는 실행하지 않았다. 후속 수동 실행기의 검증 결과는 [별도 문서](kis-stock-basic-info-manual-analysis.md#구현-검증-결과)에 기록한다.
 
 | 신규 테스트 클래스 | 테스트 수 |
 | --- | --- |

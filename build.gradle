@@ -51,3 +51,10 @@ tasks.register('collectStockBasicInfo', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'com.stock.market.stock.basicinfo.collection.runner.KisStockBasicInfoCollectionRunner'
 }
+
+tasks.register('analyzeStockBasicInfo', JavaExec) {
+    group = 'application'
+    description = 'Analyze one stored KIS stock basic info observation with a preserved master batch and no broker beans.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.stock.market.stock.basicinfo.observation.analysis.runner.KisStockBasicInfoAnalysisRunner'
+}

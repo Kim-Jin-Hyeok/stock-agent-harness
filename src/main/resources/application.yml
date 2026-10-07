@@ -45,6 +45,9 @@ broker:
 market:
   stock:
     basic-info:
+      analysis:
+        manual:
+          enabled: false
       collection:
         manual:
           enabled: false
