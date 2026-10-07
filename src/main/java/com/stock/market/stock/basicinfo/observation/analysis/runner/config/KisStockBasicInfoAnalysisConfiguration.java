@@ -2,6 +2,7 @@ package com.stock.market.stock.basicinfo.observation.analysis.runner.config;
 
 import com.stock.market.stock.basicinfo.observation.analysis.KisStockBasicInfoAnalysisService;
 import com.stock.market.stock.basicinfo.observation.analysis.restriction.KisStockRestrictionAnalysisService;
+import com.stock.market.stock.basicinfo.observation.analysis.restriction.precheck.KisStockRestrictionPrecheckService;
 import com.stock.market.stock.basicinfo.observation.analysis.runner.KisStockBasicInfoAnalysisRunner;
 import com.stock.market.stock.basicinfo.observation.persistence.KisStockBasicInfoObservationEntity;
 import com.stock.market.stock.basicinfo.observation.persistence.KisStockBasicInfoObservationRepository;
@@ -17,6 +18,7 @@ import com.stock.strategy.universe.eligibility.classification.kis.basicinfo.reso
 import com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.KisStockBasicInfoRestrictionObservationPolicy;
 import com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.screening.KisStockBasicInfoRestrictionScreeningPolicy;
 import com.stock.strategy.universe.eligibility.restriction.kis.freshness.KisStockRestrictionFreshnessPolicy;
+import com.stock.strategy.universe.eligibility.restriction.kis.precheck.KisStockRestrictionPrecheckPolicy;
 import com.stock.strategy.universe.eligibility.restriction.kis.screening.KisStockRestrictionScreeningPolicy;
 import com.stock.strategy.universe.eligibility.restriction.kis.warning.KisStockMarketWarningObservationPolicy;
 import org.springframework.beans.factory.ObjectProvider;
@@ -110,6 +112,22 @@ public class KisStockBasicInfoAnalysisConfiguration {
     }
 
     @Bean
+    @ConditionalOnProperty(prefix = "market.stock.basic-info.analysis.manual", name = "run-precheck", havingValue = "true")
+    public KisStockRestrictionPrecheckPolicy kisStockBasicInfoAnalysisRestrictionPrecheckPolicy() {
+        return new KisStockRestrictionPrecheckPolicy();
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "market.stock.basic-info.analysis.manual", name = "run-precheck", havingValue = "true")
+    public KisStockRestrictionPrecheckService kisStockBasicInfoAnalysisRestrictionPrecheckService(
+            KisStockRestrictionAnalysisService analysisService,
+            KisStockRestrictionFreshnessPolicy freshnessPolicy,
+            KisStockRestrictionPrecheckPolicy precheckPolicy
+    ) {
+        return new KisStockRestrictionPrecheckService(analysisService, freshnessPolicy, precheckPolicy);
+    }
+
+    @Bean
     public KisStockBasicInfoAnalysisRunner kisStockBasicInfoAnalysisRunner(
             StockMasterBatchParsingService masterParser,
             KisStockBasicInfoAnalysisService service,
@@ -117,12 +135,14 @@ public class KisStockBasicInfoAnalysisConfiguration {
             ObjectProvider<KisStockMasterMarketWarningParser> marketWarningParser,
             ObjectProvider<KisStockMarketWarningObservationPolicy> marketWarningObservationPolicy,
             ObjectProvider<KisStockRestrictionAnalysisService> restrictionAnalysisService,
-            ObjectProvider<KisStockRestrictionFreshnessPolicy> restrictionFreshnessPolicy
+            ObjectProvider<KisStockRestrictionFreshnessPolicy> restrictionFreshnessPolicy,
+            ObjectProvider<KisStockRestrictionPrecheckService> restrictionPrecheckService
     ) {
         if (properties.includeMarketWarnings()) {
             return new KisStockBasicInfoAnalysisRunner(masterParser, service, properties,
                     marketWarningParser.getObject(), marketWarningObservationPolicy.getObject(), restrictionAnalysisService.getObject(),
-                    properties.checkFreshness() ? restrictionFreshnessPolicy.getObject() : null);
+                    properties.checkFreshness() ? restrictionFreshnessPolicy.getObject() : null,
+                    properties.runPrecheck() ? restrictionPrecheckService.getObject() : null);
         }
         return new KisStockBasicInfoAnalysisRunner(masterParser, service, properties);
     }

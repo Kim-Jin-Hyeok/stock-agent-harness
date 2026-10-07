@@ -21,7 +21,8 @@ public record KisStockBasicInfoAnalysisProperties(
         boolean checkFreshness,
         Instant evaluatedAt,
         Duration maxMasterAge,
-        Duration maxBasicInfoAge
+        Duration maxBasicInfoAge,
+        boolean runPrecheck
 ) {
     public KisStockBasicInfoAnalysisProperties(boolean enabled, Long observationId, String observationRoot, UUID collectionId) {
         this(enabled, observationId, observationRoot, collectionId, false, null);
@@ -30,6 +31,13 @@ public record KisStockBasicInfoAnalysisProperties(
     public KisStockBasicInfoAnalysisProperties(boolean enabled, Long observationId, String observationRoot, UUID collectionId,
                                                boolean includeMarketWarnings, KisStockMasterMarket warningMarket) {
         this(enabled, observationId, observationRoot, collectionId, includeMarketWarnings, warningMarket, false, null, null, null);
+    }
+
+    public KisStockBasicInfoAnalysisProperties(boolean enabled, Long observationId, String observationRoot, UUID collectionId,
+                                               boolean includeMarketWarnings, KisStockMasterMarket warningMarket, boolean checkFreshness,
+                                               Instant evaluatedAt, Duration maxMasterAge, Duration maxBasicInfoAge) {
+        this(enabled, observationId, observationRoot, collectionId, includeMarketWarnings, warningMarket, checkFreshness,
+                evaluatedAt, maxMasterAge, maxBasicInfoAge, false);
     }
 
     @ConstructorBinding
@@ -47,6 +55,9 @@ public record KisStockBasicInfoAnalysisProperties(
             }
             if (includeMarketWarnings && warningMarket == null) {
                 throw new IllegalArgumentException("warningMarket must be specified when market warnings are included.");
+            }
+            if (runPrecheck && !checkFreshness) {
+                throw new IllegalArgumentException("checkFreshness must be enabled when precheck is run.");
             }
             if (checkFreshness) {
                 if (!includeMarketWarnings) {

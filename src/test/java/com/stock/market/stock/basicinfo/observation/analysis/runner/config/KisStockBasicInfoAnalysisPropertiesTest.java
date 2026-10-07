@@ -4,6 +4,7 @@ import com.stock.market.stock.master.provider.kis.KisStockMasterMarket;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -146,14 +147,18 @@ class KisStockBasicInfoAnalysisPropertiesTest {
         assertThat(properties.includeMarketWarnings()).isFalse();
         assertThat(properties.warningMarket()).isNull();
         assertThat(properties.checkFreshness()).isFalse();
+        assertThat(properties.runPrecheck()).isFalse();
         assertThat(properties.evaluatedAt()).isNull();
         assertThat(properties.maxMasterAge()).isNull();
         assertThat(properties.maxBasicInfoAge()).isNull();
         var combined = new KisStockBasicInfoAnalysisProperties(true, 17L, "unused-root", COLLECTION_ID, true, KisStockMasterMarket.KOSDAQ);
         assertThat(combined.checkFreshness()).isFalse();
+        assertThat(combined.runPrecheck()).isFalse();
         assertThat(combined.evaluatedAt()).isNull();
         assertThat(combined.maxMasterAge()).isNull();
         assertThat(combined.maxBasicInfoAge()).isNull();
+        assertThat(new KisStockBasicInfoAnalysisProperties(true, 17L, "unused-root", COLLECTION_ID, true, KisStockMasterMarket.KOSDAQ,
+                true, EVALUATED_AT, MAX_MASTER_AGE, MAX_BASIC_INFO_AGE).runPrecheck()).isFalse();
     }
 
     @ParameterizedTest
@@ -309,6 +314,81 @@ class KisStockBasicInfoAnalysisPropertiesTest {
                     assertThat(properties.maxMasterAge()).isEqualTo(MAX_MASTER_AGE);
                     assertThat(properties.maxBasicInfoAge()).isEqualTo(MAX_BASIC_INFO_AGE);
                 });
+    }
+
+    @Test
+    void bindsExplicitPrecheckWithoutChangingTheFreshnessConditions() {
+        var values = freshnessSettings();
+        values.put("run-precheck", "true");
+
+        withSettings(values).run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context.getBean(KisStockBasicInfoAnalysisProperties.class)).isEqualTo(new KisStockBasicInfoAnalysisProperties(
+                    true, 17L, "unused-root", COLLECTION_ID, true, KisStockMasterMarket.KOSDAQ, true,
+                    EVALUATED_AT, MAX_MASTER_AGE, MAX_BASIC_INFO_AGE, true));
+        });
+    }
+
+    @ParameterizedTest
+    @CsvSource({"true,false,checkFreshness must be enabled when precheck is run.",
+            "false,false,checkFreshness must be enabled when precheck is run.",
+            "false,true,includeMarketWarnings must be enabled when freshness is checked."})
+    void precheckRequiresBothOptInsWithoutEnablingThem(boolean includeWarnings, boolean checkFreshness, String message) {
+        assertThatThrownBy(() -> new KisStockBasicInfoAnalysisProperties(true, 17L, "unused-root", COLLECTION_ID,
+                includeWarnings, KisStockMasterMarket.KOSDAQ, checkFreshness, EVALUATED_AT, MAX_MASTER_AGE, MAX_BASIC_INFO_AGE, true))
+                .isExactlyInstanceOf(IllegalArgumentException.class).hasMessage(message);
+        var values = freshnessSettings();
+        values.put("run-precheck", "true");
+        values.put("include-market-warnings", Boolean.toString(includeWarnings));
+        values.put("check-freshness", Boolean.toString(checkFreshness));
+        withSettings(values).run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure()).hasRootCauseMessage(message);
+        });
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"evaluated-at", "max-master-age", "max-basic-info-age"})
+    void precheckStillRequiresExplicitTimingInputs(String missing) {
+        var values = freshnessSettings();
+        values.put("run-precheck", "true");
+        values.remove(missing);
+        withSettings(values).run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure()).hasRootCauseInstanceOf(NullPointerException.class);
+        });
+    }
+
+    @Test
+    void disabledAnalysisIgnoresPrecheckRequirementsAndTimingDoesNotInferPrecheck() {
+        assertThat(new KisStockBasicInfoAnalysisProperties(false, -1L, "bad\0path", null, false, null, false,
+                null, Duration.ZERO, Duration.ofNanos(-1), true).enabled()).isFalse();
+        runner.withPropertyValues(PREFIX + "enabled=false", PREFIX + "run-precheck=true")
+                .run(context -> assertThat(context).hasNotFailed());
+        withSettings(freshnessSettings()).run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context.getBean(KisStockBasicInfoAnalysisProperties.class).runPrecheck()).isFalse();
+        });
+    }
+
+    @Test
+    void bindsPrecheckFromCanonicalEnvironmentVariable() {
+        var values = freshnessSettings();
+        runner.withInitializer(context -> context.getEnvironment().getPropertySources().addFirst(new SystemEnvironmentPropertySource(
+                        "precheck-analysis-test-" + StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+                        Map.of("MARKET_STOCK_BASICINFO_ANALYSIS_MANUAL_RUNPRECHECK", "true"))))
+                .withPropertyValues(values.entrySet().stream().map(entry -> PREFIX + entry.getKey() + "=" + entry.getValue()).toArray(String[]::new))
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context.getBean(KisStockBasicInfoAnalysisProperties.class).runPrecheck()).isTrue();
+                });
+    }
+
+    @Test
+    void rejectsMalformedPrecheckFlagAtBinding() {
+        var values = freshnessSettings();
+        values.put("run-precheck", "not-a-boolean");
+        withSettings(values).run(context -> assertThat(context).hasFailed());
     }
 
     private Map<String, String> freshnessSettings() {
