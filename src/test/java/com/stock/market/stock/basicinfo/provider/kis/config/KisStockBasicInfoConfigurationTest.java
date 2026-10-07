@@ -7,6 +7,8 @@ import com.stock.broker.kis.order.KisCashOrderClient;
 import com.stock.broker.kis.order.cancellation.KisOrderCancellationClient;
 import com.stock.broker.order.cancellation.provider.BrokerOrderCancellationProvider;
 import com.stock.broker.order.provider.BrokerOrderProvider;
+import com.stock.market.stock.basicinfo.collection.KisStockBasicInfoCollectionService;
+import com.stock.market.stock.basicinfo.observation.storage.KisStockBasicInfoObservationStore;
 import com.stock.market.stock.basicinfo.provider.kis.KisStockBasicInfoClient;
 import com.stock.market.stock.basicinfo.provider.kis.KisStockBasicInfoProvider;
 import com.stock.market.stock.basicinfo.provider.kis.config.support.KisStockBasicInfoMockHttp;
@@ -25,6 +27,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientResponseException;
 
@@ -49,6 +52,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.HttpMethod.GET;
 import static org.springframework.http.HttpMethod.POST;
@@ -66,6 +70,7 @@ class KisStockBasicInfoConfigurationTest {
     private static final String APP_KEY = "synthetic-readonly-key";
     private static final String APP_SECRET = "synthetic-readonly-secret";
     private static final String ACCESS_TOKEN = "synthetic-readonly-token";
+    private final KisStockBasicInfoObservationStore store = mock(KisStockBasicInfoObservationStore.class);
     private final KisStockBasicInfoMockHttp http = new KisStockBasicInfoMockHttp();
     private final ApplicationContextRunner runner = newRunner()
             .withInitializer(context -> context.getBeanFactory().addBeanPostProcessor(http));
@@ -99,6 +104,7 @@ class KisStockBasicInfoConfigurationTest {
         withSettings(settings()).withUserConfiguration(PropertiesScanConfiguration.class).run(context -> {
             assertThat(context).hasNotFailed().hasSingleBean(KisStockBasicInfoClient.class)
                     .hasSingleBean(KisStockBasicInfoProvider.class)
+                    .hasSingleBean(KisStockBasicInfoCollectionService.class)
                     .hasSingleBean(KisTokenClient.class).hasSingleBean(KisTokenProvider.class).hasSingleBean(HttpClient.class);
             assertNoOrderBeans(context);
             var properties = context.getBean(KisStockBasicInfoProperties.class);
@@ -116,6 +122,12 @@ class KisStockBasicInfoConfigurationTest {
             assertThat(context.getBean(KisTokenProvider.class)).isSameAs(context.getBean(KisTokenProvider.class));
             assertThat(context.getBean(KisStockBasicInfoProvider.class))
                     .isSameAs(context.getBean(KisStockBasicInfoProvider.class));
+            var collectionService = context.getBean(KisStockBasicInfoCollectionService.class);
+            assertThat(collectionService).isSameAs(context.getBean(KisStockBasicInfoCollectionService.class));
+            assertThat(ReflectionTestUtils.getField(collectionService, "provider"))
+                    .isSameAs(context.getBean(KisStockBasicInfoProvider.class));
+            assertThat(ReflectionTestUtils.getField(collectionService, "store")).isSameAs(store);
+            verifyNoInteractions(store);
             http.verify();
         });
     }
@@ -271,6 +283,7 @@ class KisStockBasicInfoConfigurationTest {
     private ApplicationContextRunner newRunner() {
         return new ApplicationContextRunner()
                 .withUserConfiguration(KisStockBasicInfoConfiguration.class, KisConfiguration.class)
+                .withBean(KisStockBasicInfoObservationStore.class, () -> store)
                 .withBean(Clock.class, () -> Clock.fixed(Instant.parse("2026-10-06T01:00:00Z"), ZoneOffset.UTC));
     }
 
@@ -294,7 +307,9 @@ class KisStockBasicInfoConfigurationTest {
     private void assertDisabled(AssertableApplicationContext context) {
         assertThat(context).hasNotFailed().doesNotHaveBean(KisStockBasicInfoClient.class)
                 .doesNotHaveBean(KisStockBasicInfoProvider.class)
+                .doesNotHaveBean(KisStockBasicInfoCollectionService.class)
                 .doesNotHaveBean(KisTokenClient.class).doesNotHaveBean(KisTokenProvider.class).doesNotHaveBean(HttpClient.class);
+        verifyNoInteractions(store);
         assertNoOrderBeans(context);
     }
 

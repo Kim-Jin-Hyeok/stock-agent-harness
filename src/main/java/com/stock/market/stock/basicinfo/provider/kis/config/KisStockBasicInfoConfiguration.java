@@ -2,6 +2,8 @@ package com.stock.market.stock.basicinfo.provider.kis.config;
 
 import com.stock.broker.kis.auth.KisTokenClient;
 import com.stock.broker.kis.auth.KisTokenProvider;
+import com.stock.market.stock.basicinfo.collection.KisStockBasicInfoCollectionService;
+import com.stock.market.stock.basicinfo.observation.storage.KisStockBasicInfoObservationStore;
 import com.stock.market.stock.basicinfo.provider.kis.KisStockBasicInfoClient;
 import com.stock.market.stock.basicinfo.provider.kis.KisStockBasicInfoProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -69,5 +71,13 @@ public class KisStockBasicInfoConfiguration {
             @Qualifier("kisStockBasicInfoTokenProvider") KisTokenProvider tokenProvider
     ) {
         return new KisStockBasicInfoProvider(client, tokenProvider);
+    }
+
+    @Bean
+    public KisStockBasicInfoCollectionService kisStockBasicInfoCollectionService(
+            KisStockBasicInfoProvider provider,
+            KisStockBasicInfoObservationStore store
+    ) {
+        return new KisStockBasicInfoCollectionService(provider, store);
     }
 }

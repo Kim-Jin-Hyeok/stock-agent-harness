@@ -4,9 +4,9 @@
 
 [주식기본조회 원문 Client](kis-stock-basic-info-client.md)를 기존 모의투자 연결과 분리된 Spring 빈으로 등록한다. **조회 때문에 기존 `broker.kis` 주소나 키를 실전 값으로 바꾸지 않으며, 전용 설정만 활성화해도 계좌·주문·취소 기능은 등록되지 않는다.**
 
-등록된 Client는 종목 하나와 토큰을 전달받아 조회하는 기존 계약을 유지한다. 인증 연계 `KisStockBasicInfoProvider`는 호출자로부터 종목만 받아 전용 토큰 Provider와 원문 Client를 연결한다. 자동 수집, DB 저장, 주식기본정보 캐시, 스케줄이나 후보 선정 연결은 추가하지 않는다. 빈 생성 자체는 인증이나 종목 조회를 실행하지 않는다.
+등록된 Client는 종목 하나와 토큰을 전달받아 조회하는 기존 계약을 유지한다. 인증 연계 `KisStockBasicInfoProvider`는 호출자로부터 종목만 받아 전용 토큰 Provider와 원문 Client를 연결한다. 별도 [단일 종목 수집 서비스](kis-stock-basic-info-collection.md)를 명시적으로 호출하면 조회한 원문을 DB에 보존하고 관측 ID를 반환한다. 자동 수집, 주식기본정보 캐시, 스케줄이나 후보 선정 연결은 추가하지 않는다. 빈 생성 자체는 인증이나 종목 조회·저장을 실행하지 않는다.
 
-반환 응답의 저장·복원은 별도 [원문 관측 이력 Store](kis-stock-basic-info-observation-storage.md)가 담당한다. 인증 구성과 Provider는 Store를 의존하지 않으며 조회 후 저장 호출을 자동으로 실행하지 않는다.
+반환 응답의 저장·복원은 별도 [원문 관측 이력 Store](kis-stock-basic-info-observation-storage.md)가 담당한다. 전용 구성은 Provider와 Store를 의존하는 수집 서비스도 등록한다. Provider 자체는 Store를 의존하지 않으며 Provider 호출만으로 저장하지 않는다.
 
 ## 패키지와 파일
 
@@ -15,14 +15,14 @@
 | 파일 | 책임 |
 | --- | --- |
 | `src/main/java/com/stock/market/stock/basicinfo/provider/kis/config/KisStockBasicInfoProperties.java` | 활성화 여부, 전용 인증정보와 시간 설정을 바인딩하고 검증한다. |
-| `src/main/java/com/stock/market/stock/basicinfo/provider/kis/config/KisStockBasicInfoConfiguration.java` | 전용 HTTP 연결, 인증 객체, 기존 원문 Client와 인증 연계 Provider를 등록한다. |
+| `src/main/java/com/stock/market/stock/basicinfo/provider/kis/config/KisStockBasicInfoConfiguration.java` | 전용 HTTP 연결, 인증 객체, 기존 원문 Client, 인증 연계 Provider와 수집 서비스를 등록한다. |
 | `src/main/java/com/stock/market/stock/basicinfo/provider/kis/KisStockBasicInfoProvider.java` | 토큰 확보 전 종목을 검증하고 전용 인증으로 단일 종목의 원문을 조회한다. |
 | `src/main/java/com/stock/broker/kis/config/KisConfiguration.java` | 기존 인증 의존성을 `@Qualifier`로 지정해 전용 인증 빈과 혼동하지 않게 한다. |
 | `src/main/resources/application.yml` | 기본 비활성화 상태와 전용 환경변수 이름을 선언한다. |
 
 테스트는 동일한 `src/test/java/.../provider/kis/config/`의 `KisStockBasicInfoPropertiesTest`, `KisStockBasicInfoConfigurationTest`에 둔다. 기존 `KisConfigurationTest`에는 두 구성의 동시 활성화 검증을 추가한다. 양쪽 구성 테스트에서 HTTP를 가로채는 공통 도구는 `config/support/KisStockBasicInfoMockHttp.java`에 둔다.
 
-인증 연계 테스트는 `src/test/java/com/stock/market/stock/basicinfo/provider/kis/KisStockBasicInfoProviderTest.java`에 둔다. 별도 공통 인터페이스나 수집 서비스 계층은 추가하지 않는다.
+인증 연계 테스트는 `src/test/java/com/stock/market/stock/basicinfo/provider/kis/KisStockBasicInfoProviderTest.java`에 둔다. 수집 서비스와 테스트는 `com.stock.market.stock.basicinfo.collection`에 두며, 별도 공통 인터페이스나 응답 DTO는 추가하지 않는다.
 
 ## 설정 계약
 
@@ -57,6 +57,9 @@
 | `kisStockBasicInfoTokenProvider` | 기존 `KisTokenProvider`. 전용 Client와 별도의 인메모리 토큰 캐시를 사용한다. |
 | `kisStockBasicInfoClient` | 기존 원문 Client. 전용 RestClient와 동일한 인증정보를 사용한다. |
 | `kisStockBasicInfoProvider` | 단일 종목 조회 진입점. 기존 원문 Client와 `kisStockBasicInfoTokenProvider`를 연결한다. |
+| `kisStockBasicInfoCollectionService` | 명시적인 단일 종목 수집 진입점. 기존 Provider와 관측 Store를 연결하고 저장 ID를 반환한다. |
+
+활성화된 구성에는 기존 관측 Store 빈과 그 저장 기반이 필요하다. 수집 서비스를 등록해도 시작 시 수집하거나 기존 Provider 호출에 자동 저장을 추가하지 않는다.
 
 기존 `kisRestClient`, `kisTokenClient`, `kisTokenProvider`는 그대로 유지한다. 기존 KIS의 현재가, 일봉, 지수, 잔고, 주문, 체결 조회와 취소 구성은 해당 빈 이름을 명시해 사용한다. 특히 기존 지수 Provider의 `tokenProvider` 매개변수도 `@Qualifier("kisTokenProvider")`로 지정한다.
 

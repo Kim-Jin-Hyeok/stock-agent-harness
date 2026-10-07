@@ -59,6 +59,8 @@ import com.stock.market.price.provider.kis.KisCurrentPriceClient;
 import com.stock.market.price.provider.CurrentPriceProvider;
 import com.stock.market.price.provider.FixedCurrentPriceProvider;
 import com.stock.market.price.provider.kis.KisCurrentPriceProvider;
+import com.stock.market.stock.basicinfo.collection.KisStockBasicInfoCollectionService;
+import com.stock.market.stock.basicinfo.observation.storage.KisStockBasicInfoObservationStore;
 import com.stock.market.stock.basicinfo.provider.kis.KisStockBasicInfoClient;
 import com.stock.market.stock.basicinfo.provider.kis.KisStockBasicInfoProvider;
 import com.stock.market.stock.basicinfo.provider.kis.config.KisStockBasicInfoConfiguration;
@@ -84,6 +86,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.http.HttpMethod.GET;
 import static org.springframework.http.HttpMethod.POST;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
@@ -555,7 +558,8 @@ class KisConfigurationTest {
                     assertThat(context).hasNotFailed().hasSingleBean(RestClient.class)
                             .hasSingleBean(KisTokenClient.class).hasSingleBean(KisTokenProvider.class)
                             .hasSingleBean(KisBrokerOrderProvider.class).doesNotHaveBean(KisStockBasicInfoClient.class)
-                            .doesNotHaveBean(KisStockBasicInfoProvider.class);
+                            .doesNotHaveBean(KisStockBasicInfoProvider.class)
+                            .doesNotHaveBean(KisStockBasicInfoCollectionService.class);
                     http.verify();
                 });
     }
@@ -565,7 +569,8 @@ class KisConfigurationTest {
         var http = new KisStockBasicInfoMockHttp();
         withBothConnections(http).run(context -> {
             assertThat(context).hasNotFailed().hasSingleBean(KisStockBasicInfoClient.class)
-                    .hasSingleBean(KisStockBasicInfoProvider.class);
+                    .hasSingleBean(KisStockBasicInfoProvider.class)
+                    .hasSingleBean(KisStockBasicInfoCollectionService.class);
             assertThat(context.getBeansOfType(RestClient.class)).hasSize(2);
             assertThat(context.getBeansOfType(KisTokenClient.class)).hasSize(2);
             assertThat(context.getBeansOfType(KisTokenProvider.class)).hasSize(2);
@@ -588,6 +593,11 @@ class KisConfigurationTest {
             assertThat(ReflectionTestUtils.getField(basicInfoProvider, "client"))
                     .isSameAs(context.getBean(KisStockBasicInfoClient.class));
             assertThat(ReflectionTestUtils.getField(basicInfoProvider, "tokenProvider")).isSameAs(readOnlyTokenProvider);
+            var collectionService = context.getBean(KisStockBasicInfoCollectionService.class);
+            var observationStore = context.getBean(KisStockBasicInfoObservationStore.class);
+            assertThat(ReflectionTestUtils.getField(collectionService, "provider")).isSameAs(basicInfoProvider);
+            assertThat(ReflectionTestUtils.getField(collectionService, "store")).isSameAs(observationStore);
+            verifyNoInteractions(observationStore);
             for (Class<?> type : List.of(KisCurrentPriceClient.class, KisDailyPriceHistoryClient.class,
                     KisMarketIndexDailyHistoryClient.class, KisAccountBalanceClient.class, KisCashOrderClient.class,
                     KisOrderInquiryClient.class, KisCancelableOrderInquiryClient.class, KisOrderCancellationClient.class)) {
@@ -644,6 +654,7 @@ class KisConfigurationTest {
 
     private ApplicationContextRunner withBothConnections(KisStockBasicInfoMockHttp http) {
         return contextRunner.withUserConfiguration(KisStockBasicInfoConfiguration.class)
+                .withBean(KisStockBasicInfoObservationStore.class, () -> mock(KisStockBasicInfoObservationStore.class))
                 .withInitializer(context -> context.getBeanFactory().addBeanPostProcessor(http))
                 .withPropertyValues("broker.kis.enabled=true", "market.stock.basic-info.kis.enabled=true",
                         "market.stock.basic-info.kis.app-key=synthetic-readonly-key",
