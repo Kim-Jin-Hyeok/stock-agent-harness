@@ -56,6 +56,8 @@ Java의 `MS949` Charset으로 CP949 바이트를 엄격하게 디코딩하고 �
 
 SPAC 필드는 `etpr_undt_objt_co_yn`, 관리종목은 `mang_issu_yn`, 코스닥 투자주의환기는 `invt_alrm_yn`이다. 투자주의환기를 별도 `mrkt_alrm_cls_code`의 투자주의·투자경고·투자위험으로 대체하지 않는다. Y·N·공백·소문자·미정의 문자는 boolean·자격·주문 허가로 변환하지 않는다.
 
+후속 [시장경보 원문 추출](kis-stock-market-warning-raw-parsing.md)은 기존 결과를 입력으로 받아 `mrkt_alrm_cls_code`와 `mrkt_alrm_risk_adnt_yn`을 별도 계약으로 보존한다. 이 문서의 RAW_V2·열 개 원문 필드·record·JSON은 변경하지 않았다. 추가 추출은 코드 해석·후보 제외·주문 허가가 아니며 기존 제한 관측과 점검 V1·V2에 자동으로 연결되지 않는다.
+
 ## 실패와 미확인의 구분
 
 행 길이·CP949 디코딩 및 바이트 복원·ASCII 영역·필수 식별자·LF 형식이 맞지 않거나 한 시장 안에 단축 코드 또는 표준 코드가 중복되면 `IllegalArgumentException`으로 중단한다. 오류에는 시장·행 번호를 표시하고 중복은 최초 행 번호도 표시한다. 앞선 정상 행만 반환하거나 오류 행을 건너뛰지 않는다. 결과는 한 시장 전체가 구조 검사를 통과한 경우에만 반환한다.

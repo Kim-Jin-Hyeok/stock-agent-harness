@@ -60,6 +60,8 @@ V2가 인정하는 입력 계약도 고정한다. 아래 값 중 하나라도 �
 
 원문 `null`과 `FIELD_NOT_PROVIDED`, 기존 `MASTER_INVESTMENT_CAUTION_FIELD_NOT_PROVIDED`는 모두 유지한다. 비적용 설명은 이 진단 바로 뒤에 기록한다. V2 상태 계산에서는 확인된 비적용 설명과 해당 미제공 진단만 비차단이며 다른 Y·미확인은 그대로 남는다. 투자주의·투자경고·투자위험이라는 별도 시장경보의 검사를 구현하거나 면제한 것은 아니다.
 
+후속 [시장경보 원문 추출](../master/kis-stock-market-warning-raw-parsing.md)에서 경보 구분 코드와 위험 예고 문자를 별도로 보존한다. 현재 점검 V1·V2의 입력·판정·사유에는 연결하지 않았고 보존 결과 20건도 동일하게 유지됐다. 이 추출의 존재나 현재 `NO_EXCLUSION_SIGNAL_OBSERVED`를 시장경보 검사 통과로 해석하지 않는다.
+
 ## 사유 목록과 결과 정합성
 
 사유 이름은 원천·필드·관측을 구분한다. 예를 들어 `MASTER_SUSPENSION_Y_OBSERVED`와 `BASIC_INFO_SUSPENSION_Y_OBSERVED`는 별개다. 미확인은 해당 필드의 `*_VALUE_UNVERIFIED`, 코스피 투자주의환기 미제공은 `MASTER_INVESTMENT_CAUTION_FIELD_NOT_PROVIDED`로 기록한다.
