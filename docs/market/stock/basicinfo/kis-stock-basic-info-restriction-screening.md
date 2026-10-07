@@ -38,6 +38,8 @@
 
 Y와 미확인이 함께 있으면 상태는 제외 신호이고 두 종류의 사유를 모두 보존한다. 코스피 투자주의환기 미제공도 제거하지 않는다. 다른 여섯 필드가 전부 N인 코스피 입력은 검토 필요다. 이 공백을 보충하지 않고 전 시장 후보 선정이 준비됐다고 판단하지 않는다.
 
+후속 [시장별 투자주의환기 적용 범위 검증](validation/kis-investment-caution-applicability-validation-01.md)은 현행 KRX 규정과 고정 KIS 규격을 대조해 원천 미제공과 제도 비적용을 구분할 근거를 정리한다. 현재 V1 판정과 당시 보고서는 유지한다. 코스피 원문을 N으로 보정하지 않고, 변경된 점검은 별도 버전과 검증을 거쳐야 한다.
+
 ## 사유 목록과 결과 정합성
 
 사유 이름은 원천·필드·관측을 구분한다. 예를 들어 `MASTER_SUSPENSION_Y_OBSERVED`와 `BASIC_INFO_SUSPENSION_Y_OBSERVED`는 별개다. 미확인은 해당 필드의 `*_VALUE_UNVERIFIED`, 코스피 투자주의환기 미제공은 `MASTER_INVESTMENT_CAUTION_FIELD_NOT_PROVIDED`로 기록한다.

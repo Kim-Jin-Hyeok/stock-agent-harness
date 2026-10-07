@@ -37,6 +37,8 @@ trim·대소문자 변경·boolean 기본값·종목명 추정을 사용하지 �
 
 `FIELD_NOT_PROVIDED`는 임의의 누락 입력을 허용하는 상태가 아니다. 현재 계약에서 KOSPI 투자주의환기에만 허용하며, KOSDAQ의 null이나 나머지 필드의 null은 거절한다. 원천 미제공·제공된 공백·`N`은 서로 다르다. 과거 V1 JSON에 새 필드가 없다는 이유로 이 상태나 `N_OBSERVED`를 채우지 않는다. 투자주의환기는 별도 시장경보의 투자주의·투자경고·투자위험과도 구분한다.
 
+[시장별 투자주의환기 적용 범위 검증](../basicinfo/validation/kis-investment-caution-applicability-validation-01.md)은 이 원천 관측을 유지한 채 제도 적용 여부를 후속 점검에서 구분하기 위한 근거다. 이 관측 정책의 상태·V2 계약은 변경하지 않으며, 코스피 비적용 판단을 시장경보 검사 면제로 확대하지 않는다.
+
 `N_OBSERVED`는 정상 종목·제한 없음·투자 적격을 뜻하지 않는다. `Y_OBSERVED`도 보존 자료의 문자 관측이므로 실시간 상태나 효력 발생 시각을 인증하지 않는다. 거래정지 관측을 상장폐지·`NOT_LISTED`로 바꾸지 않는다. 유형이 ETF여도 ETF 매매 허용을 뜻하지 않는다.
 
 검토한 KIS 공식 저장소의 고정 revision은 `277ec0eb7a9b7f63b6807829286c80f36649dad2`다. 보존한 `kospi-layout.h`와 `kosdaq-layout.h`의 필드는 아래와 같다. 이 필드명·주석만으로 전체 코드 값이나 현재·과거 거래 가능 상태가 인증되는 것은 아니다. 따라서 이번 상태는 문자 관측으로 한정한다. 규격 증적은 [KIS 유형 해석 문서](stock-master-type-classification.md)와 같은 고정 자료를 사용한다.
