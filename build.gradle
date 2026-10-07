@@ -44,3 +44,10 @@ tasks.register('collectStockMaster', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'com.stock.market.stock.master.collection.runner.StockMasterCollectionRunner'
 }
+
+tasks.register('collectStockBasicInfo', JavaExec) {
+    group = 'application'
+    description = 'Collect one KIS stock basic info raw observation using an isolated existing DB schema.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.stock.market.stock.basicinfo.collection.runner.KisStockBasicInfoCollectionRunner'
+}

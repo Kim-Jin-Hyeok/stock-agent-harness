@@ -4,7 +4,9 @@
 
 `KisStockBasicInfoCollectionService`는 종목 하나의 원문 조회와 관측 저장을 연결한다. **`collect(String symbol)`의 반환값은 저장된 관측의 `Long` ID이며, API 업무 성공이나 투자 적격을 뜻하지 않는다.** 저장된 원문은 추가 외부 호출 없이 기존 Store로 복원하고 분석할 수 있다.
 
-기존 [인증 연계 Provider](kis-stock-basic-info-configuration.md)와 [원문 관측 Store](kis-stock-basic-info-observation-storage.md)를 그대로 사용한다. 새 인터페이스·응답 DTO·DB 스키마·설정 prefix는 추가하지 않는다. 자동 수집, Runner, 스케줄, 전종목 반복 조회, 응답 캐시와 후보 선정 연결은 포함하지 않는다.
+기존 [인증 연계 Provider](kis-stock-basic-info-configuration.md)와 [원문 관측 Store](kis-stock-basic-info-observation-storage.md)를 그대로 사용한다. 수집 서비스 자체에는 새 인터페이스·응답 DTO·DB 스키마·설정 prefix를 추가하지 않는다. 자동 수집, 스케줄, 전종목 반복 조회, 응답 캐시와 후보 선정 연결은 포함하지 않는다.
+
+명시적인 단건 실행은 별도 [수동 실행기](kis-stock-basic-info-manual-collection.md)가 담당한다. 전용 프로세스에서 수집 서비스를 한 번 호출하고 종료하며, 기존 서비스의 조회·저장 계약은 유지한다.
 
 ## 패키지와 파일
 

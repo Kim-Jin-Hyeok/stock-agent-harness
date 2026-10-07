@@ -45,6 +45,9 @@ broker:
 market:
   stock:
     basic-info:
+      collection:
+        manual:
+          enabled: false
       kis:
         enabled: false
         app-key: ${KIS_READONLY_APP_KEY:}

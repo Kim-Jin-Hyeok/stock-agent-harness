@@ -8,6 +8,8 @@
 
 반환 응답의 저장·복원은 별도 [원문 관측 이력 Store](kis-stock-basic-info-observation-storage.md)가 담당한다. 전용 구성은 Provider와 Store를 의존하는 수집 서비스도 등록한다. Provider 자체는 Store를 의존하지 않으며 Provider 호출만으로 저장하지 않는다.
 
+별도 [단건 수동 실행기](kis-stock-basic-info-manual-collection.md)는 이 전용 인증 구성을 재사용하되 일반 서버에서 등록되는 Runner는 아니다. 전용 `main`과 명시적인 수동 활성화로 실행하며 스키마 검증·저장 기반만 가져온다.
+
 ## 패키지와 파일
 
 설정 패키지는 `com.stock.market.stock.basicinfo.provider.kis.config`다. 인증 연계 Provider는 기존 Client와 같은 `com.stock.market.stock.basicinfo.provider.kis`에 둔다.
