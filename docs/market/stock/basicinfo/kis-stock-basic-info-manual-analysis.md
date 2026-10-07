@@ -85,7 +85,7 @@ DB나 보존 파일 없이 비활성화 실행을 확인할 수 있다.
 .\gradlew.bat analyzeStockBasicInfo --args='--spring.profiles.active=local --market.stock.basic-info.analysis.manual.enabled=true --market.stock.basic-info.analysis.manual.observation-id=<OBSERVATION_ID> --market.stock.basic-info.analysis.manual.observation-root=<MASTER_ROOT> --market.stock.basic-info.analysis.manual.collection-id=<COLLECTION_UUID>' --offline --no-daemon
 ```
 
-실제 MySQL 관측 ID 1의 분석은 별도 실환경 실행 검증으로 구분한다. 이번 구현 검증에서는 H2와 합성 마스터만 사용하고 실제 MySQL과 기존 보존 원본은 읽지 않는다.
+실제 MySQL 관측 ID 1의 분석은 별도 실환경 실행 검증으로 구분한다. 실행기 구현 당시에는 H2와 합성 마스터만 사용하고 실제 MySQL과 기존 보존 원본은 읽지 않았다. 이후 [보존된 실제 입력의 분석 검증](validation/kis-stock-basic-info-analysis-observation-01.md)을 별도로 완료했다.
 
 Gradle의 `--offline`은 의존성 다운로드 제어다. DB 연결을 차단하는 옵션은 아니며 Gradle Wrapper의 배포판 준비도 별개다. 이 실행기 자체는 Broker API나 토큰 발급 경로를 등록하지 않는다.
 
@@ -122,3 +122,9 @@ Gradle의 `--offline`은 의존성 다운로드 제어다. DB 연결을 차단�
 ```powershell
 .\gradlew.bat test --tests 'com.stock.market.stock.basicinfo.observation.analysis.*' --tests 'com.stock.market.stock.master.parsing.*' --tests 'com.stock.market.stock.basicinfo.collection.runner.config.KisStockBasicInfoCollectionConfigurationTest' analyzeStockBasicInfo --args='--market.stock.basic-info.analysis.manual.enabled=false --broker.kis.enabled=true --market.stock.basic-info.kis.enabled=true --harness.scheduler.enabled=true --agent.provider.ai.openai.enabled=true' --offline --no-daemon
 ```
+
+## 실환경 분석 검증
+
+2026-10-07 [MySQL 관측 ID 1과 실제 보존 마스터의 분석](validation/kis-stock-basic-info-analysis-observation-01.md)을 검증했다. 기존 Gradle 실행기와 별도 점검 프로세스의 요약이 같고, 분석 서비스의 전체 결과가 기존 정책 직접 호출과 일치했다. 전체 DB 12개 테이블의 덤프와 원본·소스·설정 파일도 유지됐으며 분석 풀과 MySQL을 정상 종료했다.
+
+참고 유형은 `COMMON_STOCK`이지만 제한 사전 점검은 코스피의 투자주의환기 필드 미제공으로 `REVIEW_REQUIRED`다. 분석 재현 검증의 성공을 투자 적격이나 거래 허가로 해석하지 않는다. 후속 증적 비교 도구의 중단·보완 이력은 실환경 검증 문서에 구분하여 기록했다. 실행기 운영 코드와 설정은 변경하지 않았다.
