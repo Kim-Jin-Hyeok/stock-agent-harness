@@ -14,6 +14,7 @@ import com.stock.market.stock.basicinfo.collection.KisStockBasicInfoCollectionSe
 import com.stock.market.stock.basicinfo.observation.analysis.KisStockBasicInfoAnalysisService;
 import com.stock.market.stock.basicinfo.observation.analysis.restriction.KisStockRestrictionAnalysisService;
 import com.stock.market.stock.basicinfo.observation.analysis.restriction.precheck.KisStockRestrictionPrecheckService;
+import com.stock.market.stock.basicinfo.observation.analysis.restriction.precheck.query.KisStockRestrictionPrecheckQueryService;
 import com.stock.market.stock.basicinfo.observation.analysis.restriction.result.KisStockRestrictionAnalysisResult;
 import com.stock.market.stock.basicinfo.observation.analysis.restriction.support.KisStockRestrictionAnalysisFixture;
 import com.stock.market.stock.basicinfo.observation.analysis.result.KisStockBasicInfoAnalysisResult;
@@ -84,9 +85,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -127,6 +130,7 @@ class KisStockBasicInfoAnalysisConfigurationTest {
         runner.withPropertyValues(PREFIX + "enabled=false", PREFIX + "run-precheck=true").run(this::assertDisabled);
         runner.withPropertyValues(PREFIX + "enabled=false", PREFIX + "include-market-warnings=true", PREFIX + "check-freshness=true",
                 PREFIX + "run-precheck=true").run(this::assertDisabled);
+        runner.withPropertyValues(PREFIX + "enabled=false", PREFIX + "symbol=0004Y0", PREFIX + "run-precheck=true").run(this::assertDisabled);
     }
 
     @Test
@@ -134,11 +138,12 @@ class KisStockBasicInfoAnalysisConfigurationTest {
         var scanner = new ClassPathScanningCandidateComponentProvider(true);
         scanner.setEnvironment(new MockEnvironment().withProperty(PREFIX + "enabled", "true")
                 .withProperty(PREFIX + "include-market-warnings", "true").withProperty(PREFIX + "check-freshness", "true")
-                .withProperty(PREFIX + "run-precheck", "true"));
+                .withProperty(PREFIX + "run-precheck", "true").withProperty(PREFIX + "symbol", "0004Y0"));
 
         assertThat(scanner.findCandidateComponents("com.stock.market.stock.basicinfo.observation.analysis"))
                 .extracting(value -> value.getBeanClassName()).doesNotContain(KisStockBasicInfoAnalysisConfiguration.class.getName(),
-                        KisStockBasicInfoAnalysisRunner.class.getName(), KisStockRestrictionPrecheckService.class.getName());
+                        KisStockBasicInfoAnalysisRunner.class.getName(), KisStockRestrictionPrecheckService.class.getName(),
+                        KisStockRestrictionPrecheckQueryService.class.getName());
         assertThat(scanner.findCandidateComponents("com.stock.strategy.universe.eligibility.restriction.kis.freshness")).isEmpty();
         assertThat(scanner.findCandidateComponents("com.stock.strategy.universe.eligibility.restriction.kis.precheck")).isEmpty();
     }
@@ -632,6 +637,7 @@ class KisStockBasicInfoAnalysisConfigurationTest {
                 assertThat(context).hasNotFailed().hasSingleBean(ApplicationRunner.class);
                 assertThat(context.getBeansOfType(KisStockRestrictionPrecheckPolicy.class)).hasSize(runPrecheck ? 1 : 0);
                 assertThat(context.getBeansOfType(KisStockRestrictionPrecheckService.class)).hasSize(runPrecheck ? 1 : 0);
+                assertThat(context.getBeansOfType(KisStockRestrictionPrecheckQueryService.class)).isEmpty();
                 assertNoUnrelatedBeans(context);
                 assertOnlyObservationEntity(context.getBean(EntityManagerFactory.class));
             });
@@ -667,7 +673,7 @@ class KisStockBasicInfoAnalysisConfigurationTest {
     @ParameterizedTest
     @MethodSource("precheckCases")
     void precheckStartupMatchesDirectPoliciesLoadsOneObservationPreservesEvidenceAndClosesPool(
-            KisStockMasterMarket market, String code, KisStockRestrictionFreshnessStatus status, CapturedOutput output
+            KisStockMasterMarket market, String code, KisStockRestrictionFreshnessStatus status, boolean bySymbol, CapturedOutput output
     ) throws Exception {
         var original = KisStockRestrictionAnalysisFixture.inputs(market, code, "N", Map.of(), Map.of("prdt_name", "synthetic-private-name")).response();
         var collection = collectMaster(market, code, "N");
@@ -678,7 +684,7 @@ class KisStockBasicInfoAnalysisConfigurationTest {
         Duration masterAge = Duration.ofDays(3).plusNanos(11);
         Duration apiAge = Duration.ofHours(1).plusNanos(19);
         Instant evaluation = switch (status) {
-            case FRESH -> normalized(original).responseReceivedAt().plusSeconds(1);
+            case FRESH -> bySymbol ? RECORDED_AT.truncatedTo(ChronoUnit.MICROS).plusSeconds(1) : normalized(original).responseReceivedAt().plusSeconds(1);
             case EXPIRED -> collection.startedAt().plus(masterAge);
             case TIME_UNVERIFIED -> original.requestStartedAt().minusSeconds(1);
         };
@@ -697,6 +703,10 @@ class KisStockBasicInfoAnalysisConfigurationTest {
             settings.put(PREFIX + "run-precheck", "true");
             settings.put("spring.jpa.properties.hibernate.generate_statistics", "true");
             addFreshnessSettings(settings, request);
+            if (bySymbol) {
+                settings.remove(PREFIX + "observation-id");
+                settings.put(PREFIX + "symbol", original.requestedSymbol());
+            }
             try (var context = new SpringApplicationBuilder(KisStockBasicInfoAnalysisConfiguration.class).web(WebApplicationType.NONE)
                     .run(arguments(settings))) {
                 assertNoUnrelatedBeans(context);
@@ -710,6 +720,7 @@ class KisStockBasicInfoAnalysisConfigurationTest {
                 assertThat(context.getBeansOfType(ApplicationRunner.class)).hasSize(1);
                 assertThat(context.getBeansOfType(KisStockRestrictionPrecheckPolicy.class)).hasSize(1);
                 assertThat(context.getBeansOfType(KisStockRestrictionPrecheckService.class)).hasSize(1);
+                assertThat(context.getBeansOfType(KisStockRestrictionPrecheckQueryService.class)).hasSize(bySymbol ? 1 : 0);
                 assertThat(context.getBean(KisStockBasicInfoAnalysisProperties.class).evaluatedAt()).isEqualTo(evaluation);
                 pool = context.getBean(HikariDataSource.class);
                 assertThat(output).contains(COMPLETED_MESSAGE, RESTRICTION_COMPLETED_MESSAGE, FRESHNESS_COMPLETED_MESSAGE, PRECHECK_COMPLETED_MESSAGE,
@@ -730,11 +741,203 @@ class KisStockBasicInfoAnalysisConfigurationTest {
 
     private static Stream<Arguments> precheckCases() {
         return Stream.of(KOSPI, KOSDAQ).flatMap(market -> Stream.of(
-                Arguments.of(market, "00", KisStockRestrictionFreshnessStatus.FRESH),
-                Arguments.of(market, "02", KisStockRestrictionFreshnessStatus.FRESH),
-                Arguments.of(market, "99", KisStockRestrictionFreshnessStatus.FRESH),
-                Arguments.of(market, "00", KisStockRestrictionFreshnessStatus.EXPIRED),
-                Arguments.of(market, "00", KisStockRestrictionFreshnessStatus.TIME_UNVERIFIED)));
+                Arguments.of(market, "00", KisStockRestrictionFreshnessStatus.FRESH, false),
+                Arguments.of(market, "02", KisStockRestrictionFreshnessStatus.FRESH, false),
+                Arguments.of(market, "99", KisStockRestrictionFreshnessStatus.FRESH, false),
+                Arguments.of(market, "00", KisStockRestrictionFreshnessStatus.EXPIRED, false),
+                Arguments.of(market, "00", KisStockRestrictionFreshnessStatus.TIME_UNVERIFIED, false),
+                Arguments.of(market, "00", KisStockRestrictionFreshnessStatus.FRESH, true),
+                Arguments.of(market, "02", KisStockRestrictionFreshnessStatus.FRESH, true),
+                Arguments.of(market, "99", KisStockRestrictionFreshnessStatus.FRESH, true),
+                Arguments.of(market, "00", KisStockRestrictionFreshnessStatus.EXPIRED, true)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"005930", "0004Y0"})
+    void symbolContextRegistersQueryServiceWithoutSelectingOrPrecheckingAtConstruction(String symbol, CapturedOutput output) throws SQLException {
+        try (var connection = preparedDatabase(response())) {
+            var request = new KisStockRestrictionFreshnessRequest(RECORDED_AT.plusSeconds(1), Duration.ofDays(3), Duration.ofHours(1));
+            var settings = symbolSettings(connection.getMetaData().getURL(), UNUSED_COLLECTION, symbol, request);
+            settings.put("spring.jpa.properties.hibernate.generate_statistics", "true");
+            withSettings(settings).run(context -> {
+                assertThat(context).hasNotFailed().hasSingleBean(ApplicationRunner.class).hasSingleBean(KisStockRestrictionPrecheckQueryService.class);
+                var properties = context.getBean(KisStockBasicInfoAnalysisProperties.class);
+                assertThat(properties.symbol()).isEqualTo(symbol);
+                assertThat(properties.observationId()).isNull();
+                var factory = context.getBean(EntityManagerFactory.class);
+                assertOnlyObservationEntity(factory);
+                assertNoUnrelatedBeans(context);
+                assertThat(factory.unwrap(SessionFactory.class).getStatistics().getEntityLoadCount()).isZero();
+                assertThat(factory.unwrap(SessionFactory.class).getStatistics().getQueryExecutionCount()).isZero();
+            });
+            assertDatabasePreserved(connection, response());
+        }
+        assertThat(root).isEmptyDirectory();
+        assertThat(output).doesNotContain(COMPLETED_MESSAGE, RESTRICTION_COMPLETED_MESSAGE, FRESHNESS_COMPLETED_MESSAGE, PRECHECK_COMPLETED_MESSAGE);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"symbol=bad", "symbol=missing", "observation-id=17", "run-precheck=false", "check-freshness=false",
+            "include-market-warnings=false", "warning-market=missing", "evaluated-at=missing"})
+    void invalidSymbolSettingsFailBindingBeforeAnyManualAnalysis(String setting, CapturedOutput output) {
+        var values = symbolSettings(newDatabaseUrl(), UNUSED_COLLECTION, SYMBOL,
+                new KisStockRestrictionFreshnessRequest(RECORDED_AT.plusSeconds(1), Duration.ofDays(3), Duration.ofHours(1)));
+        var parts = setting.split("=", 2);
+        if (parts[1].equals("missing")) {
+            values.remove(PREFIX + parts[0]);
+        } else {
+            values.put(PREFIX + parts[0], parts[1]);
+        }
+        withSettings(values).run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure()).hasStackTraceContaining("Failed to bind properties under 'market.stock.basic-info.analysis.manual'");
+        });
+        assertThat(root).isEmptyDirectory();
+        assertThat(output).doesNotContain(COMPLETED_MESSAGE, RESTRICTION_COMPLETED_MESSAGE, FRESHNESS_COMPLETED_MESSAGE, PRECHECK_COMPLETED_MESSAGE);
+    }
+
+    @Test
+    void actualSymbolStartupSelectsLatestAvailableIdInsteadOfOlderFutureOrOtherSymbolRows(CapturedOutput output) throws Exception {
+        var original = response();
+        var latest = new KisStockBasicInfoRawResponse(SYMBOL, original.requestStartedAt().plusMillis(100),
+                original.responseReceivedAt().plusMillis(100), 200, original.content());
+        var collection = collectMaster(KOSDAQ, "00", "N");
+        var master = new StockMasterBatchParsingService(new KisStockMasterParser()).parseBatch(root, collection.collectionId());
+        var warnings = KisStockRestrictionScreeningFixture.warnings(master, KOSDAQ);
+        var basic = new KisStockBasicInfoAnalysisResult(29L, normalized(latest), screening(master, latest));
+        var analysis = new KisStockRestrictionAnalysisResult(basic, new KisStockRestrictionScreeningPolicy().evaluate(basic.screeningResult(), warnings));
+        var request = new KisStockRestrictionFreshnessRequest(RECORDED_AT.plusSeconds(1), Duration.ofDays(3), Duration.ofHours(1));
+        var expected = new KisStockRestrictionPrecheckPolicy().evaluate(new KisStockRestrictionFreshnessPolicy().evaluate(request, analysis));
+        var filesBefore = snapshotFiles();
+        HikariDataSource pool;
+        try (var connection = preparedDatabase(original)) {
+            insertObservation(connection, 29L, latest, RECORDED_AT.plusMillis(100));
+            var futureTime = request.evaluatedAt().truncatedTo(ChronoUnit.MICROS).plus(1, ChronoUnit.MICROS);
+            insertObservation(connection, 30L, new KisStockBasicInfoRawResponse(SYMBOL, original.requestStartedAt().plusSeconds(1),
+                    futureTime, 200, original.content()), futureTime);
+            var other = KisStockRestrictionAnalysisFixture.inputs(KOSPI, "00", "N", Map.of(), Map.of()).response();
+            insertObservation(connection, 40L, other, RECORDED_AT);
+            var rowsBefore = snapshotObservationRows(connection);
+            var settings = symbolSettings(connection.getMetaData().getURL(), collection.collectionId(), SYMBOL, request);
+            settings.put("spring.jpa.properties.hibernate.generate_statistics", "true");
+            try (var context = new SpringApplicationBuilder(KisStockBasicInfoAnalysisConfiguration.class).web(WebApplicationType.NONE)
+                    .run(arguments(settings))) {
+                assertNoUnrelatedBeans(context);
+                var statistics = context.getBean(EntityManagerFactory.class).unwrap(SessionFactory.class).getStatistics();
+                assertThat(statistics.getPrepareStatementCount()).isEqualTo(2L);
+                assertThat(statistics.getEntityLoadCount()).isEqualTo(1L);
+                assertThat(statistics.getEntityInsertCount()).isZero();
+                assertThat(statistics.getEntityUpdateCount()).isZero();
+                assertThat(statistics.getEntityDeleteCount()).isZero();
+                pool = context.getBean(HikariDataSource.class);
+                assertThat(output).contains(COMPLETED_MESSAGE, RESTRICTION_COMPLETED_MESSAGE, FRESHNESS_COMPLETED_MESSAGE, PRECHECK_COMPLETED_MESSAGE,
+                                "observationId=29", "symbol=" + SYMBOL, "evaluatedAt=" + request.evaluatedAt(),
+                                "precheckStatus=" + expected.status(), "freshnessStatus=" + expected.freshnessResult().status())
+                        .doesNotContain("observationId=17", "observationId=30", "observationId=40", "observationId=null", "synthetic-unrelated-private-key");
+            }
+            assertThat(pool.isClosed()).isTrue();
+            assertThat(snapshotObservationRows(connection)).isEqualTo(rowsBefore);
+            assertThat(queryInt(connection, "SELECT COUNT(*) FROM analysis_sentinel WHERE id = 41")).isEqualTo(1);
+            assertThat(queryInt(connection, "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'PUBLIC'")).isEqualTo(2);
+        }
+        assertFilesUnchanged(filesBefore);
+        assertThat(root.resolve("forbidden-schema.sql")).doesNotExist();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"missing", "future-response", "future-recorded", "business-failure", "invalid-json", "corrupt-hash", "corrupt-master"})
+    void actualSymbolStartupFailureClosesPoolWithoutFallbackRepairOrCompletion(String failure, CapturedOutput output) throws Exception {
+        var original = response();
+        var collection = collectMaster(KOSDAQ, "00", "N");
+        if (failure.equals("corrupt-master")) {
+            Path mst = root.resolve(collection.collectionId().toString()).resolve("KOSDAQ/kosdaq_code.mst");
+            byte[] changed = Files.readAllBytes(mst);
+            changed[0] ^= 1;
+            Files.write(mst, changed);
+        }
+        var filesBefore = snapshotFiles();
+        var pool = new AtomicReference<HikariDataSource>();
+        var request = new KisStockRestrictionFreshnessRequest(RECORDED_AT.plusSeconds(1), Duration.ofDays(3), Duration.ofHours(1));
+        try (var connection = preparedDatabase(original)) {
+            if (failure.equals("business-failure") || failure.equals("invalid-json") || failure.equals("corrupt-hash")) {
+                byte[] content = switch (failure) {
+                    case "business-failure" -> "{\"rt_cd\":\"1\",\"msg1\":\"synthetic-private-body\"}".getBytes(StandardCharsets.UTF_8);
+                    case "invalid-json" -> "not-json".getBytes(StandardCharsets.UTF_8);
+                    default -> original.content();
+                };
+                insertObservation(connection, 29L, new KisStockBasicInfoRawResponse(SYMBOL, original.requestStartedAt().plusMillis(100),
+                        original.responseReceivedAt().plusMillis(100), 200, content), RECORDED_AT.plusMillis(100));
+                if (failure.equals("corrupt-hash")) {
+                    try (var statement = connection.prepareStatement("UPDATE kis_stock_basic_info_observation SET content_sha256 = ? WHERE id = 29")) {
+                        statement.setString(1, "0".repeat(64));
+                        statement.executeUpdate();
+                    }
+                }
+            } else if (failure.startsWith("future")) {
+                String field = failure.equals("future-response") ? "response_received_at" : "recorded_at";
+                try (var statement = connection.prepareStatement("UPDATE kis_stock_basic_info_observation SET " + field + " = ? WHERE id = 17")) {
+                    statement.setObject(1, request.evaluatedAt().truncatedTo(ChronoUnit.MICROS).plus(1, ChronoUnit.MICROS).atOffset(ZoneOffset.UTC));
+                    statement.executeUpdate();
+                }
+            }
+            var rowsBefore = snapshotObservationRows(connection);
+            var settings = symbolSettings(connection.getMetaData().getURL(), collection.collectionId(), failure.equals("missing") ? "000660" : SYMBOL, request);
+            var builder = new SpringApplicationBuilder(KisStockBasicInfoAnalysisConfiguration.class).web(WebApplicationType.NONE)
+                    .initializers(context -> context.getBeanFactory().addBeanPostProcessor(new BeanPostProcessor() {
+                        @Override
+                        public Object postProcessAfterInitialization(Object bean, String beanName) {
+                            if (bean instanceof HikariDataSource dataSource) {
+                                pool.set(dataSource);
+                            }
+                            return bean;
+                        }
+                    }));
+            var assertion = assertThatThrownBy(() -> builder.run(arguments(settings)));
+            if (failure.equals("missing") || failure.startsWith("future")) {
+                assertion.isExactlyInstanceOf(NoSuchElementException.class)
+                        .hasStackTraceContaining("KIS stock basic info observation not found. symbol=");
+            } else if (failure.equals("corrupt-hash")) {
+                assertion.hasStackTraceContaining("Stored KIS stock basic info content integrity check failed. id=29");
+            } else if (failure.equals("corrupt-master")) {
+                assertion.hasStackTraceContaining("File bytes or SHA-256 do not match the manifest.");
+            } else {
+                assertion.isExactlyInstanceOf(IllegalArgumentException.class);
+            }
+            assertThat(pool.get()).isNotNull();
+            assertThat(pool.get().isClosed()).isTrue();
+            assertThat(snapshotObservationRows(connection)).isEqualTo(rowsBefore);
+            assertThat(queryInt(connection, "SELECT COUNT(*) FROM analysis_sentinel WHERE id = 41")).isEqualTo(1);
+            assertThat(queryInt(connection, "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'PUBLIC'")).isEqualTo(2);
+        }
+        assertFilesUnchanged(filesBefore);
+        assertThat(output).doesNotContain(COMPLETED_MESSAGE, RESTRICTION_COMPLETED_MESSAGE, FRESHNESS_COMPLETED_MESSAGE, PRECHECK_COMPLETED_MESSAGE,
+                "synthetic-private-body", "synthetic-unrelated-private-key");
+        assertThat(root.resolve("forbidden-schema.sql")).doesNotExist();
+    }
+
+    private Map<String, String> symbolSettings(String url, UUID collectionId, String symbol, KisStockRestrictionFreshnessRequest request) {
+        var settings = settings(url, collectionId);
+        settings.remove(PREFIX + "observation-id");
+        settings.put(PREFIX + "symbol", symbol);
+        settings.put(PREFIX + "include-market-warnings", "true");
+        settings.put(PREFIX + "warning-market", "KOSDAQ");
+        settings.put(PREFIX + "run-precheck", "true");
+        addFreshnessSettings(settings, request);
+        return settings;
+    }
+
+    private List<List<Object>> snapshotObservationRows(Connection connection) throws SQLException {
+        var result = new ArrayList<List<Object>>();
+        try (var statement = connection.createStatement(); var rows = statement.executeQuery("SELECT * FROM kis_stock_basic_info_observation ORDER BY id")) {
+            while (rows.next()) {
+                byte[] content = rows.getBytes("raw_content");
+                result.add(List.of(rows.getLong("id"), rows.getString("requested_symbol"), rows.getInt("http_status"),
+                        rows.getTimestamp("request_started_at").toInstant(), rows.getTimestamp("response_received_at").toInstant(),
+                        rows.getTimestamp("recorded_at").toInstant(), rows.getInt("content_length"), rows.getString("content_sha256"),
+                        content.length, sha256(content)));
+            }
+        }
+        return List.copyOf(result);
     }
 
     private static Stream<Arguments> freshnessCases() {
@@ -771,6 +974,7 @@ class KisStockBasicInfoAnalysisConfigurationTest {
     private void assertNoPrecheckBeans(ApplicationContext context) {
         assertThat(context.getBeansOfType(KisStockRestrictionPrecheckPolicy.class)).isEmpty();
         assertThat(context.getBeansOfType(KisStockRestrictionPrecheckService.class)).isEmpty();
+        assertThat(context.getBeansOfType(KisStockRestrictionPrecheckQueryService.class)).isEmpty();
     }
 
     private void assertNoUnrelatedBeans(ApplicationContext context) {
@@ -857,26 +1061,31 @@ class KisStockBasicInfoAnalysisConfigurationTest {
                     CREATE TABLE analysis_sentinel (id INTEGER PRIMARY KEY);
                     INSERT INTO analysis_sentinel VALUES (41);
                     """.getBytes(StandardCharsets.UTF_8)));
-            var row = KisStockBasicInfoObservationEntity.from(original, RECORDED_AT);
-            try (var statement = connection.prepareStatement("""
-                    INSERT INTO kis_stock_basic_info_observation
-                    (id, requested_symbol, http_status, request_started_at, response_received_at, recorded_at,
-                     content_length, content_sha256, raw_content) VALUES (17, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """)) {
-                statement.setString(1, row.getRequestedSymbol());
-                statement.setInt(2, row.getHttpStatus());
-                statement.setObject(3, row.getRequestStartedAt().atOffset(ZoneOffset.UTC));
-                statement.setObject(4, row.getResponseReceivedAt().atOffset(ZoneOffset.UTC));
-                statement.setObject(5, row.getRecordedAt().atOffset(ZoneOffset.UTC));
-                statement.setInt(6, row.getContentLength());
-                statement.setString(7, row.getContentSha256());
-                statement.setBytes(8, row.getRawContent());
-                statement.executeUpdate();
-            }
+            insertObservation(connection, 17L, original, RECORDED_AT);
             return connection;
         } catch (RuntimeException | SQLException failure) {
             connection.close();
             throw failure;
+        }
+    }
+
+    private void insertObservation(Connection connection, long id, KisStockBasicInfoRawResponse original, Instant recordedAt) throws SQLException {
+        var row = KisStockBasicInfoObservationEntity.from(original, recordedAt);
+        try (var statement = connection.prepareStatement("""
+                INSERT INTO kis_stock_basic_info_observation
+                (id, requested_symbol, http_status, request_started_at, response_received_at, recorded_at,
+                 content_length, content_sha256, raw_content) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """)) {
+            statement.setLong(1, id);
+            statement.setString(2, row.getRequestedSymbol());
+            statement.setInt(3, row.getHttpStatus());
+            statement.setObject(4, row.getRequestStartedAt().atOffset(ZoneOffset.UTC));
+            statement.setObject(5, row.getResponseReceivedAt().atOffset(ZoneOffset.UTC));
+            statement.setObject(6, row.getRecordedAt().atOffset(ZoneOffset.UTC));
+            statement.setInt(7, row.getContentLength());
+            statement.setString(8, row.getContentSha256());
+            statement.setBytes(9, row.getRawContent());
+            statement.executeUpdate();
         }
     }
 

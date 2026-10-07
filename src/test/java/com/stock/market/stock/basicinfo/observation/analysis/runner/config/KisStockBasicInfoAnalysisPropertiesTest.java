@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EmptySource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -12,6 +13,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.env.SystemEnvironmentPropertySource;
 import org.springframework.core.io.ClassPathResource;
@@ -50,6 +52,7 @@ class KisStockBasicInfoAnalysisPropertiesTest {
         assertThat(source.getProperty(PREFIX + "include-market-warnings")).isEqualTo(false);
         assertThat(source.getProperty(PREFIX + "warning-market")).isNull();
         assertThat(source.getProperty(PREFIX + "observation-id")).isNull();
+        assertThat(source.getProperty(PREFIX + "symbol")).isNull();
         assertThat(source.getProperty(PREFIX + "observation-root")).isNull();
         assertThat(source.getProperty(PREFIX + "collection-id")).isNull();
     }
@@ -151,12 +154,14 @@ class KisStockBasicInfoAnalysisPropertiesTest {
         assertThat(properties.evaluatedAt()).isNull();
         assertThat(properties.maxMasterAge()).isNull();
         assertThat(properties.maxBasicInfoAge()).isNull();
+        assertThat(properties.symbol()).isNull();
         var combined = new KisStockBasicInfoAnalysisProperties(true, 17L, "unused-root", COLLECTION_ID, true, KisStockMasterMarket.KOSDAQ);
         assertThat(combined.checkFreshness()).isFalse();
         assertThat(combined.runPrecheck()).isFalse();
         assertThat(combined.evaluatedAt()).isNull();
         assertThat(combined.maxMasterAge()).isNull();
         assertThat(combined.maxBasicInfoAge()).isNull();
+        assertThat(combined.symbol()).isNull();
         assertThat(new KisStockBasicInfoAnalysisProperties(true, 17L, "unused-root", COLLECTION_ID, true, KisStockMasterMarket.KOSDAQ,
                 true, EVALUATED_AT, MAX_MASTER_AGE, MAX_BASIC_INFO_AGE).runPrecheck()).isFalse();
     }
@@ -389,6 +394,111 @@ class KisStockBasicInfoAnalysisPropertiesTest {
         var values = freshnessSettings();
         values.put("run-precheck", "not-a-boolean");
         withSettings(values).run(context -> assertThat(context).hasFailed());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"005930", "0004Y0"})
+    void bindsSymbolInsteadOfIdWithoutChangingExplicitPrecheckConditions(String symbol) {
+        var values = symbolSettings(symbol);
+        withSettings(values).run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context.getBean(KisStockBasicInfoAnalysisProperties.class)).isEqualTo(new KisStockBasicInfoAnalysisProperties(
+                    true, null, "unused-root", COLLECTION_ID, true, KisStockMasterMarket.KOSDAQ, true,
+                    EVALUATED_AT, MAX_MASTER_AGE, MAX_BASIC_INFO_AGE, true, symbol));
+        });
+    }
+
+    @Test
+    void bindsSymbolFromCanonicalEnvironmentVariableWithoutInferringAnId() {
+        var values = symbolSettings("0004Y0");
+        values.remove("symbol");
+        runner.withInitializer(context -> context.getEnvironment().getPropertySources().addFirst(new SystemEnvironmentPropertySource(
+                        "symbol-analysis-test-" + StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+                        Map.of("MARKET_STOCK_BASICINFO_ANALYSIS_MANUAL_SYMBOL", "0004Y0"))))
+                .withPropertyValues(values.entrySet().stream().map(entry -> PREFIX + entry.getKey() + "=" + entry.getValue()).toArray(String[]::new))
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    var properties = context.getBean(KisStockBasicInfoAnalysisProperties.class);
+                    assertThat(properties.symbol()).isEqualTo("0004Y0");
+                    assertThat(properties.observationId()).isNull();
+                    assertThat(properties.runPrecheck()).isTrue();
+                });
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {17L, 0L, -1L})
+    void rejectsBothSelectorsInsteadOfChoosingOneOrIgnoringAnInvalidId(Long id) {
+        assertThatThrownBy(() -> new KisStockBasicInfoAnalysisProperties(true, id, "unused-root", COLLECTION_ID,
+                true, KisStockMasterMarket.KOSDAQ, true, EVALUATED_AT, MAX_MASTER_AGE, MAX_BASIC_INFO_AGE, true, "0004Y0"))
+                .isExactlyInstanceOf(IllegalArgumentException.class).hasMessage("observationId and symbol must not both be specified.");
+        var values = symbolSettings("0004Y0");
+        values.put("observation-id", id.toString());
+        withSettings(values).run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure()).hasRootCauseMessage("observationId and symbol must not both be specified.");
+        });
+    }
+
+    @ParameterizedTest
+    @EmptySource
+    @ValueSource(strings = {" ", "00593", "0059300", "0004y0", " 005930", "005930 ", "005930,000660"})
+    void rejectsMalformedSymbolWithoutTrimmingOrUppercasingIt(String symbol) {
+        assertThatThrownBy(() -> new KisStockBasicInfoAnalysisProperties(true, null, "unused-root", COLLECTION_ID,
+                true, KisStockMasterMarket.KOSDAQ, true, EVALUATED_AT, MAX_MASTER_AGE, MAX_BASIC_INFO_AGE, true, symbol))
+                .isExactlyInstanceOf(IllegalArgumentException.class)
+                .hasMessage("symbol must be exactly 6 uppercase alphanumeric characters.");
+        withSettings(symbolSettings(symbol))
+                .withInitializer(context -> context.getEnvironment().getPropertySources().addFirst(
+                        new MapPropertySource("raw-symbol-test", Map.of(PREFIX + "symbol", symbol))))
+                .run(context -> assertThat(context).hasFailed());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"run-precheck", "check-freshness", "include-market-warnings", "warning-market", "evaluated-at",
+            "max-master-age", "max-basic-info-age", "observation-root", "collection-id", "symbol"})
+    void symbolModeStillRequiresEveryOptInAndExplicitEvaluationInput(String missing) {
+        var values = symbolSettings("0004Y0");
+        values.remove(missing);
+        withSettings(values).run(context -> assertThat(context).hasFailed());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"run-precheck,runPrecheck must be enabled when symbol is specified.",
+            "check-freshness,checkFreshness must be enabled when precheck is run.",
+            "include-market-warnings,includeMarketWarnings must be enabled when freshness is checked."})
+    void symbolModeDoesNotSilentlyEnableRequiredModes(String setting, String message) {
+        var values = symbolSettings("0004Y0");
+        values.put(setting, "false");
+        withSettings(values).run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure()).hasRootCauseMessage(message);
+        });
+    }
+
+    @Test
+    void disabledAnalysisDoesNotValidateUnusedSymbolOrSelectorCombinations() {
+        var properties = new KisStockBasicInfoAnalysisProperties(false, -1L, "bad\0path", null,
+                false, null, false, null, Duration.ZERO, Duration.ofNanos(-1), false, "bad symbol");
+        assertThat(properties.enabled()).isFalse();
+        var values = symbolSettings("bad symbol");
+        values.put("enabled", "false");
+        values.put("observation-id", "-1");
+        values.remove("run-precheck");
+        withSettings(values).run(context -> assertThat(context).hasNotFailed());
+    }
+
+    @Test
+    void legacyPrecheckConstructorKeepsExplicitIdWithoutSelectingSymbolMode() {
+        assertThat(new KisStockBasicInfoAnalysisProperties(true, 17L, "unused-root", COLLECTION_ID,
+                true, KisStockMasterMarket.KOSDAQ, true, EVALUATED_AT, MAX_MASTER_AGE, MAX_BASIC_INFO_AGE, true).symbol()).isNull();
+    }
+
+    private Map<String, String> symbolSettings(String symbol) {
+        var values = freshnessSettings();
+        values.remove("observation-id");
+        values.put("symbol", symbol);
+        values.put("run-precheck", "true");
+        return values;
     }
 
     private Map<String, String> freshnessSettings() {

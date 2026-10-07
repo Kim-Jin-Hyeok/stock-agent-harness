@@ -3,6 +3,7 @@ package com.stock.market.stock.basicinfo.observation.analysis.runner.config;
 import com.stock.market.stock.basicinfo.observation.analysis.KisStockBasicInfoAnalysisService;
 import com.stock.market.stock.basicinfo.observation.analysis.restriction.KisStockRestrictionAnalysisService;
 import com.stock.market.stock.basicinfo.observation.analysis.restriction.precheck.KisStockRestrictionPrecheckService;
+import com.stock.market.stock.basicinfo.observation.analysis.restriction.precheck.query.KisStockRestrictionPrecheckQueryService;
 import com.stock.market.stock.basicinfo.observation.analysis.runner.KisStockBasicInfoAnalysisRunner;
 import com.stock.market.stock.basicinfo.observation.persistence.KisStockBasicInfoObservationEntity;
 import com.stock.market.stock.basicinfo.observation.persistence.KisStockBasicInfoObservationRepository;
@@ -128,6 +129,15 @@ public class KisStockBasicInfoAnalysisConfiguration {
     }
 
     @Bean
+    @ConditionalOnProperty(prefix = "market.stock.basic-info.analysis.manual", name = "symbol")
+    public KisStockRestrictionPrecheckQueryService kisStockBasicInfoAnalysisRestrictionPrecheckQueryService(
+            KisStockBasicInfoObservationStore store,
+            KisStockRestrictionPrecheckService precheckService
+    ) {
+        return new KisStockRestrictionPrecheckQueryService(store, precheckService);
+    }
+
+    @Bean
     public KisStockBasicInfoAnalysisRunner kisStockBasicInfoAnalysisRunner(
             StockMasterBatchParsingService masterParser,
             KisStockBasicInfoAnalysisService service,
@@ -136,13 +146,15 @@ public class KisStockBasicInfoAnalysisConfiguration {
             ObjectProvider<KisStockMarketWarningObservationPolicy> marketWarningObservationPolicy,
             ObjectProvider<KisStockRestrictionAnalysisService> restrictionAnalysisService,
             ObjectProvider<KisStockRestrictionFreshnessPolicy> restrictionFreshnessPolicy,
-            ObjectProvider<KisStockRestrictionPrecheckService> restrictionPrecheckService
+            ObjectProvider<KisStockRestrictionPrecheckService> restrictionPrecheckService,
+            ObjectProvider<KisStockRestrictionPrecheckQueryService> restrictionPrecheckQueryService
     ) {
         if (properties.includeMarketWarnings()) {
             return new KisStockBasicInfoAnalysisRunner(masterParser, service, properties,
                     marketWarningParser.getObject(), marketWarningObservationPolicy.getObject(), restrictionAnalysisService.getObject(),
                     properties.checkFreshness() ? restrictionFreshnessPolicy.getObject() : null,
-                    properties.runPrecheck() ? restrictionPrecheckService.getObject() : null);
+                    properties.runPrecheck() ? restrictionPrecheckService.getObject() : null,
+                    properties.symbol() != null ? restrictionPrecheckQueryService.getObject() : null);
         }
         return new KisStockBasicInfoAnalysisRunner(masterParser, service, properties);
     }

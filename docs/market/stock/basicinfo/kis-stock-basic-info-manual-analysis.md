@@ -4,9 +4,11 @@
 
 수동 실행기는 [저장된 관측 분석 서비스](kis-stock-basic-info-stored-analysis.md)를 별도 프로세스에서 실행하고 종료한다. **지정한 마스터 배치와 DB 관측 한 건을 읽어 분석하며 KIS 인증·조회와 투자 서버 기동은 하지 않는다.**
 
-[단건 수집 실행기](kis-stock-basic-info-manual-collection.md)는 새 응답을 API에서 받아 저장한다. 이번 실행기는 이미 보관된 입력만 읽는다. 키·secret·토큰을 요구하지 않고, 원문·마스터 재수집, 자동 재시도, 최신 관측 대체와 분석 결과 저장도 하지 않는다.
+[단건 수집 실행기](kis-stock-basic-info-manual-collection.md)는 새 응답을 API에서 받아 저장한다. 이번 실행기는 이미 보관된 입력만 읽는다. 키·secret·토큰을 요구하지 않고, 원문·마스터 재수집, 자동 재시도와 분석 결과 저장도 하지 않는다. ID 모드는 지정한 관측을 대체하지 않는다. 종목 모드는 명시적으로 요청한 종목의 평가시각 기준 최신 관측을 선택하며, 선택 후 실패를 과거 성공 관측으로 대체하지 않는다.
 
 기본 모드는 기존 V2 분석이다. `include-market-warnings=true`와 `warning-market`을 명시하면 같은 보존 마스터에서 시장경보를 준비하고 [종합 분석 서비스](kis-stock-restriction-stored-analysis.md)를 실행한다. 여기에 `check-freshness=true`와 평가시각·두 유효기간을 명시하면 같은 종합 결과의 관측 신선도도 점검한다. 추가로 `run-precheck=true`를 명시하면 [통합 사전 점검 서비스](kis-stock-restriction-precheck.md)가 분석·신선도·최종 판정을 한 번에 수행한다. 기존 명령과 로그를 유지하며 별도 실행기·Gradle Task를 만들지 않는다.
+
+통합 모드에서만 `observation-id` 대신 `symbol`을 지정할 수 있다. [기존 종목 조회 서비스](kis-stock-restriction-precheck.md#종목-기준-사전-점검-조회)가 ID를 선택하고 같은 사전 점검 결과를 반환한다. 최신 마스터나 평가시각·기간까지 자동 선택하는 모드는 아니다.
 
 ## 패키지와 파일
 
@@ -14,8 +16,8 @@
 
 | 파일 | 책임 |
 | --- | --- |
-| `KisStockBasicInfoAnalysisRunner.java` | 마스터 파싱 후 지정한 ID를 분석하고 요약을 출력한다. 별도 `main`에서 Context를 열고 닫는다. |
-| `config/KisStockBasicInfoAnalysisProperties.java` | 활성화 여부, 관측 ID, 마스터 루트·수집 UUID, 선택적 시장경보·신선도·통합 점검과 명시적 평가 조건을 바인딩한다. |
+| `KisStockBasicInfoAnalysisRunner.java` | 마스터 파싱 후 지정한 ID 또는 종목 기준 선택 관측을 분석하고 요약을 출력한다. 별도 `main`에서 Context를 열고 닫는다. |
+| `config/KisStockBasicInfoAnalysisProperties.java` | 활성화 여부, 배타적인 관측 ID·종목 선택, 마스터 루트·수집 UUID, 선택적 시장경보·신선도·통합 점검과 명시적 평가 조건을 바인딩한다. |
 | `config/KisStockBasicInfoAnalysisConfiguration.java` | 관측 조회·마스터 파싱·분석과 기존 스키마 검증에 필요한 빈만 등록한다. |
 | `build.gradle`의 `analyzeStockBasicInfo` | 전용 `main`을 실행한다. |
 | `src/main/resources/application.yml` | 분석 수동 실행의 기본 비활성화 상태를 명시한다. |
@@ -27,7 +29,8 @@
 | 설정 | 계약 |
 | --- | --- |
 | `market.stock.basic-info.analysis.manual.enabled` | 기본 `false`. 명시적으로 `true`여야 수동 구성을 등록한다. |
-| `market.stock.basic-info.analysis.manual.observation-id` | 활성화 시 필수인 양의 `Long`. 기본 관측이나 종목을 선택하지 않는다. |
+| `market.stock.basic-info.analysis.manual.observation-id` | 활성화 시 `symbol`을 생략하면 필수인 양의 `Long`. 종목과 동시에 지정하면 거절한다. 기본 관측을 선택하지 않는다. |
+| `market.stock.basic-info.analysis.manual.symbol` | 선택적인 6자리 대문자 영숫자 단일 종목. ID 대신 지정하며 `run-precheck=true`가 필수다. 공백 제거·대문자 변환·목록 처리는 하지 않는다. |
 | `market.stock.basic-info.analysis.manual.observation-root` | 활성화 시 필수인 마스터 UUID 디렉터리의 부모 경로. 공백만 있는 값과 잘못된 경로 형식을 거절한다. |
 | `market.stock.basic-info.analysis.manual.collection-id` | 활성화 시 필수인 마스터 배치 UUID. 목록을 받거나 최신 배치를 자동 선택하지 않는다. |
 | `market.stock.basic-info.analysis.manual.include-market-warnings` | 기본 `false`. `enabled=true`인 수동 실행에서 이 값을 켜야 종합 분석을 실행한다. |
@@ -42,9 +45,11 @@
 
 Properties 검증은 경로의 형식만 확인한다. 실제 파일의 존재·수집 기록·크기·해시 검증은 [기존 마스터 배치 파싱 서비스](../master/stock-master-batch-parsing.md)가 담당한다. 비활성화된 전용 구성은 DB와 Parser·Runner 빈을 등록하지 않는다.
 
-기존 네·여섯·열 인자 Properties 생성자는 유지하며 새 통합 점검 옵션은 `false`로 둔다. Spring 바인딩은 `@ConstructorBinding`으로 명시한 열한 필드 생성자를 사용한다. 기존 세·여섯·일곱 인자 Runner 생성자도 유지한다. 활성화된 종합 모드에는 경보 Parser·관측 Policy·종합 Service가, 신선도 점검에는 추가로 신선도 Policy가 필요하다. 통합 모드에는 추가로 사전 점검 Service가 필요하고 이를 생략한 기존 생성자로 통합 모드를 요청하면 예외로 거절한다. 전체 비활성화나 점검 미사용 시에는 사용하지 않는 조건의 업무 검증을 생략하지만, 잘못된 시각·기간 형식의 바인딩 오류까지 허용하는 것은 아니다.
+기존 네·여섯·열·열한 인자 Properties 생성자는 유지하며 종목은 `null`로 둔다. 통합 옵션이 없던 생성자는 기존처럼 `runPrecheck=false`다. Spring 바인딩은 `@ConstructorBinding`으로 명시한 열두 필드 생성자를 사용한다. 기존 세·여섯·일곱·여덟 인자 Runner 생성자도 유지한다. 활성화된 종합 모드에는 경보 Parser·관측 Policy·종합 Service가, 신선도 점검에는 추가로 신선도 Policy가 필요하다. ID 통합 모드에는 사전 점검 Service가, 종목 통합 모드에는 새 아홉 인자 생성자의 종목 조회 Service가 필요하다. 해당 의존성을 생략하면 예외로 거절한다. 전체 비활성화나 점검 미사용 시에는 사용하지 않는 조건의 업무 검증을 생략하지만, 잘못된 시각·기간 형식의 바인딩 오류까지 허용하는 것은 아니다.
 
 ## 실행 순서와 결과
+
+아래는 기존 ID 기반 기본 분석의 순서다. 종목 선택은 뒤의 통합 모드에서만 사용한다.
 
 1. 전용 Context가 준비된 관측 테이블의 매핑을 검증한다.
 2. `parseBatch(observationRoot, collectionId)`가 보존된 두 시장의 파일과 기록을 검증·파싱한다.
@@ -109,7 +114,7 @@ Stored stock restriction freshness check complete. observationId=1, collectionId
 
 ## 통합 사전 점검 실행
 
-`run-precheck=true`는 경보·신선도 옵션과 평가 조건을 모두 명시한 경우에만 사용할 수 있다. 기존 세 모드는 변경하지 않으며, 통합 모드에서는 경보 준비 이후의 호출 경로만 다음과 같이 바뀐다.
+`run-precheck=true`는 경보·신선도 옵션과 평가 조건을 모두 명시한 경우에만 사용할 수 있다. 기존 세 모드는 변경하지 않으며, ID 통합 모드에서는 경보 준비 이후의 호출 경로만 다음과 같이 바뀐다.
 
 1. 기존 파서로 지정한 마스터 배치와 시장경보를 각각 한 번 준비하고 입력 연결을 확인한다.
 2. `KisStockRestrictionPrecheckService.precheck(observationId, masterBatch, warnings, freshnessRequest)`를 한 번 호출한다.
@@ -130,6 +135,21 @@ Stored stock restriction precheck complete. observationId=1, collectionId=..., s
 
 최종 완료 로그와 프로세스 정상 종료를 함께 확인해야 한다. `CLEAR`는 해당 평가 조건의 제한·신선도 사전 점검 통과일 뿐 투자 적격·상장 상태·실시간 거래 가능 여부·유동성·Risk 통과나 주문 승인이 아니다. 과거 자격을 생성하거나 보유 종목 매도·취소·계좌 정합성을 이 결과 하나로 차단하지 않는다. 후보 선정·Harness·Scheduler·주문 경로에는 아직 연결하지 않았다.
 
+## 종목 기준 통합 사전 점검 실행
+
+`symbol`은 ID를 알아내기 위한 수동 SQL 조회를 생략하는 명시적 선택 모드다. `enabled=true`, 경보 포함·신선도·통합 옵션과 마스터 루트·수집 UUID·경보 시장·평가시각·두 유효기간을 모두 지정해야 한다. 활성화된 실행에서는 ID와 종목 중 정확히 하나만 받으며, 둘 다 있거나 둘 다 없으면 실패한다. 기본·경보·신선도 전용 모드에서 종목만 지정해도 통합 모드를 자동 활성화하지 않는다.
+
+1. 기존 ID 모드와 같은 마스터·경보 준비와 입력 검사를 수행한다.
+2. `KisStockRestrictionPrecheckQueryService.precheckLatest(symbol, masterBatch, warnings, freshnessRequest)`를 한 번 호출한다.
+3. Store는 요청 종목의 수신시각과 DB 기록시각이 모두 평가시각 이하인 행에서 요청 시작시각·수신시각·ID 내림차순으로 하나를 선택한다. 최신 성공 응답만 고르는 조건은 없다.
+4. 조회 서비스가 선택한 ID로 기존 분석·신선도·사전 점검을 한 번 실행한다. ID 조회와 원문 조회는 각각 한 번이며 원문은 재사용한다.
+5. 조회 서비스는 선택 ID와 전체 입력을 대조하고, Runner도 요청 종목·마스터·경보·평가 조건의 일치를 검사한다. 기존 네 요약 로그에는 설정의 빈 ID가 아니라 실제 선택된 ID를 출력한다.
+6. Context를 닫고 종료한다. 새 일정이나 반복 실행을 등록하지 않는다.
+
+Store의 SQL 경계만 마이크로초로 내리며 정책에 전달하는 평가시각과 두 기간은 그대로 보존한다. 수신됐어도 평가시각 당시 DB에 아직 기록되지 않았던 행은 선택하지 않는다. 이 가용성 조건은 현재 관측을 과거 자격이나 `AS_OF_VERIFIED`로 승격하는 근거가 아니다.
+
+관측이 없으면 `Optional.empty()`를 `NoSuchElementException`으로 바꾸어 완료 로그 없이 중단한다. 이는 실제 관측을 점검한 정상 `BLOCKED`와 다르다. 최신 선택 관측이 만료됐으면 정상 `BLOCKED`를 출력하지만, 업무 실패·파싱 실패·해시 손상·DB 오류는 이전 정상 관측으로 대체하거나 재수집·재시도하지 않는다. null·다른 반환 입력도 완료로 출력하지 않는다.
+
 ## 구성 격리와 DB 보호
 
 Runner와 전용 구성은 정상 서버의 컴포넌트 스캔 대상이 아니다. `main`이 구성을 직접 등록하며 `WebApplicationType.NONE`으로 시작한다. 수동 플래그가 켜졌다는 이유만으로 정상 서버가 이 Runner를 실행하지 않는다.
@@ -141,6 +161,8 @@ Runner와 전용 구성은 정상 서버의 컴포넌트 스캔 대상이 아니
 신선도 Policy도 활성화된 전용 구성에서 `check-freshness=true`인 경우에만 등록·조회한다. Policy를 정상 서버의 컴포넌트로 등록하지 않으며 전체 수동 실행이 비활성화되면 점검 옵션만 켜져 있어도 등록하지 않는다.
 
 사전 점검 Policy와 Service도 활성화된 전용 구성에서 `run-precheck=true`일 때만 등록한다. Runner 팩터리는 통합 모드에서만 해당 `ObjectProvider`를 조회한다. 두 클래스에 컴포넌트 어노테이션을 붙이지 않으며 전체 비활성화나 기본·경보·신선도 모드에서는 새 빈을 등록하지 않는다.
+
+종목 조회 Service는 활성화된 전용 구성의 `symbol` 설정이 있는 경우에만 추가 등록한다. Properties 검증이 이때 통합 옵션과 모든 입력을 요구한다. 기존 ID 모드는 조회 Service 빈을 등록·호출하지 않으며 정상 서버 자동 스캔에도 추가하지 않는다.
 
 DataSource·Hibernate JPA·Transaction 자동 구성만 명시적으로 가져온다. Flyway와 Spring SQL 초기화 자동 구성이 없으므로 해당 설정이 켜져 있어도 마이그레이션이나 SQL 초기화를 실행하지 않는다. Hibernate 전역·ORM contributor·Jakarta 및 이전 javax의 DDL 작업은 `validate`, 스크립트 생성은 `none`으로 고정한다. 준비된 테이블이나 컬럼이 없으면 생성·갱신하지 않고 실패한다.
 
@@ -199,6 +221,14 @@ MARKET_STOCK_BASICINFO_ANALYSIS_MANUAL_MAXBASICINFOAGE
 ```
 
 환경변수 이름은 `MARKET_STOCK_BASICINFO_ANALYSIS_MANUAL_RUNPRECHECK`다. 생략하거나 `false`이면 기존 모드를 유지한다. `application.yml`·`.env`·Docker 설정에는 이 옵션이나 평가 조건 기본값을 추가하지 않았다. 시간·유효기간만 전달해도 통합 모드는 켜지지 않는다.
+
+종목 통합 모드의 전체 형식 예시는 다음과 같다. `005930`·`KOSPI`·기간은 형식 예시이며 실제 보존 입력과 평가 조건에 맞게 지정한다. 마스터는 여전히 명시한 UUID 배치만 사용한다.
+
+```powershell
+.\gradlew.bat analyzeStockBasicInfo --args='--spring.profiles.active=local --market.stock.basic-info.analysis.manual.enabled=true --market.stock.basic-info.analysis.manual.symbol=005930 --market.stock.basic-info.analysis.manual.observation-root=<MASTER_ROOT> --market.stock.basic-info.analysis.manual.collection-id=<COLLECTION_UUID> --market.stock.basic-info.analysis.manual.include-market-warnings=true --market.stock.basic-info.analysis.manual.warning-market=KOSPI --market.stock.basic-info.analysis.manual.check-freshness=true --market.stock.basic-info.analysis.manual.run-precheck=true --market.stock.basic-info.analysis.manual.evaluated-at=<EVALUATED_AT_WITH_OFFSET> --market.stock.basic-info.analysis.manual.max-master-age=PT24H --market.stock.basic-info.analysis.manual.max-basic-info-age=PT1H' --offline --no-daemon
+```
+
+종목 환경변수는 `MARKET_STOCK_BASICINFO_ANALYSIS_MANUAL_SYMBOL`이다. **종목 모드에서는 기존 명령의 `observation-id`뿐 아니라 환경에 남은 `MARKET_STOCK_BASICINFO_ANALYSIS_MANUAL_OBSERVATIONID`도 제거해야 한다.** CLI에 종목만 추가해도 다른 설정 소스의 ID가 지워지지는 않으며 두 선택자가 함께 바인딩되면 오류다. 경로 공백은 앞의 전용 루트 환경변수로 처리할 수 있다. 이 변경은 실제 `.env`·YAML·Docker 값을 추가하거나 `.env` 자동 로딩을 구현하지 않는다.
 
 실제 MySQL 관측 ID 1의 분석은 별도 실환경 실행 검증으로 구분한다. 실행기 구현 당시에는 H2와 합성 마스터만 사용하고 실제 MySQL과 기존 보존 원본은 읽지 않았다. 이후 [보존된 실제 입력의 분석 검증](validation/kis-stock-basic-info-analysis-observation-01.md)을 별도로 완료했다.
 
@@ -323,3 +353,25 @@ H2와 합성 보존 파일로 두 시장의 경보·예고 및 미확인 사례�
 전체 DB 덤프 1,852,760바이트와 선정한 보존 파일 1,195개가 변경되지 않았다. 분석 풀과 이번 검증이 시작한 기존 MySQL을 정상 종료했고 투자 앱은 계속 중지 상태로 유지했다. 실제 검증은 약 51.19초였다. 코드·테스트·스키마·설정·`.env`·Compose·기존 증적은 변경하지 않았으며 KIS·계좌·주문·OpenAI·마스터 다운로드도 실행하지 않았다.
 
 이 검증은 실제 입력의 만료 차단 재현이며 최신 데이터·`CLEAR`·투자 적격·주문 승인이나 운영 주문 차단을 확인한 것은 아니다. 운영 코드와 테스트가 바뀌지 않아 이번에는 JUnit을 재실행하지 않았다. 상세 증적·최초 사전 실행 실패·승인 후 대조와 실행 범위는 위 검증 문서에 구분했다.
+
+## 종목 기준 수동 연결 검증 결과
+
+2026-10-07 종목 모드 연결 후 관련 **9개 클래스·518개 테스트**가 실패·오류·건너뜀 없이 통과했다. Runner 120개·Properties 89개·전용 구성 99개, 기존 사전 점검 서비스 69개·종목 조회 서비스 80개·Store 61개를 합한 수다. 수동 실행기 세 클래스는 223개에서 308개로 늘었다. 이전 구현 단계와 실환경 검증 수치는 당시 기록으로 유지하며 이번 결과에 합산하지 않는다. 이번 실행의 XML suite 이름·시각으로 집계했고 전체 프로젝트 테스트는 실행하지 않았다.
+
+```powershell
+.\gradlew.bat test --tests 'com.stock.market.stock.basicinfo.observation.analysis.runner.*' --tests 'com.stock.market.stock.basicinfo.observation.analysis.restriction.precheck.*' --tests 'com.stock.market.stock.basicinfo.observation.storage.*' --offline --no-daemon
+```
+
+- 기존 ID 모드·생성자·요약 로그를 유지하고, ID 모드에서 종목 조회 Service를 등록·호출하지 않는지 확인했다.
+- 종목 환경변수 바인딩, ID와 종목의 배타성, 종목 형식과 필수 옵션·평가 조건을 검증했다. 비활성화 시에는 미사용 입력의 업무 검증과 의존성 조회를 생략한다.
+- 두 시장의 정상·차단 결과와 기존 네 요약 로그의 실제 선택 ID를 확인했다. 종목·마스터·경보·평가시각·두 유효기간이 다른 반환은 완료로 출력하지 않았다.
+- H2 실제 전용 Context에서 같은 종목의 최신 가용 ID 29를 선택했다. 이전 ID 17, 평가시각 이후 행 30과 다른 종목 행 40을 선택하지 않았다. 직접 정책 결과와 로그가 일치했다.
+- 해당 Runner 실행의 Hibernate SQL 준비는 2회, 관측 Entity 로드는 1건, 삽입·수정·삭제는 0건이었다. 테스트 준비·사후 확인 SQL을 이 수치에 포함하지 않는다.
+- 관측 없음과 미래 수신·미래 DB 기록만 있는 경우는 정상 `BLOCKED`가 아니라 실행 실패였다. 최신 업무 실패·잘못된 JSON·손상 해시는 이전 정상 관측이 있어도 실패했고, 마스터 손상도 완료로 출력하지 않았다.
+- 정상·실패 기동 모두 연결 풀이 닫혔다. 관측 행의 원문 해시·바이트 길이·메타데이터·행 수, sentinel 테이블·행과 보존 파일 7개가 유지됐다. 기존 스키마 보호와 정상 서버·외부 호출 빈 격리도 유지됐다.
+
+첫 테스트 실행에서 검증 코드 7건이 실패했다. 기동 예외를 불필요한 래퍼가 있는 것으로 검증한 5건과 테스트 설정 도구가 공백을 잘라낸 2건이었다. 예외 자체를 검증하고 원래 공백을 보존하는 PropertySource로 수정한 뒤 위 관련 범위를 다시 실행해 모두 통과했다. 이를 운영 로직 수정이나 실환경 관측 성공으로 해석하지 않는다.
+
+이번 검증은 합성 마스터와 일시적인 H2만 사용했다. 실제 MySQL·Docker·KIS·토큰·계좌·주문·OpenAI는 실행하지 않았고 `.env`·YAML·Compose·스키마·기존 실환경 증적을 변경하지 않았다. `gradlew clean`·Commit·Push도 실행하지 않았다. 종목 모드의 실제 MySQL 재현, 운영 후보 선정과 주문 차단 효과는 아직 검증하지 않았다.
+
+추천 커밋 메시지는 `feat: 종목 기준 KIS 사전 점검 수동 실행 연결`이다.

@@ -106,7 +106,7 @@ src/test/java/com/stock/market/stock/basicinfo/observation/analysis/restriction/
 src/test/java/com/stock/market/stock/basicinfo/observation/analysis/restriction/precheck/query/KisStockRestrictionPrecheckQueryServiceIntegrationTest.java
 ```
 
-생성자는 기존 Store와 `KisStockRestrictionPrecheckService`만 받는다. 생성만으로 조회하지 않으며 `@Component`·`@Service`나 새로운 전체 트랜잭션을 추가하지 않는다. 기존 ID 기반 서비스·수동 Runner·전용 Configuration의 생성자와 호출 계약도 유지한다.
+생성자는 기존 Store와 `KisStockRestrictionPrecheckService`만 받는다. 생성만으로 조회하지 않으며 `@Component`·`@Service`나 새로운 전체 트랜잭션을 추가하지 않는다. 조회 서비스 구현 당시에는 기존 ID 기반 서비스·수동 Runner·전용 Configuration을 변경하지 않았다. 이후 수동 연결에서도 기존 생성자와 ID 모드 동작을 유지한다.
 
 `precheckLatest(symbol, masterBatch, marketWarningObservation, freshnessRequest)`의 반환형은 `Optional<KisStockRestrictionPrecheckResult>`다. 실행 순서는 다음과 같다.
 
@@ -124,7 +124,7 @@ Store의 SQL 바인딩 시각은 기존 마이크로초 내림 규칙을 적용�
 
 관측이 있으면 **ID 전용 조회 1회와 원문 조회 1회**가 필요하다. 원문은 한 번만 로드하고 분석·신선도·사전 점검에 재사용한다. 기존 읽기 전용 Store 트랜잭션을 유지하며 두 조회 전체에 새로운 스냅샷 트랜잭션이나 잠금을 추가하지 않는다. 동시 DB 관리자 변경을 차단하거나 원천 자료의 진위를 인증하는 기능은 아니다.
 
-새 조회 서비스는 정상 서버 빈·Harness·후보 선정·Scheduler·수동 Runner와 연결하지 않았다. Controller·설정·테이블·인덱스·자동 수집·외부 API·주문은 추가하지 않는다. `CLEAR`를 주문 승인으로 사용하거나 현재 관측을 과거 백테스트의 `AS_OF_VERIFIED`로 승격하지 않는다.
+조회 서비스 구현 당시에는 정상 서버 빈·Harness·후보 선정·Scheduler·수동 Runner와 연결하지 않았다. 이후 아래 종목 모드로 수동 Runner에만 연결했다. 정상 서버 자동 등록·Controller·테이블·인덱스·자동 수집·외부 API·주문은 추가하지 않는다. `CLEAR`를 주문 승인으로 사용하거나 현재 관측을 과거 백테스트의 `AS_OF_VERIFIED`로 승격하지 않는다.
 
 ## 정책 구현 검증 결과
 
@@ -184,6 +184,16 @@ Runner는 지정한 마스터·경보를 한 번 준비한 뒤 서비스를 한 
 수동 실행 연결 작업의 추천 커밋 메시지는 `feat: KIS 통합 사전 점검 수동 실행 연결`이다.
 
 2026-10-07 수동 연결 검증에서는 관련 **10개 클래스·412개 테스트**가 통과했다. 앞의 253개는 서비스 구현 단계의 기록이다. 수동 실행기 223개·연결 서비스 69개·신선도 81개·사전 점검 39개를 이번 실행의 XML 이름과 시각으로 집계했다. H2 실제 전용 Context에서 직접 정책 대조, 관측 엔티티 로드 1건·삽입·수정·삭제 0건, 원본 보존과 풀 종료를 확인했다. 상세 명령과 범위는 [수동 실행기 검증 결과](kis-stock-basic-info-manual-analysis.md#통합-사전-점검-연결-검증-결과)에 있다. 실제 MySQL·Docker·외부 API·주문이나 전체 프로젝트 테스트를 실행한 결과는 아니다.
+
+## 종목 기준 수동 실행기 연결
+
+기존 수동 실행기의 `observation-id` 대신 `symbol`을 명시하면 위 조회 서비스를 호출한다. 전체 수동 활성화와 `include-market-warnings=true`, `check-freshness=true`, `run-precheck=true` 및 마스터·경보 시장·평가 조건이 모두 필요하다. ID와 종목은 정확히 하나만 지정하며 둘 다 있거나 둘 다 없으면 실패한다. 기존 ID 기반 모드와 생성자는 그대로 유지한다.
+
+Runner는 준비한 전체 마스터·경보·평가 요청을 조회 서비스에 한 번 전달하고, 반환된 결과의 종목과 전체 조건을 대조한다. 기존 네 요약 로그에 실제 선택된 관측 ID를 사용하며 분석·신선도·사전 점검을 별도로 재호출하지 않는다. 관측 없음은 완료 로그 없는 `NoSuchElementException`이고, 실제 관측을 점검한 정상 `BLOCKED`와 구분한다. 최신 관측의 실패를 과거 정상 관측으로 대체하지 않는다.
+
+조회 Service는 활성화된 전용 구성에서 종목 설정이 있을 때만 등록한다. 정상 서버 빈·Harness·후보 선정·Scheduler·Risk·주문에는 연결하지 않았다. 새 클래스·Gradle Task·테이블·인덱스·외부 API 호출은 없고 `.env`·YAML·Docker 설정도 변경하지 않았다. 명령과 환경변수의 기존 ID 제거 주의사항은 [수동 실행 방법](kis-stock-basic-info-manual-analysis.md#실행-방법)에 있다.
+
+2026-10-07 관련 9개 클래스·518개 테스트가 모두 통과했다. H2 실제 전용 Context에서 최신 가용 ID 선택, SQL 2회·Entity 로드 1건·쓰기 0건, 원본 보존과 정상·실패 시 풀 종료를 확인했다. 실제 MySQL·Docker·외부 API·주문 검증은 아니다. 전체 명령·집계·검증 범위는 [종목 기준 수동 연결 검증 결과](kis-stock-basic-info-manual-analysis.md#종목-기준-수동-연결-검증-결과)에 기록한다. 추천 커밋 메시지는 `feat: 종목 기준 KIS 사전 점검 수동 실행 연결`이다.
 
 ## 종목 기준 조회 검증 결과
 

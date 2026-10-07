@@ -22,7 +22,8 @@ public record KisStockBasicInfoAnalysisProperties(
         Instant evaluatedAt,
         Duration maxMasterAge,
         Duration maxBasicInfoAge,
-        boolean runPrecheck
+        boolean runPrecheck,
+        String symbol
 ) {
     public KisStockBasicInfoAnalysisProperties(boolean enabled, Long observationId, String observationRoot, UUID collectionId) {
         this(enabled, observationId, observationRoot, collectionId, false, null);
@@ -40,11 +41,30 @@ public record KisStockBasicInfoAnalysisProperties(
                 evaluatedAt, maxMasterAge, maxBasicInfoAge, false);
     }
 
+    public KisStockBasicInfoAnalysisProperties(boolean enabled, Long observationId, String observationRoot, UUID collectionId,
+                                               boolean includeMarketWarnings, KisStockMasterMarket warningMarket, boolean checkFreshness,
+                                               Instant evaluatedAt, Duration maxMasterAge, Duration maxBasicInfoAge, boolean runPrecheck) {
+        this(enabled, observationId, observationRoot, collectionId, includeMarketWarnings, warningMarket, checkFreshness,
+                evaluatedAt, maxMasterAge, maxBasicInfoAge, runPrecheck, null);
+    }
+
     @ConstructorBinding
     public KisStockBasicInfoAnalysisProperties {
         if (enabled) {
-            if (observationId == null || observationId <= 0) {
-                throw new IllegalArgumentException("observationId must be positive.");
+            if (symbol == null) {
+                if (observationId == null || observationId <= 0) {
+                    throw new IllegalArgumentException("observationId must be positive.");
+                }
+            } else {
+                if (observationId != null) {
+                    throw new IllegalArgumentException("observationId and symbol must not both be specified.");
+                }
+                if (!symbol.matches("[0-9A-Z]{6}")) {
+                    throw new IllegalArgumentException("symbol must be exactly 6 uppercase alphanumeric characters.");
+                }
+                if (!runPrecheck) {
+                    throw new IllegalArgumentException("runPrecheck must be enabled when symbol is specified.");
+                }
             }
             if (observationRoot == null || observationRoot.isBlank()) {
                 throw new IllegalArgumentException("observationRoot must not be blank.");
