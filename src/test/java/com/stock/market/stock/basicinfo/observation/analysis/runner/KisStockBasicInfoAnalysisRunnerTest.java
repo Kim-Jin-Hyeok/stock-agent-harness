@@ -11,6 +11,10 @@ import com.stock.market.stock.master.parsing.StockMasterBatchParsingService;
 import com.stock.market.stock.master.parsing.result.StockMasterBatchParseResult;
 import com.stock.market.stock.master.provider.kis.KisStockMasterMarket;
 import com.stock.market.stock.master.provider.kis.parsing.warning.KisStockMasterMarketWarningParser;
+import com.stock.strategy.universe.eligibility.restriction.kis.freshness.KisStockRestrictionFreshnessPolicy;
+import com.stock.strategy.universe.eligibility.restriction.kis.freshness.request.KisStockRestrictionFreshnessRequest;
+import com.stock.strategy.universe.eligibility.restriction.kis.freshness.result.KisStockRestrictionFreshnessStatus;
+import com.stock.strategy.universe.eligibility.restriction.kis.freshness.support.KisStockRestrictionFreshnessFixture;
 import com.stock.strategy.universe.eligibility.restriction.kis.screening.KisStockRestrictionScreeningPolicy;
 import com.stock.strategy.universe.eligibility.restriction.kis.screening.support.KisStockRestrictionScreeningFixture;
 import com.stock.strategy.universe.eligibility.restriction.kis.warning.KisStockMarketWarningObservationPolicy;
@@ -38,6 +42,9 @@ import static com.stock.market.stock.basicinfo.observation.analysis.support.KisS
 import static com.stock.market.stock.basicinfo.observation.support.KisStockBasicInfoObservationFixture.SYMBOL;
 import static com.stock.market.stock.master.provider.kis.KisStockMasterMarket.KOSDAQ;
 import static com.stock.market.stock.master.provider.kis.KisStockMasterMarket.KOSPI;
+import static com.stock.strategy.universe.eligibility.restriction.kis.freshness.support.KisStockRestrictionFreshnessFixture.EVALUATED_AT;
+import static com.stock.strategy.universe.eligibility.restriction.kis.freshness.support.KisStockRestrictionFreshnessFixture.MAX_BASIC_INFO_AGE;
+import static com.stock.strategy.universe.eligibility.restriction.kis.freshness.support.KisStockRestrictionFreshnessFixture.MAX_MASTER_AGE;
 import static org.mockito.ArgumentMatchers.any;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -54,12 +61,14 @@ import static org.mockito.Mockito.when;
 class KisStockBasicInfoAnalysisRunnerTest {
     private static final String COMPLETED_MESSAGE = "Stored stock basic info analysis complete.";
     private static final String RESTRICTION_COMPLETED_MESSAGE = "Stored stock restriction analysis complete.";
+    private static final String FRESHNESS_COMPLETED_MESSAGE = "Stored stock restriction freshness check complete.";
     private static final Path ROOT = Path.of("unused preserved masters");
     private final StockMasterBatchParsingService masterParser = mock(StockMasterBatchParsingService.class);
     private final KisStockBasicInfoAnalysisService service = mock(KisStockBasicInfoAnalysisService.class);
     private final KisStockMasterMarketWarningParser warningParser = mock(KisStockMasterMarketWarningParser.class);
     private final KisStockMarketWarningObservationPolicy warningPolicy = mock(KisStockMarketWarningObservationPolicy.class);
     private final KisStockRestrictionAnalysisService restrictionService = mock(KisStockRestrictionAnalysisService.class);
+    private final KisStockRestrictionFreshnessPolicy freshnessPolicy = mock(KisStockRestrictionFreshnessPolicy.class);
     private final StockMasterBatchParseResult master = batch();
     private final KisStockBasicInfoAnalysisProperties properties = new KisStockBasicInfoAnalysisProperties(
             true, 17L, ROOT.toString(), master.collection().collectionId());
@@ -391,6 +400,162 @@ class KisStockBasicInfoAnalysisRunnerTest {
         verifyNoMoreInteractions(masterParser);
         verifyNoInteractions(service, warningParser, warningPolicy, restrictionService);
         assertThat(output).doesNotContain(COMPLETED_MESSAGE, RESTRICTION_COMPLETED_MESSAGE);
+    }
+
+    @Test
+    void activeFreshnessRequiresItsPolicyEvenThroughTheLegacyCombinedConstructor() {
+        var settings = freshnessProperties(master, KOSDAQ);
+
+        assertThatThrownBy(() -> combinedRunner(settings)).isExactlyInstanceOf(NullPointerException.class)
+                .hasMessage("restrictionFreshnessPolicy must not be null.");
+
+        verifyNoInteractions(masterParser, service, warningParser, warningPolicy, restrictionService, freshnessPolicy);
+    }
+
+    @Test
+    void disabledFreshnessRunnerDoesNotRequirePoliciesOrValidateUnusedTiming(CapturedOutput output) throws IOException {
+        new KisStockBasicInfoAnalysisRunner(masterParser, service,
+                new KisStockBasicInfoAnalysisProperties(false, -1L, "bad\0path", null, true, null, true, null, null, null))
+                .run(new DefaultApplicationArguments());
+
+        verifyNoInteractions(masterParser, service, warningParser, warningPolicy, restrictionService, freshnessPolicy);
+        assertThat(output).doesNotContain(COMPLETED_MESSAGE, RESTRICTION_COMPLETED_MESSAGE, FRESHNESS_COMPLETED_MESSAGE);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void uncheckedModesDoNotUseAnAvailableFreshnessPolicyOrEmitItsLog(boolean includeWarnings, CapturedOutput output) throws IOException {
+        var input = KisStockRestrictionAnalysisFixture.inputs();
+        var combined = prepareCombinedAnalysis(input, KOSDAQ);
+        var settings = new KisStockBasicInfoAnalysisProperties(true, 17L, ROOT.toString(), input.master().collection().collectionId(),
+                includeWarnings, includeWarnings ? KOSDAQ : null);
+        if (!includeWarnings) {
+            when(service.analyze(17L, input.master())).thenReturn(combined.basicInfoAnalysis());
+        }
+
+        freshnessRunner(settings).run(new DefaultApplicationArguments());
+
+        verifyNoInteractions(freshnessPolicy);
+        assertThat(output).contains(COMPLETED_MESSAGE).doesNotContain(FRESHNESS_COMPLETED_MESSAGE);
+        if (includeWarnings) {
+            verify(restrictionService).analyze(17L, input.master(), input.warnings());
+            verifyNoInteractions(service);
+            assertThat(output).contains(RESTRICTION_COMPLETED_MESSAGE);
+        } else {
+            verify(service).analyze(17L, input.master());
+            verifyNoInteractions(warningParser, warningPolicy, restrictionService);
+            assertThat(output).doesNotContain(RESTRICTION_COMPLETED_MESSAGE);
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("freshnessCases")
+    void checksTheSameCombinedResultOnceAndLogsIndependentFreshnessWithoutApprovingIt(
+            KisStockMasterMarket market, KisStockRestrictionFreshnessStatus status, CapturedOutput output
+    ) throws IOException {
+        var input = KisStockRestrictionFreshnessFixture.analysis(market, "02", "N", Map.of(), Map.of());
+        if (status == KisStockRestrictionFreshnessStatus.EXPIRED) {
+            input = KisStockRestrictionFreshnessFixture.withTimes(input, EVALUATED_AT.minus(MAX_MASTER_AGE), EVALUATED_AT.minus(MAX_MASTER_AGE).plusSeconds(1),
+                    EVALUATED_AT.minus(MAX_BASIC_INFO_AGE), EVALUATED_AT.minus(MAX_BASIC_INFO_AGE).plusSeconds(1));
+        } else if (status == KisStockRestrictionFreshnessStatus.TIME_UNVERIFIED) {
+            input = KisStockRestrictionFreshnessFixture.withTimes(input, EVALUATED_AT.minusSeconds(300), EVALUATED_AT.minusSeconds(299),
+                    EVALUATED_AT.minusSeconds(1), EVALUATED_AT.plusNanos(1));
+        }
+        var prepared = prepareFreshnessAnalysis(input, market);
+        var request = KisStockRestrictionFreshnessFixture.request();
+        var expected = new KisStockRestrictionFreshnessPolicy().evaluate(request, prepared);
+        when(freshnessPolicy.evaluate(eq(request), same(prepared))).thenReturn(expected);
+        var selected = prepared.basicInfoAnalysis().screeningResult().observation().typeResolution().matchingResult().masterBatch();
+
+        freshnessRunner(freshnessProperties(selected, market)).run(new DefaultApplicationArguments());
+
+        var warnings = prepared.restrictionScreeningResult().marketWarningObservation();
+        var order = inOrder(masterParser, warningParser, warningPolicy, restrictionService, freshnessPolicy);
+        order.verify(masterParser).parseBatch(ROOT, selected.collection().collectionId());
+        order.verify(warningParser).parse(same(warnings.source().source()));
+        order.verify(warningPolicy).evaluate(same(warnings.source()));
+        order.verify(restrictionService).analyze(eq(17L), same(selected), same(warnings));
+        order.verify(freshnessPolicy).evaluate(eq(request), same(prepared));
+        verifyNoMoreInteractions(masterParser, warningParser, warningPolicy, restrictionService, freshnessPolicy);
+        verifyNoInteractions(service);
+        assertThat(expected.status()).isEqualTo(status);
+        assertThat(output).contains(COMPLETED_MESSAGE, RESTRICTION_COMPLETED_MESSAGE, FRESHNESS_COMPLETED_MESSAGE,
+                        "evaluatedAt=" + EVALUATED_AT, "maxMasterAge=" + MAX_MASTER_AGE, "maxBasicInfoAge=" + MAX_BASIC_INFO_AGE,
+                        "freshnessStatus=" + expected.status(), "freshnessReasons=" + expected.reasonCodes(), "freshnessVersion=" + expected.freshnessVersion(),
+                        "combinedRestrictionStatus=EXCLUSION_SIGNAL_OBSERVED")
+                .doesNotContain("pdno", "msg1", "rawLine=", "masterBatch=", "marketWarningObservation=", "AS_OF_VERIFIED", "appkey", "appsecret");
+        assertThat(output.toString().indexOf(RESTRICTION_COMPLETED_MESSAGE)).isLessThan(output.toString().indexOf(FRESHNESS_COMPLETED_MESSAGE));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"failure", "null", "request", "analysis"})
+    void freshnessFailureOrDisconnectedReturnDoesNotRetryOrLogFreshnessCompletion(String change, CapturedOutput output) throws IOException {
+        var input = KisStockRestrictionFreshnessFixture.analysis();
+        var prepared = prepareFreshnessAnalysis(input, KOSDAQ);
+        var request = KisStockRestrictionFreshnessFixture.request();
+        var failure = new IllegalStateException("Synthetic freshness failure.");
+        if (change.equals("failure")) {
+            when(freshnessPolicy.evaluate(any(), any())).thenThrow(failure);
+        } else if (change.equals("request")) {
+            var otherRequest = new KisStockRestrictionFreshnessRequest(EVALUATED_AT.plusNanos(1), MAX_MASTER_AGE, MAX_BASIC_INFO_AGE);
+            when(freshnessPolicy.evaluate(any(), any())).thenReturn(new KisStockRestrictionFreshnessPolicy().evaluate(otherRequest, prepared));
+        } else if (change.equals("analysis")) {
+            var basic = prepared.basicInfoAnalysis();
+            var other = new KisStockRestrictionAnalysisResult(new KisStockBasicInfoAnalysisResult(18L, basic.response(), basic.screeningResult()),
+                    prepared.restrictionScreeningResult());
+            when(freshnessPolicy.evaluate(any(), any())).thenReturn(new KisStockRestrictionFreshnessPolicy().evaluate(request, other));
+        }
+        var selected = prepared.basicInfoAnalysis().screeningResult().observation().typeResolution().matchingResult().masterBatch();
+        var assertion = assertThatThrownBy(() -> freshnessRunner(freshnessProperties(selected, KOSDAQ)).run(new DefaultApplicationArguments()));
+        if (change.equals("failure")) {
+            assertion.isSameAs(failure);
+        } else if (change.equals("null")) {
+            assertion.isExactlyInstanceOf(NullPointerException.class).hasMessage("Restriction freshness result must not be null.");
+        } else {
+            assertion.isExactlyInstanceOf(IllegalStateException.class)
+                    .hasMessage("Restriction freshness must preserve the evaluation request and complete analysis result.");
+        }
+
+        verify(freshnessPolicy).evaluate(eq(request), same(prepared));
+        verifyNoMoreInteractions(freshnessPolicy);
+        verify(restrictionService).analyze(17L, selected, prepared.restrictionScreeningResult().marketWarningObservation());
+        verifyNoMoreInteractions(restrictionService);
+        verifyNoInteractions(service);
+        assertThat(output).doesNotContain(FRESHNESS_COMPLETED_MESSAGE);
+    }
+
+    @Test
+    void combinedAnalysisFailureStopsBeforeFreshnessWithoutRetry(CapturedOutput output) throws IOException {
+        var prepared = prepareFreshnessAnalysis(KisStockRestrictionFreshnessFixture.analysis(), KOSDAQ);
+        var failure = new IllegalArgumentException("Synthetic combined analysis failure.");
+        when(restrictionService.analyze(any(), any(), any())).thenThrow(failure);
+        var selected = prepared.basicInfoAnalysis().screeningResult().observation().typeResolution().matchingResult().masterBatch();
+
+        assertThatThrownBy(() -> freshnessRunner(freshnessProperties(selected, KOSDAQ)).run(new DefaultApplicationArguments())).isSameAs(failure);
+
+        verify(restrictionService).analyze(17L, selected, prepared.restrictionScreeningResult().marketWarningObservation());
+        verifyNoMoreInteractions(restrictionService);
+        verifyNoInteractions(service, freshnessPolicy);
+        assertThat(output).doesNotContain(COMPLETED_MESSAGE, RESTRICTION_COMPLETED_MESSAGE, FRESHNESS_COMPLETED_MESSAGE);
+    }
+
+    private KisStockBasicInfoAnalysisRunner freshnessRunner(KisStockBasicInfoAnalysisProperties settings) {
+        return new KisStockBasicInfoAnalysisRunner(masterParser, service, settings, warningParser, warningPolicy, restrictionService, freshnessPolicy);
+    }
+
+    private KisStockBasicInfoAnalysisProperties freshnessProperties(StockMasterBatchParseResult selected, KisStockMasterMarket market) {
+        return new KisStockBasicInfoAnalysisProperties(true, 17L, ROOT.toString(), selected.collection().collectionId(), true, market,
+                true, EVALUATED_AT, MAX_MASTER_AGE, MAX_BASIC_INFO_AGE);
+    }
+
+    private KisStockRestrictionAnalysisResult prepareFreshnessAnalysis(KisStockRestrictionAnalysisResult input, KisStockMasterMarket market) throws IOException {
+        var selected = input.basicInfoAnalysis().screeningResult().observation().typeResolution().matchingResult().masterBatch();
+        return prepareCombinedAnalysis(new KisStockRestrictionAnalysisFixture.Inputs(input.basicInfoAnalysis().response(), selected,
+                input.restrictionScreeningResult().marketWarningObservation()), market);
+    }
+
+    private static Stream<Arguments> freshnessCases() {
+        return Stream.of(KOSPI, KOSDAQ).flatMap(market -> Stream.of(KisStockRestrictionFreshnessStatus.values()).map(status -> Arguments.of(market, status)));
     }
 
     private KisStockBasicInfoAnalysisRunner combinedRunner(KisStockBasicInfoAnalysisProperties settings) {

@@ -2,12 +2,15 @@ package com.stock.market.stock.basicinfo.observation.analysis.runner;
 
 import com.stock.market.stock.basicinfo.observation.analysis.KisStockBasicInfoAnalysisService;
 import com.stock.market.stock.basicinfo.observation.analysis.restriction.KisStockRestrictionAnalysisService;
+import com.stock.market.stock.basicinfo.observation.analysis.restriction.result.KisStockRestrictionAnalysisResult;
 import com.stock.market.stock.basicinfo.observation.analysis.result.KisStockBasicInfoAnalysisResult;
 import com.stock.market.stock.basicinfo.observation.analysis.runner.config.KisStockBasicInfoAnalysisConfiguration;
 import com.stock.market.stock.basicinfo.observation.analysis.runner.config.KisStockBasicInfoAnalysisProperties;
 import com.stock.market.stock.master.parsing.StockMasterBatchParsingService;
 import com.stock.market.stock.master.parsing.result.StockMasterBatchParseResult;
 import com.stock.market.stock.master.provider.kis.parsing.warning.KisStockMasterMarketWarningParser;
+import com.stock.strategy.universe.eligibility.restriction.kis.freshness.KisStockRestrictionFreshnessPolicy;
+import com.stock.strategy.universe.eligibility.restriction.kis.freshness.request.KisStockRestrictionFreshnessRequest;
 import com.stock.strategy.universe.eligibility.restriction.kis.warning.KisStockMarketWarningObservationPolicy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
@@ -27,6 +30,7 @@ public class KisStockBasicInfoAnalysisRunner implements ApplicationRunner {
     private final KisStockMasterMarketWarningParser marketWarningParser;
     private final KisStockMarketWarningObservationPolicy marketWarningObservationPolicy;
     private final KisStockRestrictionAnalysisService restrictionAnalysisService;
+    private final KisStockRestrictionFreshnessPolicy restrictionFreshnessPolicy;
 
     public KisStockBasicInfoAnalysisRunner(
             StockMasterBatchParsingService masterParser,
@@ -44,16 +48,32 @@ public class KisStockBasicInfoAnalysisRunner implements ApplicationRunner {
             KisStockMarketWarningObservationPolicy marketWarningObservationPolicy,
             KisStockRestrictionAnalysisService restrictionAnalysisService
     ) {
+        this(masterParser, service, properties, marketWarningParser, marketWarningObservationPolicy, restrictionAnalysisService, null);
+    }
+
+    public KisStockBasicInfoAnalysisRunner(
+            StockMasterBatchParsingService masterParser,
+            KisStockBasicInfoAnalysisService service,
+            KisStockBasicInfoAnalysisProperties properties,
+            KisStockMasterMarketWarningParser marketWarningParser,
+            KisStockMarketWarningObservationPolicy marketWarningObservationPolicy,
+            KisStockRestrictionAnalysisService restrictionAnalysisService,
+            KisStockRestrictionFreshnessPolicy restrictionFreshnessPolicy
+    ) {
         this.masterParser = Objects.requireNonNull(masterParser, "masterParser must not be null.");
         this.service = Objects.requireNonNull(service, "service must not be null.");
         this.properties = Objects.requireNonNull(properties, "properties must not be null.");
         this.marketWarningParser = marketWarningParser;
         this.marketWarningObservationPolicy = marketWarningObservationPolicy;
         this.restrictionAnalysisService = restrictionAnalysisService;
+        this.restrictionFreshnessPolicy = restrictionFreshnessPolicy;
         if (properties.enabled() && properties.includeMarketWarnings()) {
             Objects.requireNonNull(marketWarningParser, "marketWarningParser must not be null.");
             Objects.requireNonNull(marketWarningObservationPolicy, "marketWarningObservationPolicy must not be null.");
             Objects.requireNonNull(restrictionAnalysisService, "restrictionAnalysisService must not be null.");
+        }
+        if (properties.enabled() && properties.checkFreshness()) {
+            Objects.requireNonNull(restrictionFreshnessPolicy, "restrictionFreshnessPolicy must not be null.");
         }
     }
 
@@ -99,6 +119,21 @@ public class KisStockBasicInfoAnalysisRunner implements ApplicationRunner {
                 result.basicInfoAnalysis().observationId(), master.collection().collectionId(), result.basicInfoAnalysis().response().requestedSymbol(),
                 source.market(), source.inputSha256(), parsed.parserVersion(), warnings.observationVersion(), screening.screeningVersion(),
                 screening.status(), screening.reasonCodes());
+        if (properties.checkFreshness()) {
+            logFreshnessAnalysis(result);
+        }
+    }
+
+    private void logFreshnessAnalysis(KisStockRestrictionAnalysisResult analysis) {
+        var request = new KisStockRestrictionFreshnessRequest(properties.evaluatedAt(), properties.maxMasterAge(), properties.maxBasicInfoAge());
+        var result = Objects.requireNonNull(restrictionFreshnessPolicy.evaluate(request, analysis), "Restriction freshness result must not be null.");
+        if (!request.equals(result.request()) || !analysis.equals(result.analysisResult())) {
+            throw new IllegalStateException("Restriction freshness must preserve the evaluation request and complete analysis result.");
+        }
+        log.info("Stored stock restriction freshness check complete. observationId={}, collectionId={}, symbol={}, evaluatedAt={}, "
+                        + "maxMasterAge={}, maxBasicInfoAge={}, freshnessStatus={}, freshnessReasons={}, freshnessVersion={}",
+                analysis.basicInfoAnalysis().observationId(), properties.collectionId(), analysis.basicInfoAnalysis().response().requestedSymbol(),
+                request.evaluatedAt(), request.maxMasterAge(), request.maxBasicInfoAge(), result.status(), result.reasonCodes(), result.freshnessVersion());
     }
 
     private void logBasicAnalysis(KisStockBasicInfoAnalysisResult result, StockMasterBatchParseResult master) {

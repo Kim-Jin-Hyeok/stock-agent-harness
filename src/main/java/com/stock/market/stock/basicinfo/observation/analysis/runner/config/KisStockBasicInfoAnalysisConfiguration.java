@@ -16,6 +16,7 @@ import com.stock.strategy.universe.eligibility.classification.kis.basicinfo.KisS
 import com.stock.strategy.universe.eligibility.classification.kis.basicinfo.resolution.KisStockBasicInfoTypeResolutionPolicy;
 import com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.KisStockBasicInfoRestrictionObservationPolicy;
 import com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.screening.KisStockBasicInfoRestrictionScreeningPolicy;
+import com.stock.strategy.universe.eligibility.restriction.kis.freshness.KisStockRestrictionFreshnessPolicy;
 import com.stock.strategy.universe.eligibility.restriction.kis.screening.KisStockRestrictionScreeningPolicy;
 import com.stock.strategy.universe.eligibility.restriction.kis.warning.KisStockMarketWarningObservationPolicy;
 import org.springframework.beans.factory.ObjectProvider;
@@ -103,17 +104,25 @@ public class KisStockBasicInfoAnalysisConfiguration {
     }
 
     @Bean
+    @ConditionalOnProperty(prefix = "market.stock.basic-info.analysis.manual", name = "check-freshness", havingValue = "true")
+    public KisStockRestrictionFreshnessPolicy kisStockBasicInfoAnalysisRestrictionFreshnessPolicy() {
+        return new KisStockRestrictionFreshnessPolicy();
+    }
+
+    @Bean
     public KisStockBasicInfoAnalysisRunner kisStockBasicInfoAnalysisRunner(
             StockMasterBatchParsingService masterParser,
             KisStockBasicInfoAnalysisService service,
             KisStockBasicInfoAnalysisProperties properties,
             ObjectProvider<KisStockMasterMarketWarningParser> marketWarningParser,
             ObjectProvider<KisStockMarketWarningObservationPolicy> marketWarningObservationPolicy,
-            ObjectProvider<KisStockRestrictionAnalysisService> restrictionAnalysisService
+            ObjectProvider<KisStockRestrictionAnalysisService> restrictionAnalysisService,
+            ObjectProvider<KisStockRestrictionFreshnessPolicy> restrictionFreshnessPolicy
     ) {
         if (properties.includeMarketWarnings()) {
             return new KisStockBasicInfoAnalysisRunner(masterParser, service, properties,
-                    marketWarningParser.getObject(), marketWarningObservationPolicy.getObject(), restrictionAnalysisService.getObject());
+                    marketWarningParser.getObject(), marketWarningObservationPolicy.getObject(), restrictionAnalysisService.getObject(),
+                    properties.checkFreshness() ? restrictionFreshnessPolicy.getObject() : null);
         }
         return new KisStockBasicInfoAnalysisRunner(masterParser, service, properties);
     }

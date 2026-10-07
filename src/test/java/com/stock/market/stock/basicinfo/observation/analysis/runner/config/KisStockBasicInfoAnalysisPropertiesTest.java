@@ -16,12 +16,16 @@ import org.springframework.core.env.SystemEnvironmentPropertySource;
 import org.springframework.core.io.ClassPathResource;
 
 import java.nio.file.InvalidPathException;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static com.stock.strategy.universe.eligibility.restriction.kis.freshness.support.KisStockRestrictionFreshnessFixture.EVALUATED_AT;
+import static com.stock.strategy.universe.eligibility.restriction.kis.freshness.support.KisStockRestrictionFreshnessFixture.MAX_BASIC_INFO_AGE;
+import static com.stock.strategy.universe.eligibility.restriction.kis.freshness.support.KisStockRestrictionFreshnessFixture.MAX_MASTER_AGE;
 
 class KisStockBasicInfoAnalysisPropertiesTest {
     private static final String PREFIX = "market.stock.basic-info.analysis.manual.";
@@ -141,6 +145,15 @@ class KisStockBasicInfoAnalysisPropertiesTest {
 
         assertThat(properties.includeMarketWarnings()).isFalse();
         assertThat(properties.warningMarket()).isNull();
+        assertThat(properties.checkFreshness()).isFalse();
+        assertThat(properties.evaluatedAt()).isNull();
+        assertThat(properties.maxMasterAge()).isNull();
+        assertThat(properties.maxBasicInfoAge()).isNull();
+        var combined = new KisStockBasicInfoAnalysisProperties(true, 17L, "unused-root", COLLECTION_ID, true, KisStockMasterMarket.KOSDAQ);
+        assertThat(combined.checkFreshness()).isFalse();
+        assertThat(combined.evaluatedAt()).isNull();
+        assertThat(combined.maxMasterAge()).isNull();
+        assertThat(combined.maxBasicInfoAge()).isNull();
     }
 
     @ParameterizedTest
@@ -202,6 +215,119 @@ class KisStockBasicInfoAnalysisPropertiesTest {
                     assertThat(properties.includeMarketWarnings()).isTrue();
                     assertThat(properties.warningMarket()).isEqualTo(KisStockMasterMarket.KOSDAQ);
                 });
+    }
+
+    @ParameterizedTest
+    @EnumSource(KisStockMasterMarket.class)
+    void bindsExplicitFreshnessTimeAndIndependentNanosecondAges(KisStockMasterMarket market) {
+        var values = freshnessSettings();
+        values.put("warning-market", market.name());
+        values.put("max-master-age", "PT24H0.000000011S");
+        values.put("max-basic-info-age", "PT1H0.000000019S");
+
+        withSettings(values).run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context.getBean(KisStockBasicInfoAnalysisProperties.class)).isEqualTo(new KisStockBasicInfoAnalysisProperties(
+                    true, 17L, "unused-root", COLLECTION_ID, true, market, true, EVALUATED_AT,
+                    MAX_MASTER_AGE.plusNanos(11), MAX_BASIC_INFO_AGE.plusNanos(19)));
+        });
+    }
+
+    @Test
+    void activeFreshnessRequiresCombinedAnalysisWithoutSilentlyEnablingIt() {
+        assertThatThrownBy(() -> new KisStockBasicInfoAnalysisProperties(true, 17L, "unused-root", COLLECTION_ID,
+                false, null, true, EVALUATED_AT, MAX_MASTER_AGE, MAX_BASIC_INFO_AGE))
+                .isExactlyInstanceOf(IllegalArgumentException.class)
+                .hasMessage("includeMarketWarnings must be enabled when freshness is checked.");
+        var values = freshnessSettings();
+        values.put("include-market-warnings", "false");
+        withSettings(values).run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure()).hasRootCauseMessage("includeMarketWarnings must be enabled when freshness is checked.");
+        });
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"evaluated-at", "max-master-age", "max-basic-info-age"})
+    void activeFreshnessRejectsMissingTimingInputsInsteadOfDefaultingThem(String missing) {
+        var values = freshnessSettings();
+        values.remove(missing);
+
+        withSettings(values).run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure()).hasRootCauseInstanceOf(NullPointerException.class);
+        });
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"evaluated-at=not-an-instant", "evaluated-at=2026-10-07T10:00:00", "max-master-age=not-a-duration",
+            "max-basic-info-age=not-a-duration", "max-master-age=0s", "max-master-age=-1ns", "max-basic-info-age=0s", "max-basic-info-age=-1ns"})
+    void rejectsMalformedTimesAndInvalidDurationsAtBinding(String setting) {
+        var values = freshnessSettings();
+        var parts = setting.split("=", 2);
+        values.put(parts[0], parts[1]);
+
+        withSettings(values).run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void disabledAnalysisAndDisabledFreshnessDoNotValidateUnusedTimingOrInferAnOptIn() {
+        assertThat(new KisStockBasicInfoAnalysisProperties(false, -1L, "bad\0path", null,
+                false, null, true, null, Duration.ZERO, Duration.ofNanos(-1)).enabled()).isFalse();
+        var values = freshnessSettings();
+        values.put("enabled", "false");
+        values.put("include-market-warnings", "false");
+        values.remove("evaluated-at");
+        values.put("max-master-age", "0s");
+        withSettings(values).run(context -> assertThat(context).hasNotFailed());
+        values.put("enabled", "true");
+        values.put("check-freshness", "false");
+        withSettings(values).run(context -> {
+            assertThat(context).hasNotFailed();
+            var properties = context.getBean(KisStockBasicInfoAnalysisProperties.class);
+            assertThat(properties.checkFreshness()).isFalse();
+            assertThat(properties.includeMarketWarnings()).isFalse();
+            assertThat(properties.evaluatedAt()).isNull();
+        });
+    }
+
+    @Test
+    void bindsFreshnessOptionsFromCanonicalEnvironmentVariables() {
+        runner.withInitializer(context -> context.getEnvironment().getPropertySources().addFirst(new SystemEnvironmentPropertySource(
+                        "freshness-analysis-test-" + StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+                        Map.of("MARKET_STOCK_BASICINFO_ANALYSIS_MANUAL_CHECKFRESHNESS", "true",
+                                "MARKET_STOCK_BASICINFO_ANALYSIS_MANUAL_EVALUATEDAT", EVALUATED_AT.toString(),
+                                "MARKET_STOCK_BASICINFO_ANALYSIS_MANUAL_MAXMASTERAGE", "24h",
+                                "MARKET_STOCK_BASICINFO_ANALYSIS_MANUAL_MAXBASICINFOAGE", "1h"))))
+                .withPropertyValues(PREFIX + "enabled=true", PREFIX + "observation-id=17", PREFIX + "observation-root=unused-root",
+                        PREFIX + "collection-id=" + COLLECTION_ID, PREFIX + "include-market-warnings=true", PREFIX + "warning-market=KOSDAQ")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    var properties = context.getBean(KisStockBasicInfoAnalysisProperties.class);
+                    assertThat(properties.checkFreshness()).isTrue();
+                    assertThat(properties.evaluatedAt()).isEqualTo(EVALUATED_AT);
+                    assertThat(properties.maxMasterAge()).isEqualTo(MAX_MASTER_AGE);
+                    assertThat(properties.maxBasicInfoAge()).isEqualTo(MAX_BASIC_INFO_AGE);
+                });
+    }
+
+    private Map<String, String> freshnessSettings() {
+        var values = new LinkedHashMap<String, String>();
+        values.put("enabled", "true");
+        values.put("observation-id", "17");
+        values.put("observation-root", "unused-root");
+        values.put("collection-id", COLLECTION_ID.toString());
+        values.put("include-market-warnings", "true");
+        values.put("warning-market", "KOSDAQ");
+        values.put("check-freshness", "true");
+        values.put("evaluated-at", EVALUATED_AT.toString());
+        values.put("max-master-age", MAX_MASTER_AGE.toString());
+        values.put("max-basic-info-age", MAX_BASIC_INFO_AGE.toString());
+        return values;
+    }
+
+    private ApplicationContextRunner withSettings(Map<String, String> values) {
+        return runner.withPropertyValues(values.entrySet().stream().map(entry -> PREFIX + entry.getKey() + "=" + entry.getValue()).toArray(String[]::new));
     }
 
     @Configuration(proxyBeanMethods = false)

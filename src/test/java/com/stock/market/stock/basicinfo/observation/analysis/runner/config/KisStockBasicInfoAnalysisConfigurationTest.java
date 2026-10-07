@@ -13,6 +13,7 @@ import com.stock.harness.scheduler.HarnessScheduler;
 import com.stock.market.stock.basicinfo.collection.KisStockBasicInfoCollectionService;
 import com.stock.market.stock.basicinfo.observation.analysis.KisStockBasicInfoAnalysisService;
 import com.stock.market.stock.basicinfo.observation.analysis.restriction.KisStockRestrictionAnalysisService;
+import com.stock.market.stock.basicinfo.observation.analysis.restriction.result.KisStockRestrictionAnalysisResult;
 import com.stock.market.stock.basicinfo.observation.analysis.restriction.support.KisStockRestrictionAnalysisFixture;
 import com.stock.market.stock.basicinfo.observation.analysis.result.KisStockBasicInfoAnalysisResult;
 import com.stock.market.stock.basicinfo.observation.analysis.runner.KisStockBasicInfoAnalysisRunner;
@@ -32,6 +33,9 @@ import com.stock.market.stock.master.provider.kis.parsing.KisStockMasterParser;
 import com.stock.market.stock.master.provider.kis.parsing.support.KisStockMasterParsingFixture;
 import com.stock.market.stock.master.provider.kis.parsing.warning.KisStockMasterMarketWarningParser;
 import com.stock.strategy.universe.eligibility.restriction.kis.screening.KisStockRestrictionScreeningPolicy;
+import com.stock.strategy.universe.eligibility.restriction.kis.freshness.KisStockRestrictionFreshnessPolicy;
+import com.stock.strategy.universe.eligibility.restriction.kis.freshness.request.KisStockRestrictionFreshnessRequest;
+import com.stock.strategy.universe.eligibility.restriction.kis.freshness.result.KisStockRestrictionFreshnessStatus;
 import com.stock.strategy.universe.eligibility.restriction.kis.warning.KisStockMarketWarningObservationPolicy;
 import com.stock.strategy.universe.eligibility.restriction.kis.screening.support.KisStockRestrictionScreeningFixture;
 import com.zaxxer.hikari.HikariDataSource;
@@ -73,6 +77,8 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
@@ -99,6 +105,7 @@ class KisStockBasicInfoAnalysisConfigurationTest {
     private static final String PREFIX = "market.stock.basic-info.analysis.manual.";
     private static final String COMPLETED_MESSAGE = "Stored stock basic info analysis complete.";
     private static final String RESTRICTION_COMPLETED_MESSAGE = "Stored stock restriction analysis complete.";
+    private static final String FRESHNESS_COMPLETED_MESSAGE = "Stored stock restriction freshness check complete.";
     private static final UUID UNUSED_COLLECTION = UUID.fromString("00000000-0000-0000-0000-000000000001");
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withUserConfiguration(KisStockBasicInfoAnalysisConfiguration.class);
@@ -111,16 +118,20 @@ class KisStockBasicInfoAnalysisConfigurationTest {
         runner.withPropertyValues(PREFIX + "enabled=false", "broker.kis.enabled=true", "market.stock.basic-info.kis.enabled=true",
                 "harness.scheduler.enabled=true", "agent.provider.ai.openai.enabled=true").run(this::assertDisabled);
         runner.withPropertyValues(PREFIX + "enabled=false", PREFIX + "include-market-warnings=true").run(this::assertDisabled);
+        runner.withPropertyValues(PREFIX + "enabled=false", PREFIX + "include-market-warnings=true", PREFIX + "check-freshness=true")
+                .run(this::assertDisabled);
     }
 
     @Test
     void manualConfigurationAndRunnerAreNotDiscoveredByNormalComponentScanning() {
         var scanner = new ClassPathScanningCandidateComponentProvider(true);
-        scanner.setEnvironment(new MockEnvironment().withProperty(PREFIX + "enabled", "true"));
+        scanner.setEnvironment(new MockEnvironment().withProperty(PREFIX + "enabled", "true")
+                .withProperty(PREFIX + "include-market-warnings", "true").withProperty(PREFIX + "check-freshness", "true"));
 
         assertThat(scanner.findCandidateComponents("com.stock.market.stock.basicinfo.observation.analysis"))
                 .extracting(value -> value.getBeanClassName()).doesNotContain(KisStockBasicInfoAnalysisConfiguration.class.getName(),
                         KisStockBasicInfoAnalysisRunner.class.getName());
+        assertThat(scanner.findCandidateComponents("com.stock.strategy.universe.eligibility.restriction.kis.freshness")).isEmpty();
     }
 
     @ParameterizedTest
@@ -152,6 +163,7 @@ class KisStockBasicInfoAnalysisConfigurationTest {
                         .hasSingleBean(ApplicationRunner.class);
                 assertOnlyObservationEntity(context.getBean(EntityManagerFactory.class));
                 assertNoUnrelatedBeans(context);
+                assertThat(context.getBeansOfType(KisStockRestrictionFreshnessPolicy.class)).isEmpty();
                 assertNoMarketWarningBeans(context);
                 assertThat(context.getBean(EntityManagerFactory.class).getProperties()).containsEntry("hibernate.hbm2ddl.auto", "validate");
                 assertThat(context.getBean(KisStockBasicInfoObservationRepository.class).count()).isEqualTo(1L);
@@ -390,13 +402,14 @@ class KisStockBasicInfoAnalysisConfigurationTest {
                 assertThat(factory.unwrap(SessionFactory.class).getStatistics().getEntityLoadCount()).isEqualTo(1L);
                 assertThat(context.getBeansOfType(ApplicationRunner.class)).hasSize(1);
                 assertThat(context.getBeansOfType(KisStockRestrictionAnalysisService.class)).hasSize(1);
+                assertThat(context.getBeansOfType(KisStockRestrictionFreshnessPolicy.class)).isEmpty();
                 pool = context.getBean(HikariDataSource.class);
                 assertThat(output).contains(COMPLETED_MESSAGE, RESTRICTION_COMPLETED_MESSAGE, "observationId=17",
                                 "collectionId=" + collection.collectionId(), "symbol=" + original.requestedSymbol(), "warningMarket=" + market,
                                 "warningInputSha256=" + warnings.source().source().inputSha256(),
                                 "restrictionStatus=" + expectedBasic.status(), "combinedRestrictionStatus=" + expected.status(),
                                 "combinedRestrictionReasons=" + expected.reasonCodes())
-                        .doesNotContain("synthetic-unrelated-private-key", "pdno", "msg1", "AS_OF_VERIFIED", "rawLine=", "masterBatch=");
+                        .doesNotContain(FRESHNESS_COMPLETED_MESSAGE, "synthetic-unrelated-private-key", "pdno", "msg1", "AS_OF_VERIFIED", "rawLine=", "masterBatch=");
             }
             assertThat(pool.isClosed()).isTrue();
             assertDatabasePreserved(connection, original);
@@ -413,13 +426,16 @@ class KisStockBasicInfoAnalysisConfigurationTest {
             var settings = settings(connection.getMetaData().getURL(), collection.collectionId());
             settings.put(PREFIX + "include-market-warnings", "true");
             settings.put(PREFIX + "warning-market", "KOSPI");
+            addFreshnessSettings(settings, new KisStockRestrictionFreshnessRequest(
+                    normalized(response()).responseReceivedAt().plusSeconds(1), Duration.ofDays(3), Duration.ofHours(1)));
             HikariDataSource pool;
             try (var context = new SpringApplicationBuilder(KisStockBasicInfoAnalysisConfiguration.class).web(WebApplicationType.NONE)
                     .run(arguments(settings))) {
                 assertNoUnrelatedBeans(context);
                 pool = context.getBean(HikariDataSource.class);
                 assertThat(output).contains(RESTRICTION_COMPLETED_MESSAGE, "warningMarket=KOSPI", "combinedRestrictionStatus=REVIEW_REQUIRED",
-                                "combinedRestrictionReasons=[MARKET_WARNING_MARKET_NOT_MATCHED]")
+                                "combinedRestrictionReasons=[MARKET_WARNING_MARKET_NOT_MATCHED]", FRESHNESS_COMPLETED_MESSAGE,
+                                "freshnessStatus=TIME_UNVERIFIED", "freshnessReasons=[MASTER_OBSERVATION_SOURCE_UNVERIFIED]")
                         .doesNotContain("MARKET_WARNING_INVESTMENT_RISK_OBSERVED", "MARKET_WARNING_RISK_PREANNOUNCEMENT_Y_OBSERVED");
             }
             assertThat(pool.isClosed()).isTrue();
@@ -475,6 +491,118 @@ class KisStockBasicInfoAnalysisConfigurationTest {
         assertThat(output).doesNotContain(COMPLETED_MESSAGE, RESTRICTION_COMPLETED_MESSAGE, "synthetic-private-body", "synthetic-unrelated-private-key");
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void combinedContextRegistersFreshnessPolicyOnlyWhenExplicitlyEnabled(boolean checkFreshness, CapturedOutput output) throws SQLException {
+        try (var connection = preparedDatabase(response())) {
+            var settings = settings(connection.getMetaData().getURL(), UNUSED_COLLECTION);
+            settings.put(PREFIX + "include-market-warnings", "true");
+            settings.put(PREFIX + "warning-market", "KOSDAQ");
+            if (checkFreshness) {
+                addFreshnessSettings(settings, new KisStockRestrictionFreshnessRequest(
+                        normalized(response()).responseReceivedAt().plusSeconds(1), Duration.ofDays(3), Duration.ofHours(1)));
+            }
+            withSettings(settings).run(context -> {
+                assertThat(context).hasNotFailed().hasSingleBean(KisStockRestrictionAnalysisService.class).hasSingleBean(ApplicationRunner.class);
+                assertThat(context.getBeansOfType(KisStockRestrictionFreshnessPolicy.class)).hasSize(checkFreshness ? 1 : 0);
+                assertNoUnrelatedBeans(context);
+                assertOnlyObservationEntity(context.getBean(EntityManagerFactory.class));
+            });
+            assertDatabasePreserved(connection, response());
+        }
+        assertThat(root).isEmptyDirectory();
+        assertThat(output).doesNotContain(COMPLETED_MESSAGE, RESTRICTION_COMPLETED_MESSAGE, FRESHNESS_COMPLETED_MESSAGE);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"include-market-warnings=false", "evaluated-at=missing", "max-master-age=missing", "max-basic-info-age=missing",
+            "max-master-age=0s", "max-basic-info-age=-1ns"})
+    void invalidFreshnessSettingsStopStartupBeforeAnalysis(String setting, CapturedOutput output) {
+        var settings = settings(newDatabaseUrl(), UNUSED_COLLECTION);
+        settings.put(PREFIX + "include-market-warnings", "true");
+        settings.put(PREFIX + "warning-market", "KOSDAQ");
+        addFreshnessSettings(settings, new KisStockRestrictionFreshnessRequest(
+                Instant.parse("2026-10-07T10:00:00Z"), Duration.ofDays(3), Duration.ofHours(1)));
+        var parts = setting.split("=", 2);
+        if (parts[1].equals("missing")) {
+            settings.remove(PREFIX + parts[0]);
+        } else {
+            settings.put(PREFIX + parts[0], parts[1]);
+        }
+
+        withSettings(settings).run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure()).hasStackTraceContaining("Failed to bind properties under 'market.stock.basic-info.analysis.manual'");
+        });
+
+        assertThat(root).isEmptyDirectory();
+        assertThat(output).doesNotContain(COMPLETED_MESSAGE, RESTRICTION_COMPLETED_MESSAGE, FRESHNESS_COMPLETED_MESSAGE);
+    }
+
+    @ParameterizedTest
+    @MethodSource("freshnessCases")
+    void freshnessStartupMatchesDirectPolicyLoadsOneObservationPreservesEvidenceAndClosesPool(
+            KisStockMasterMarket market, KisStockRestrictionFreshnessStatus status, CapturedOutput output
+    ) throws Exception {
+        var original = KisStockRestrictionAnalysisFixture.inputs(market, "02", "N", Map.of(), Map.of()).response();
+        var collection = collectMaster(market, "02", "N");
+        var master = new StockMasterBatchParsingService(new KisStockMasterParser()).parseBatch(root, collection.collectionId());
+        var basic = new KisStockBasicInfoAnalysisResult(17L, normalized(original), screening(master, original));
+        var warnings = KisStockRestrictionScreeningFixture.warnings(master, market);
+        var combined = new KisStockRestrictionAnalysisResult(basic, new KisStockRestrictionScreeningPolicy().evaluate(basic.screeningResult(), warnings));
+        Duration masterAge = Duration.ofDays(3).plusNanos(11);
+        Duration apiAge = Duration.ofHours(1).plusNanos(19);
+        Instant evaluation = switch (status) {
+            case FRESH -> normalized(original).responseReceivedAt().plusSeconds(1);
+            case EXPIRED -> collection.startedAt().plus(masterAge);
+            case TIME_UNVERIFIED -> original.requestStartedAt().minusSeconds(1);
+        };
+        var request = new KisStockRestrictionFreshnessRequest(evaluation, masterAge, apiAge);
+        var expected = new KisStockRestrictionFreshnessPolicy().evaluate(request, combined);
+        assertThat(expected.status()).isEqualTo(status);
+        var filesBefore = snapshotFiles();
+        HikariDataSource pool;
+        try (var connection = preparedDatabase(original)) {
+            var settings = settings(connection.getMetaData().getURL(), collection.collectionId());
+            settings.put(PREFIX + "include-market-warnings", "true");
+            settings.put(PREFIX + "warning-market", market.name());
+            settings.put("spring.jpa.properties.hibernate.generate_statistics", "true");
+            addFreshnessSettings(settings, request);
+            try (var context = new SpringApplicationBuilder(KisStockBasicInfoAnalysisConfiguration.class).web(WebApplicationType.NONE)
+                    .run(arguments(settings))) {
+                assertNoUnrelatedBeans(context);
+                var factory = context.getBean(EntityManagerFactory.class);
+                assertOnlyObservationEntity(factory);
+                assertThat(factory.unwrap(SessionFactory.class).getStatistics().getEntityLoadCount()).isEqualTo(1L);
+                assertThat(context.getBeansOfType(ApplicationRunner.class)).hasSize(1);
+                assertThat(context.getBeansOfType(KisStockRestrictionFreshnessPolicy.class)).hasSize(1);
+                assertThat(context.getBean(KisStockBasicInfoAnalysisProperties.class).evaluatedAt()).isEqualTo(evaluation);
+                pool = context.getBean(HikariDataSource.class);
+                assertThat(output).contains(COMPLETED_MESSAGE, RESTRICTION_COMPLETED_MESSAGE, FRESHNESS_COMPLETED_MESSAGE,
+                                "observationId=17", "collectionId=" + collection.collectionId(), "symbol=" + original.requestedSymbol(),
+                                "evaluatedAt=" + evaluation, "maxMasterAge=" + masterAge, "maxBasicInfoAge=" + apiAge,
+                                "freshnessStatus=" + expected.status(), "freshnessReasons=" + expected.reasonCodes(),
+                                "freshnessVersion=" + expected.freshnessVersion(), "combinedRestrictionStatus=EXCLUSION_SIGNAL_OBSERVED")
+                        .doesNotContain("synthetic-unrelated-private-key", "pdno", "msg1", "AS_OF_VERIFIED", "rawLine=", "masterBatch=");
+            }
+            assertThat(pool.isClosed()).isTrue();
+            assertDatabasePreserved(connection, original);
+        }
+        assertFilesUnchanged(filesBefore);
+        assertThat(root.resolve("forbidden-schema.sql")).doesNotExist();
+    }
+
+    private static Stream<Arguments> freshnessCases() {
+        return Stream.of(KOSPI, KOSDAQ).flatMap(market -> Stream.of(KisStockRestrictionFreshnessStatus.values()).map(status -> Arguments.of(market, status)));
+    }
+
+    private void addFreshnessSettings(Map<String, String> settings, KisStockRestrictionFreshnessRequest request) {
+        settings.put(PREFIX + "check-freshness", "true");
+        settings.put(PREFIX + "evaluated-at", request.evaluatedAt().toString());
+        settings.put(PREFIX + "max-master-age", request.maxMasterAge().toString());
+        settings.put(PREFIX + "max-basic-info-age", request.maxBasicInfoAge().toString());
+    }
+
     private void assertDisabled(ApplicationContext context) {
         assertThat(context.getBeansOfType(DataSource.class)).isEmpty();
         assertThat(context.getBeansOfType(EntityManagerFactory.class)).isEmpty();
@@ -491,6 +619,7 @@ class KisStockBasicInfoAnalysisConfigurationTest {
         assertThat(context.getBeansOfType(KisStockMasterMarketWarningParser.class)).isEmpty();
         assertThat(context.getBeansOfType(KisStockMarketWarningObservationPolicy.class)).isEmpty();
         assertThat(context.getBeansOfType(KisStockRestrictionAnalysisService.class)).isEmpty();
+        assertThat(context.getBeansOfType(KisStockRestrictionFreshnessPolicy.class)).isEmpty();
     }
 
     private void assertNoUnrelatedBeans(ApplicationContext context) {
