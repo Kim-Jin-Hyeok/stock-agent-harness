@@ -1,7 +1,9 @@
 package com.stock.market.stock.basicinfo.observation.analysis.runner.config;
 
+import com.stock.market.stock.master.provider.kis.KisStockMasterMarket;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -40,6 +42,8 @@ class KisStockBasicInfoAnalysisPropertiesTest {
         var source = new YamlPropertySourceLoader().load("default-analysis-settings", new ClassPathResource("application.yml")).getFirst();
 
         assertThat(source.getProperty(PREFIX + "enabled")).isEqualTo(false);
+        assertThat(source.getProperty(PREFIX + "include-market-warnings")).isEqualTo(false);
+        assertThat(source.getProperty(PREFIX + "warning-market")).isNull();
         assertThat(source.getProperty(PREFIX + "observation-id")).isNull();
         assertThat(source.getProperty(PREFIX + "observation-root")).isNull();
         assertThat(source.getProperty(PREFIX + "collection-id")).isNull();
@@ -129,6 +133,75 @@ class KisStockBasicInfoAnalysisPropertiesTest {
     void bindingRejectsMalformedOrMultipleCollectionIds(String value) {
         runner.withPropertyValues(PREFIX + "enabled=true", PREFIX + "observation-id=17",
                 PREFIX + "observation-root=unused-root", PREFIX + "collection-id=" + value).run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void legacyConstructorKeepsBasicAnalysisAndDoesNotChooseAWarningMarket() {
+        var properties = new KisStockBasicInfoAnalysisProperties(true, 17L, "unused-root", COLLECTION_ID);
+
+        assertThat(properties.includeMarketWarnings()).isFalse();
+        assertThat(properties.warningMarket()).isNull();
+    }
+
+    @ParameterizedTest
+    @EnumSource(KisStockMasterMarket.class)
+    void bindsAnExplicitWarningMarketOnlyWhenCombinedAnalysisIsRequested(KisStockMasterMarket market) {
+        runner.withPropertyValues(PREFIX + "enabled=true", PREFIX + "observation-id=17", PREFIX + "observation-root=unused-root",
+                PREFIX + "collection-id=" + COLLECTION_ID, PREFIX + "include-market-warnings=true", PREFIX + "warning-market=" + market)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context.getBean(KisStockBasicInfoAnalysisProperties.class))
+                            .isEqualTo(new KisStockBasicInfoAnalysisProperties(true, 17L, "unused-root", COLLECTION_ID, true, market));
+                });
+    }
+
+    @Test
+    void activeCombinedAnalysisRequiresAWarningMarketWithoutDefaultingToKospi() {
+        assertThatThrownBy(() -> new KisStockBasicInfoAnalysisProperties(true, 17L, "unused-root", COLLECTION_ID, true, null))
+                .isExactlyInstanceOf(IllegalArgumentException.class)
+                .hasMessage("warningMarket must be specified when market warnings are included.");
+        runner.withPropertyValues(PREFIX + "enabled=true", PREFIX + "observation-id=17", PREFIX + "observation-root=unused-root",
+                PREFIX + "collection-id=" + COLLECTION_ID, PREFIX + "include-market-warnings=true")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure()).hasRootCauseMessage("warningMarket must be specified when market warnings are included.");
+                });
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "UNSUPPORTED", "KOSPI,KOSDAQ"})
+    void combinedBindingRejectsMissingUnknownOrMultipleWarningMarkets(String value) {
+        runner.withPropertyValues(PREFIX + "enabled=true", PREFIX + "observation-id=17", PREFIX + "observation-root=unused-root",
+                PREFIX + "collection-id=" + COLLECTION_ID, PREFIX + "include-market-warnings=true", PREFIX + "warning-market=" + value)
+                .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void disabledAnalysisDoesNotRequireCombinedInputsOrEnableWarningsFromAMarketAlone() {
+        assertThat(new KisStockBasicInfoAnalysisProperties(false, -1L, "bad\0path", null, true, null).enabled()).isFalse();
+        runner.withPropertyValues(PREFIX + "enabled=false", PREFIX + "include-market-warnings=true")
+                .run(context -> assertThat(context).hasNotFailed());
+        runner.withPropertyValues(PREFIX + "enabled=true", PREFIX + "observation-id=17", PREFIX + "observation-root=unused-root",
+                PREFIX + "collection-id=" + COLLECTION_ID, PREFIX + "warning-market=KOSDAQ")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context.getBean(KisStockBasicInfoAnalysisProperties.class).includeMarketWarnings()).isFalse();
+                });
+    }
+
+    @Test
+    void bindsCombinedOptionsFromCanonicalEnvironmentVariables() {
+        runner.withInitializer(context -> context.getEnvironment().getPropertySources().addFirst(new SystemEnvironmentPropertySource(
+                        "combined-analysis-test-" + StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+                        Map.of("MARKET_STOCK_BASICINFO_ANALYSIS_MANUAL_INCLUDEMARKETWARNINGS", "true",
+                                "MARKET_STOCK_BASICINFO_ANALYSIS_MANUAL_WARNINGMARKET", "KOSDAQ"))))
+                .withPropertyValues(PREFIX + "enabled=true", PREFIX + "observation-id=17", PREFIX + "observation-root=unused-root",
+                        PREFIX + "collection-id=" + COLLECTION_ID).run(context -> {
+                    assertThat(context).hasNotFailed();
+                    var properties = context.getBean(KisStockBasicInfoAnalysisProperties.class);
+                    assertThat(properties.includeMarketWarnings()).isTrue();
+                    assertThat(properties.warningMarket()).isEqualTo(KisStockMasterMarket.KOSDAQ);
+                });
     }
 
     @Configuration(proxyBeanMethods = false)

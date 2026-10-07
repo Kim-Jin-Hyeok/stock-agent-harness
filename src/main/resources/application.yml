@@ -48,6 +48,7 @@ market:
       analysis:
         manual:
           enabled: false
+          include-market-warnings: false
       collection:
         manual:
           enabled: false

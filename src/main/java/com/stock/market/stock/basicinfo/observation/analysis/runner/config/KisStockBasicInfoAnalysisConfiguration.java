@@ -1,6 +1,7 @@
 package com.stock.market.stock.basicinfo.observation.analysis.runner.config;
 
 import com.stock.market.stock.basicinfo.observation.analysis.KisStockBasicInfoAnalysisService;
+import com.stock.market.stock.basicinfo.observation.analysis.restriction.KisStockRestrictionAnalysisService;
 import com.stock.market.stock.basicinfo.observation.analysis.runner.KisStockBasicInfoAnalysisRunner;
 import com.stock.market.stock.basicinfo.observation.persistence.KisStockBasicInfoObservationEntity;
 import com.stock.market.stock.basicinfo.observation.persistence.KisStockBasicInfoObservationRepository;
@@ -9,11 +10,15 @@ import com.stock.market.stock.basicinfo.provider.kis.parsing.KisStockBasicInfoPa
 import com.stock.market.stock.master.matching.kisbasicinfo.KisStockBasicInfoMatchingPolicy;
 import com.stock.market.stock.master.parsing.StockMasterBatchParsingService;
 import com.stock.market.stock.master.provider.kis.parsing.KisStockMasterParser;
+import com.stock.market.stock.master.provider.kis.parsing.warning.KisStockMasterMarketWarningParser;
 import com.stock.strategy.universe.eligibility.classification.kis.KisStockMasterTypeClassificationPolicy;
 import com.stock.strategy.universe.eligibility.classification.kis.basicinfo.KisStockBasicInfoTypeClassificationPolicy;
 import com.stock.strategy.universe.eligibility.classification.kis.basicinfo.resolution.KisStockBasicInfoTypeResolutionPolicy;
 import com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.KisStockBasicInfoRestrictionObservationPolicy;
 import com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.screening.KisStockBasicInfoRestrictionScreeningPolicy;
+import com.stock.strategy.universe.eligibility.restriction.kis.screening.KisStockRestrictionScreeningPolicy;
+import com.stock.strategy.universe.eligibility.restriction.kis.warning.KisStockMarketWarningObservationPolicy;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
@@ -80,11 +85,36 @@ public class KisStockBasicInfoAnalysisConfiguration {
     }
 
     @Bean
+    @ConditionalOnProperty(prefix = "market.stock.basic-info.analysis.manual", name = "include-market-warnings", havingValue = "true")
+    public KisStockMasterMarketWarningParser kisStockBasicInfoAnalysisMarketWarningParser() {
+        return new KisStockMasterMarketWarningParser();
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "market.stock.basic-info.analysis.manual", name = "include-market-warnings", havingValue = "true")
+    public KisStockMarketWarningObservationPolicy kisStockBasicInfoAnalysisMarketWarningObservationPolicy() {
+        return new KisStockMarketWarningObservationPolicy();
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "market.stock.basic-info.analysis.manual", name = "include-market-warnings", havingValue = "true")
+    public KisStockRestrictionAnalysisService kisStockBasicInfoRestrictionAnalysisService(KisStockBasicInfoAnalysisService service) {
+        return new KisStockRestrictionAnalysisService(service, new KisStockRestrictionScreeningPolicy());
+    }
+
+    @Bean
     public KisStockBasicInfoAnalysisRunner kisStockBasicInfoAnalysisRunner(
             StockMasterBatchParsingService masterParser,
             KisStockBasicInfoAnalysisService service,
-            KisStockBasicInfoAnalysisProperties properties
+            KisStockBasicInfoAnalysisProperties properties,
+            ObjectProvider<KisStockMasterMarketWarningParser> marketWarningParser,
+            ObjectProvider<KisStockMarketWarningObservationPolicy> marketWarningObservationPolicy,
+            ObjectProvider<KisStockRestrictionAnalysisService> restrictionAnalysisService
     ) {
+        if (properties.includeMarketWarnings()) {
+            return new KisStockBasicInfoAnalysisRunner(masterParser, service, properties,
+                    marketWarningParser.getObject(), marketWarningObservationPolicy.getObject(), restrictionAnalysisService.getObject());
+        }
         return new KisStockBasicInfoAnalysisRunner(masterParser, service, properties);
     }
 }

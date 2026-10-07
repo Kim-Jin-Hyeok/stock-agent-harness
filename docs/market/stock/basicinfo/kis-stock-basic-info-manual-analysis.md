@@ -6,6 +6,8 @@
 
 [단건 수집 실행기](kis-stock-basic-info-manual-collection.md)는 새 응답을 API에서 받아 저장한다. 이번 실행기는 이미 보관된 입력만 읽는다. 키·secret·토큰을 요구하지 않고, 원문·마스터 재수집, 자동 재시도, 최신 관측 대체와 분석 결과 저장도 하지 않는다.
 
+기본 모드는 기존 V2 분석이다. `include-market-warnings=true`와 `warning-market`을 명시하면 같은 보존 마스터에서 시장경보를 준비하고 [종합 분석 서비스](kis-stock-restriction-stored-analysis.md)를 실행한다. 기본 명령과 로그는 유지하며 별도 실행기·Gradle Task를 만들지 않는다.
+
 ## 패키지와 파일
 
 기준 경로는 `src/main/java/com/stock/market/stock/basicinfo/observation/analysis/runner/`다.
@@ -13,7 +15,7 @@
 | 파일 | 책임 |
 | --- | --- |
 | `KisStockBasicInfoAnalysisRunner.java` | 마스터 파싱 후 지정한 ID를 분석하고 요약을 출력한다. 별도 `main`에서 Context를 열고 닫는다. |
-| `config/KisStockBasicInfoAnalysisProperties.java` | 활성화 여부, 관측 ID, 마스터 루트와 수집 UUID를 바인딩한다. |
+| `config/KisStockBasicInfoAnalysisProperties.java` | 활성화 여부, 관측 ID, 마스터 루트·수집 UUID와 선택적 시장경보 설정을 바인딩한다. |
 | `config/KisStockBasicInfoAnalysisConfiguration.java` | 관측 조회·마스터 파싱·분석과 기존 스키마 검증에 필요한 빈만 등록한다. |
 | `build.gradle`의 `analyzeStockBasicInfo` | 전용 `main`을 실행한다. |
 | `src/main/resources/application.yml` | 분석 수동 실행의 기본 비활성화 상태를 명시한다. |
@@ -28,10 +30,14 @@
 | `market.stock.basic-info.analysis.manual.observation-id` | 활성화 시 필수인 양의 `Long`. 기본 관측이나 종목을 선택하지 않는다. |
 | `market.stock.basic-info.analysis.manual.observation-root` | 활성화 시 필수인 마스터 UUID 디렉터리의 부모 경로. 공백만 있는 값과 잘못된 경로 형식을 거절한다. |
 | `market.stock.basic-info.analysis.manual.collection-id` | 활성화 시 필수인 마스터 배치 UUID. 목록을 받거나 최신 배치를 자동 선택하지 않는다. |
+| `market.stock.basic-info.analysis.manual.include-market-warnings` | 기본 `false`. `enabled=true`인 수동 실행에서 이 값을 켜야 종합 분석을 실행한다. |
+| `market.stock.basic-info.analysis.manual.warning-market` | 활성화된 종합 모드에서 필수인 `KOSPI` 또는 `KOSDAQ`. 기본 시장·목록·자동 시장 선택은 없다. 시장만 지정해도 종합 모드가 켜지지는 않는다. |
 | `spring.datasource.url` | 대상 DB를 명시해야 한다. 미설정·공백이면 거절하고 내장 DB로 대체하지 않는다. |
 | `spring.datasource.username`, `password` | 기존 DataSource 설정을 사용한다. 인증정보는 환경에서 전달하고 명령행에 넣지 않는다. |
 
 Properties 검증은 경로의 형식만 확인한다. 실제 파일의 존재·수집 기록·크기·해시 검증은 [기존 마스터 배치 파싱 서비스](../master/stock-master-batch-parsing.md)가 담당한다. 비활성화된 전용 구성은 DB와 Parser·Runner 빈을 등록하지 않는다.
+
+기존 네 인자 Properties 생성자는 시장경보 비활성화·시장 미지정으로 유지한다. Spring 바인딩은 `@ConstructorBinding`으로 명시한 여섯 필드 생성자를 사용한다. 기존 세 인자 Runner 생성자도 기본·비활성화 모드에서 유지하며, 활성화된 종합 모드에는 경보 Parser·관측 Policy·종합 Service를 전달해야 한다. 불변 설정이 기본 모드인 경우만 경보 의존성을 생략할 수 있다.
 
 ## 실행 순서와 결과
 
@@ -55,11 +61,35 @@ Stored stock basic info analysis complete. observationId=17, collectionId=..., s
 
 식별 불일치, 유형 미확정과 검토 필요·제외 신호는 분석 결과로 출력할 수 있다. **분석 완료는 투자 적격이나 주문 승인이 아니다.** 제한 신호 없음도 유형·상장 상태·신선도·NXT 거래 가능성이나 과거 시점 자격을 확정하지 않는다.
 
+## 시장경보 포함 실행
+
+종합 모드도 마스터 파싱과 수집 ID 확인을 먼저 수행한다. 그 다음 아래 순서로 진행한다.
+
+1. 파싱된 배치에서 `warning-market`에 지정한 시장의 전체 원문 결과를 선택한다.
+2. 기존 `KisStockMasterMarketWarningParser.parse`를 한 번 호출하고 반환 원문 전체가 선택한 입력과 같은지 확인한다.
+3. 기존 `KisStockMarketWarningObservationPolicy.evaluate`를 한 번 호출하고 반환 관측의 원문 추출 결과가 입력과 같은지 확인한다.
+4. 종합 분석 서비스를 한 번 호출한다. 그 안에서 기존 분석 서비스가 한 번 실행되므로 요청 종목을 알아내기 위한 사전 DB 조회는 없다.
+5. 반환 관측 ID·전체 마스터·준비한 경보와 결과의 일치를 검사한 뒤 기존 V2 요약과 종합 요약을 출력한다.
+
+경보 준비 실패는 관측 분석 전에 중단된다. null 반환, 다른 원문·추출·경보·관측 ID·마스터의 반환은 완료로 출력하지 않는다. 종합 모드에서는 모든 연결 검사가 끝나야 두 완료 로그를 남기므로 중간 V2 완료를 전체 성공으로 혼동하지 않는다.
+
+추가 완료 로그에는 다음 필드가 있다. 경보 코드 `02`가 연결된 예시이며 실제 상태와 사유는 입력에 따라 달라진다.
+
+```text
+Stored stock restriction analysis complete. observationId=17, collectionId=..., symbol=0004Y0, warningMarket=KOSDAQ, warningInputSha256=..., warningParserVersion=KIS_STOCK_MASTER_MARKET_WARNING_RAW_V1, warningObservationVersion=KIS_STOCK_MARKET_WARNING_OBSERVATION_V1, combinedScreeningVersion=KIS_STOCK_RESTRICTION_SCREENING_V1, combinedRestrictionStatus=EXCLUSION_SIGNAL_OBSERVED, combinedRestrictionReasons=[MARKET_WARNING_INVESTMENT_WARNING_OBSERVED]
+```
+
+기존 로그의 `restrictionStatus`·`restrictionReasons`는 기존 V2 결과이고 추가 로그의 `combinedRestrictionStatus`·`combinedRestrictionReasons`는 종합 결과다. 경보 입력 해시는 지정한 시장 전체 마스터의 해시다. 원문·응답 메시지·전체 경보 행은 로그에 출력하지 않는다. 종합 모드의 완료 확인에는 추가 로그가 필요하며 프로세스 종료 메시지만으로 판정하지 않는다.
+
+요청 종목의 시장과 다른 유효 시장을 명시하면 자동 교체하지 않는다. [종합 점검](kis-stock-restriction-screening.md)의 `MARKET_WARNING_MARKET_NOT_MATCHED` 진단과 `REVIEW_REQUIRED`를 출력하며, 잘못 선택한 시장의 경보 신호를 요청 종목에 붙이지 않는다. 제외·검토 결과도 분석 실행 자체는 완료할 수 있으며 투자 승인과는 다르다. 종합 정책·원문 추출·관측 버전과 판정 규칙은 변경하지 않는다.
+
 ## 구성 격리와 DB 보호
 
 Runner와 전용 구성은 정상 서버의 컴포넌트 스캔 대상이 아니다. `main`이 구성을 직접 등록하며 `WebApplicationType.NONE`으로 시작한다. 수동 플래그가 켜졌다는 이유만으로 정상 서버가 이 Runner를 실행하지 않는다.
 
 전용 구성은 관측 Entity·Repository 패키지와 Store, UTC Clock, 기존 마스터 파싱 서비스와 분석 서비스를 등록한다. 전체 애플리케이션 스캔·전체 자동 구성·KIS 조회 설정을 가져오지 않는다. Broker·Harness·Agent·OpenAI·스케줄러·HTTP Client·웹 서버 빈을 등록하지 않는다.
+
+활성화된 종합 모드에서만 경보 Parser·관측 Policy·종합 Service 세 빈을 추가한다. 기본 모드는 이 빈들을 등록하지 않고 기본 분석만 실행한다. Runner 팩터리는 `ObjectProvider`로 선택적 의존성을 받아 종합 모드일 때만 조회한다. 전체 수동 실행이 비활성화되면 종합 옵션이 켜져 있어도 관련 빈과 DB를 구성하지 않는다.
 
 DataSource·Hibernate JPA·Transaction 자동 구성만 명시적으로 가져온다. Flyway와 Spring SQL 초기화 자동 구성이 없으므로 해당 설정이 켜져 있어도 마이그레이션이나 SQL 초기화를 실행하지 않는다. Hibernate 전역·ORM contributor·Jakarta 및 이전 javax의 DDL 작업은 `validate`, 스크립트 생성은 `none`으로 고정한다. 준비된 테이블이나 컬럼이 없으면 생성·갱신하지 않고 실패한다.
 
@@ -84,6 +114,14 @@ DB나 보존 파일 없이 비활성화 실행을 확인할 수 있다.
 ```powershell
 .\gradlew.bat analyzeStockBasicInfo --args='--spring.profiles.active=local --market.stock.basic-info.analysis.manual.enabled=true --market.stock.basic-info.analysis.manual.observation-id=<OBSERVATION_ID> --market.stock.basic-info.analysis.manual.observation-root=<MASTER_ROOT> --market.stock.basic-info.analysis.manual.collection-id=<COLLECTION_UUID>' --offline --no-daemon
 ```
+
+종합 분석은 같은 명령에 두 옵션을 추가한다. 아래 `KOSDAQ`는 형식 예시이며 분석하려는 보존 입력에 맞는 시장을 명시해야 한다. 기존 명령에서 이 옵션을 생략하면 기존 V2 분석을 유지한다.
+
+```powershell
+.\gradlew.bat analyzeStockBasicInfo --args='--spring.profiles.active=local --market.stock.basic-info.analysis.manual.enabled=true --market.stock.basic-info.analysis.manual.observation-id=<OBSERVATION_ID> --market.stock.basic-info.analysis.manual.observation-root=<MASTER_ROOT> --market.stock.basic-info.analysis.manual.collection-id=<COLLECTION_UUID> --market.stock.basic-info.analysis.manual.include-market-warnings=true --market.stock.basic-info.analysis.manual.warning-market=KOSDAQ' --offline --no-daemon
+```
+
+두 옵션의 환경변수 이름은 `MARKET_STOCK_BASICINFO_ANALYSIS_MANUAL_INCLUDEMARKETWARNINGS`와 `MARKET_STOCK_BASICINFO_ANALYSIS_MANUAL_WARNINGMARKET`다. `.env` 파일이나 실제 실행 환경의 값을 이번 변경에서 추가·변경하지 않았다. `application.yml`에는 종합 옵션의 기본값 `false`만 명시하며 시장은 기본 지정하지 않는다.
 
 실제 MySQL 관측 ID 1의 분석은 별도 실환경 실행 검증으로 구분한다. 실행기 구현 당시에는 H2와 합성 마스터만 사용하고 실제 MySQL과 기존 보존 원본은 읽지 않았다. 이후 [보존된 실제 입력의 분석 검증](validation/kis-stock-basic-info-analysis-observation-01.md)을 별도로 완료했다.
 
@@ -130,3 +168,29 @@ Gradle의 `--offline`은 의존성 다운로드 제어다. DB 연결을 차단�
 당시 V1 결과의 참고 유형은 `COMMON_STOCK`이지만 제한 사전 점검은 코스피의 투자주의환기 필드 미제공으로 `REVIEW_REQUIRED`였다. 이 보존 결과와 실환경 증적은 변경하지 않는다. 현재 기본 정책은 [V2](kis-stock-basic-info-restriction-screening.md)이며 확인한 코스피 보통주의 비적용 설명을 분리한다. V2 보존 응답 비교는 [별도 로컬 대조](validation/kis-stock-basic-info-restriction-screening-observation-02.md)이고 MySQL 관측 ID 1의 분석 실행기를 재실행한 결과는 아니다.
 
 분석 재현 검증의 성공을 투자 적격이나 거래 허가로 해석하지 않는다. 후속 증적 비교 도구의 중단·보완 이력은 실환경 검증 문서에 구분하여 기록했다. 실행기 운영 코드와 설정은 변경하지 않았다.
+
+## 시장경보 종합 모드 검증
+
+종합 모드 추가 후인 2026-10-07 관련 19개 클래스·409개 테스트가 실패·오류·건너뜀 없이 통과했다. Runner·Properties·전용 구성 세 클래스는 기존 61개에서 120개로 늘었으며 59개 검증 사례를 추가했다. 현재 실행의 XML suite 이름과 시각으로 집계해 이전 실행의 잔여 XML과 긴 클래스명의 축약 파일을 구분했다. 전체 프로젝트 테스트는 실행하지 않았다.
+
+| 보강 테스트 클래스 | 현재 테스트 수 |
+| --- | --- |
+| `KisStockBasicInfoAnalysisRunnerTest` | 46 |
+| `KisStockBasicInfoAnalysisPropertiesTest` | 34 |
+| `KisStockBasicInfoAnalysisConfigurationTest` | 40 |
+
+```powershell
+.\gradlew.bat test --tests 'com.stock.market.stock.basicinfo.observation.analysis.*' --tests 'com.stock.strategy.universe.eligibility.restriction.kis.screening.*' --tests 'com.stock.strategy.universe.eligibility.restriction.kis.warning.*' --tests 'com.stock.market.stock.master.provider.kis.parsing.warning.*' --offline --no-daemon
+```
+
+기존 분석 서비스·종합 분석 서비스·수동 실행기와 직접 연결되는 종합 점검·경보 추출·관측 테스트만 실행했다. 기본 로그·기본 명령의 분기, 선택적 빈 등록, 필수 시장과 환경변수 바인딩, 호출 순서·횟수, 단계별 실패·null·다른 반환 입력에 대한 중단을 확인했다.
+
+H2와 합성 보존 파일로 두 시장의 경보·예고 및 미확인 사례를 실행했다. 직접 정책으로 계산한 상태·사유·입력 해시와 실행 로그가 같았고 Hibernate의 관측 엔티티 로드는 실행당 1건이었다. DB 관측의 바이트·길이·해시·요청 및 수신 시각·기록 시각·행 수, sentinel 테이블·행과 원본 7개 파일이 유지됐다. 다른 시장을 명시하면 검토 필요로 남고, 관측 누락·업무 실패·마스터 손상과 스키마 오류에서는 완료 로그 없이 중단하고 연결 풀을 닫았다. DDL 변경·SQL 스크립트·Flyway·초기화와 Broker·OpenAI 빈 격리도 유지됐다.
+
+같은 Gradle Task의 비활성화 실행도 확인했다. 종합 옵션과 Broker·조회·스케줄·OpenAI 플래그를 켜더라도 분석 완료 없이 종료했다.
+
+```powershell
+.\gradlew.bat analyzeStockBasicInfo --args='--market.stock.basic-info.analysis.manual.enabled=false --market.stock.basic-info.analysis.manual.include-market-warnings=true --broker.kis.enabled=true --market.stock.basic-info.kis.enabled=true --harness.scheduler.enabled=true --agent.provider.ai.openai.enabled=true' --offline --no-daemon
+```
+
+종합 모드를 실제 MySQL이나 기존 운영 관측 ID로 실행한 검증은 아니다. 기존 실제 입력의 증적을 이번 H2 검증으로 대체하지 않는다. KIS·계좌·주문·OpenAI 호출, Docker·서버 상태 변경과 후보 선정·주문 연결은 없다. 현재 관측을 과거 자격이나 `AS_OF_VERIFIED`로 승격하지 않는다.

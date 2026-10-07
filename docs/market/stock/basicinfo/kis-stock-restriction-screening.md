@@ -71,7 +71,7 @@
 
 같은 `src/test/java/.../restriction/kis/screening/` 아래 정책·상태·결과 세 테스트 클래스와 `support/` Fixture를 추가했다. 기존 바이트·배치·API 파서 Fixture를 재사용하고 실제 파서로 일관된 입력을 만든다. 관련 없는 다른 행에 경보·예고를 넣어 잘못된 행 선택도 검증한다.
 
-2026-10-07 관련 **19개 클래스·415개 테스트가 모두 통과**했다. 새 테스트는 52개이며 실패·오류·건너뜀은 0개다. 현재 실행 시각의 XML suite 이름으로 긴 클래스명의 축약 파일도 포함해 집계했다. 전체 프로젝트 테스트는 실행하지 않았다.
+종합 점검 정책 구현 당시인 2026-10-07 관련 **19개 클래스·415개 테스트가 모두 통과**했다. 새 테스트는 52개이며 실패·오류·건너뜀은 0개다. 당시 실행 시각의 XML suite 이름으로 긴 클래스명의 축약 파일도 포함해 집계했다. 전체 프로젝트 테스트는 실행하지 않았다.
 
 ```powershell
 .\gradlew.bat test --tests 'com.stock.strategy.universe.eligibility.restriction.kis.screening.*' --tests 'com.stock.strategy.universe.eligibility.restriction.kis.warning.*' --tests 'com.stock.market.stock.master.provider.kis.parsing.warning.*' --tests 'com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.screening.*' --tests 'com.stock.market.stock.basicinfo.observation.analysis.*' --offline --no-daemon
@@ -83,8 +83,8 @@
 
 ## 운영과 성과 검증 경계
 
-새 점검을 현재 `KisStockBasicInfoAnalysisService`·수동 실행기·후보 선정·유동성 평가·백테스트·Risk Guard·주문·스케줄·AI Prompt에 연결하지 않았다. DB·스키마·Spring 빈·라이브러리·설정·`.env`·Docker 변경과 추가 API·토큰·계좌·주문·OpenAI 호출은 없다.
+정책 구현 당시에는 `KisStockBasicInfoAnalysisService`·수동 실행기·후보 선정·유동성 평가·백테스트·Risk Guard·주문·스케줄·AI Prompt에 연결하지 않았다. 그 단계에서 DB·스키마·Spring 빈·라이브러리·설정·`.env`·Docker 변경과 추가 API·토큰·계좌·주문·OpenAI 호출은 없었다.
 
-후속 [저장 관측 종합 분석 서비스](kis-stock-restriction-stored-analysis.md)는 기존 분석 서비스의 반환 V2 결과를 이 정책에 연결하는 별도 호출 경로다. 기존 분석 서비스와 수동 실행기의 계약은 변경하지 않으며 정책·원문 추출·관측 버전과 기존 결과도 유지한다. 새 경로 역시 자동 실행·후보 선정·주문에는 연결하지 않는다.
+후속 [저장 관측 종합 분석 서비스](kis-stock-restriction-stored-analysis.md)는 기존 분석 서비스의 반환 V2 결과를 이 정책에 연결하는 별도 호출 경로다. [수동 실행기의 선택적 종합 모드](kis-stock-basic-info-manual-analysis.md#시장경보-포함-실행)는 경보를 준비하여 그 서비스를 호출한다. 기존 분석 서비스·실행기 기본 모드와 정책·원문 추출·관측 버전·보존 결과는 유지한다. 종합 모드의 명시적 빈 등록 외에 자동 실행·후보 선정·주문에는 연결하지 않는다.
 
 `runtimeSelectionImplemented=false`, `eligibilityOrHistoricalPopulationVerified=false`를 유지한다. 현재 보존 자료를 `AS_OF_VERIFIED`로 승격하거나 과거 백테스트의 자격 근거로 소급하지 않는다. 향후 제외 수준을 완화하려면 같은 데이터·후보 범위·기간·거래비용 조건에서 후보 감소와 비용 차감 후 성과를 비교해야 한다.

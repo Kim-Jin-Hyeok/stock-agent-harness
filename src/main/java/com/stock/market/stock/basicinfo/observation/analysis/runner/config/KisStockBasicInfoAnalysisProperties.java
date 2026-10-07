@@ -1,6 +1,8 @@
 package com.stock.market.stock.basicinfo.observation.analysis.runner.config;
 
+import com.stock.market.stock.master.provider.kis.KisStockMasterMarket;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.ConstructorBinding;
 
 import java.nio.file.Path;
 import java.util.UUID;
@@ -10,8 +12,15 @@ public record KisStockBasicInfoAnalysisProperties(
         boolean enabled,
         Long observationId,
         String observationRoot,
-        UUID collectionId
+        UUID collectionId,
+        boolean includeMarketWarnings,
+        KisStockMasterMarket warningMarket
 ) {
+    public KisStockBasicInfoAnalysisProperties(boolean enabled, Long observationId, String observationRoot, UUID collectionId) {
+        this(enabled, observationId, observationRoot, collectionId, false, null);
+    }
+
+    @ConstructorBinding
     public KisStockBasicInfoAnalysisProperties {
         if (enabled) {
             if (observationId == null || observationId <= 0) {
@@ -23,6 +32,9 @@ public record KisStockBasicInfoAnalysisProperties(
             Path.of(observationRoot);
             if (collectionId == null) {
                 throw new IllegalArgumentException("collectionId must not be null.");
+            }
+            if (includeMarketWarnings && warningMarket == null) {
+                throw new IllegalArgumentException("warningMarket must be specified when market warnings are included.");
             }
         }
     }

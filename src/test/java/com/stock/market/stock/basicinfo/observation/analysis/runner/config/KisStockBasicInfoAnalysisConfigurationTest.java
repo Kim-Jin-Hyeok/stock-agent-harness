@@ -12,6 +12,8 @@ import com.stock.harness.InvestmentHarness;
 import com.stock.harness.scheduler.HarnessScheduler;
 import com.stock.market.stock.basicinfo.collection.KisStockBasicInfoCollectionService;
 import com.stock.market.stock.basicinfo.observation.analysis.KisStockBasicInfoAnalysisService;
+import com.stock.market.stock.basicinfo.observation.analysis.restriction.KisStockRestrictionAnalysisService;
+import com.stock.market.stock.basicinfo.observation.analysis.restriction.support.KisStockRestrictionAnalysisFixture;
 import com.stock.market.stock.basicinfo.observation.analysis.result.KisStockBasicInfoAnalysisResult;
 import com.stock.market.stock.basicinfo.observation.analysis.runner.KisStockBasicInfoAnalysisRunner;
 import com.stock.market.stock.basicinfo.observation.persistence.KisStockBasicInfoObservationEntity;
@@ -20,19 +22,29 @@ import com.stock.market.stock.basicinfo.observation.storage.KisStockBasicInfoObs
 import com.stock.market.stock.basicinfo.observation.support.KisStockBasicInfoObservationFixture;
 import com.stock.market.stock.basicinfo.provider.kis.KisStockBasicInfoClient;
 import com.stock.market.stock.basicinfo.provider.kis.KisStockBasicInfoProvider;
+import com.stock.market.stock.basicinfo.provider.kis.dto.KisStockBasicInfoRawResponse;
 import com.stock.market.stock.master.collection.result.StockMasterCollectionResult;
 import com.stock.market.stock.master.parsing.StockMasterBatchParsingService;
 import com.stock.market.stock.master.parsing.support.StockMasterBatchParsingFixture;
 import com.stock.market.stock.master.provider.kis.KisStockMasterClient;
+import com.stock.market.stock.master.provider.kis.KisStockMasterMarket;
 import com.stock.market.stock.master.provider.kis.parsing.KisStockMasterParser;
 import com.stock.market.stock.master.provider.kis.parsing.support.KisStockMasterParsingFixture;
+import com.stock.market.stock.master.provider.kis.parsing.warning.KisStockMasterMarketWarningParser;
+import com.stock.strategy.universe.eligibility.restriction.kis.screening.KisStockRestrictionScreeningPolicy;
+import com.stock.strategy.universe.eligibility.restriction.kis.warning.KisStockMarketWarningObservationPolicy;
+import com.stock.strategy.universe.eligibility.restriction.kis.screening.support.KisStockRestrictionScreeningFixture;
 import com.zaxxer.hikari.HikariDataSource;
 import jakarta.persistence.EntityManagerFactory;
 import org.flywaydb.core.Flyway;
+import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.ApplicationRunner;
@@ -68,6 +80,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import static com.stock.market.stock.basicinfo.observation.analysis.support.KisStockBasicInfoAnalysisFixture.fields;
 import static com.stock.market.stock.basicinfo.observation.analysis.support.KisStockBasicInfoAnalysisFixture.response;
@@ -85,6 +98,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class KisStockBasicInfoAnalysisConfigurationTest {
     private static final String PREFIX = "market.stock.basic-info.analysis.manual.";
     private static final String COMPLETED_MESSAGE = "Stored stock basic info analysis complete.";
+    private static final String RESTRICTION_COMPLETED_MESSAGE = "Stored stock restriction analysis complete.";
     private static final UUID UNUSED_COLLECTION = UUID.fromString("00000000-0000-0000-0000-000000000001");
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withUserConfiguration(KisStockBasicInfoAnalysisConfiguration.class);
@@ -96,6 +110,7 @@ class KisStockBasicInfoAnalysisConfigurationTest {
         runner.run(this::assertDisabled);
         runner.withPropertyValues(PREFIX + "enabled=false", "broker.kis.enabled=true", "market.stock.basic-info.kis.enabled=true",
                 "harness.scheduler.enabled=true", "agent.provider.ai.openai.enabled=true").run(this::assertDisabled);
+        runner.withPropertyValues(PREFIX + "enabled=false", PREFIX + "include-market-warnings=true").run(this::assertDisabled);
     }
 
     @Test
@@ -137,6 +152,7 @@ class KisStockBasicInfoAnalysisConfigurationTest {
                         .hasSingleBean(ApplicationRunner.class);
                 assertOnlyObservationEntity(context.getBean(EntityManagerFactory.class));
                 assertNoUnrelatedBeans(context);
+                assertNoMarketWarningBeans(context);
                 assertThat(context.getBean(EntityManagerFactory.class).getProperties()).containsEntry("hibernate.hbm2ddl.auto", "validate");
                 assertThat(context.getBean(KisStockBasicInfoObservationRepository.class).count()).isEqualTo(1L);
             });
@@ -207,6 +223,7 @@ class KisStockBasicInfoAnalysisConfigurationTest {
             try (var context = new SpringApplicationBuilder(KisStockBasicInfoAnalysisConfiguration.class).web(WebApplicationType.NONE)
                     .run(arguments(settings(connection.getMetaData().getURL(), collection.collectionId())))) {
                 assertNoUnrelatedBeans(context);
+                assertNoMarketWarningBeans(context);
                 assertOnlyObservationEntity(context.getBean(EntityManagerFactory.class));
                 assertThat(context.getBeansOfType(ApplicationRunner.class)).hasSize(1);
                 assertThat(context.getBean(KisStockBasicInfoAnalysisService.class).analyze(17L, master)).isEqualTo(expected);
@@ -271,8 +288,9 @@ class KisStockBasicInfoAnalysisConfigurationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"missing", "incomplete"})
-    void missingOrIncompleteSchemaFailsWithoutCreatingUpdatingOrDroppingTables(String schema, CapturedOutput output) throws SQLException {
+    @CsvSource({"missing,false", "incomplete,false", "missing,true", "incomplete,true"})
+    void missingOrIncompleteSchemaFailsWithoutCreatingUpdatingOrDroppingTables(String schema, boolean includeWarnings, CapturedOutput output)
+            throws SQLException {
         var pool = new AtomicReference<HikariDataSource>();
         try (var connection = DriverManager.getConnection(newDatabaseUrl(), "sa", "")) {
             if (schema.equals("incomplete")) {
@@ -291,7 +309,12 @@ class KisStockBasicInfoAnalysisConfigurationTest {
                             return bean;
                         }
                     }));
-            assertThatThrownBy(() -> builder.run(arguments(settings(connection.getMetaData().getURL(), UNUSED_COLLECTION))))
+            var settings = settings(connection.getMetaData().getURL(), UNUSED_COLLECTION);
+            if (includeWarnings) {
+                settings.put(PREFIX + "include-market-warnings", "true");
+                settings.put(PREFIX + "warning-market", "KOSDAQ");
+            }
+            assertThatThrownBy(() -> builder.run(arguments(settings)))
                     .hasStackTraceContaining("Schema-validation: missing " + (schema.equals("missing") ? "table" : "column"));
             assertThat(pool.get()).isNotNull();
             assertThat(pool.get().isClosed()).isTrue();
@@ -304,7 +327,152 @@ class KisStockBasicInfoAnalysisConfigurationTest {
             }
         }
         assertThat(root).isEmptyDirectory();
-        assertThat(output).doesNotContain(COMPLETED_MESSAGE);
+        assertThat(output).doesNotContain(COMPLETED_MESSAGE, RESTRICTION_COMPLETED_MESSAGE);
+    }
+
+    @Test
+    void combinedContextRegistersOnlyRequiredWarningBeansWithoutRunningAnalysis(CapturedOutput output) throws SQLException {
+        try (var connection = preparedDatabase(response().content())) {
+            var settings = settings(connection.getMetaData().getURL(), UNUSED_COLLECTION);
+            settings.put(PREFIX + "include-market-warnings", "true");
+            settings.put(PREFIX + "warning-market", "KOSDAQ");
+            withSettings(settings).run(context -> {
+                assertThat(context).hasNotFailed().hasSingleBean(KisStockMasterMarketWarningParser.class)
+                        .hasSingleBean(KisStockMarketWarningObservationPolicy.class).hasSingleBean(KisStockRestrictionAnalysisService.class)
+                        .hasSingleBean(KisStockBasicInfoAnalysisService.class).hasSingleBean(ApplicationRunner.class);
+                assertOnlyObservationEntity(context.getBean(EntityManagerFactory.class));
+                assertNoUnrelatedBeans(context);
+            });
+            assertDatabasePreserved(connection, response().content());
+        }
+        assertThat(root).isEmptyDirectory();
+        assertThat(output).doesNotContain(COMPLETED_MESSAGE, RESTRICTION_COMPLETED_MESSAGE, "synthetic-unrelated-private-key");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"missing", "", "UNSUPPORTED", "KOSPI,KOSDAQ"})
+    void invalidCombinedMarketStopsStartupWithoutAnalysis(String market, CapturedOutput output) {
+        var settings = settings(newDatabaseUrl(), UNUSED_COLLECTION);
+        settings.put(PREFIX + "include-market-warnings", "true");
+        if (!market.equals("missing")) {
+            settings.put(PREFIX + "warning-market", market);
+        }
+
+        withSettings(settings).run(context -> assertThat(context).hasFailed());
+
+        assertThat(root).isEmptyDirectory();
+        assertThat(output).doesNotContain(COMPLETED_MESSAGE, RESTRICTION_COMPLETED_MESSAGE);
+    }
+
+    @ParameterizedTest
+    @MethodSource("combinedCases")
+    void combinedStartupMatchesDirectPoliciesLoadsOneObservationPreservesEvidenceAndClosesPool(
+            KisStockMasterMarket market, String code, String preannouncement, CapturedOutput output
+    ) throws Exception {
+        var original = KisStockRestrictionAnalysisFixture.inputs(market, code, preannouncement, Map.of(), Map.of()).response();
+        var collection = collectMaster(market, code, preannouncement);
+        var master = new StockMasterBatchParsingService(new KisStockMasterParser()).parseBatch(root, collection.collectionId());
+        var warnings = KisStockRestrictionScreeningFixture.warnings(master, market);
+        var expectedBasic = screening(master, original);
+        var expected = new KisStockRestrictionScreeningPolicy().evaluate(expectedBasic, warnings);
+        var filesBefore = snapshotFiles();
+        HikariDataSource pool;
+        try (var connection = preparedDatabase(original)) {
+            var settings = settings(connection.getMetaData().getURL(), collection.collectionId());
+            settings.put(PREFIX + "include-market-warnings", "true");
+            settings.put(PREFIX + "warning-market", market.name());
+            settings.put("spring.jpa.properties.hibernate.generate_statistics", "true");
+            try (var context = new SpringApplicationBuilder(KisStockBasicInfoAnalysisConfiguration.class).web(WebApplicationType.NONE)
+                    .run(arguments(settings))) {
+                assertNoUnrelatedBeans(context);
+                var factory = context.getBean(EntityManagerFactory.class);
+                assertOnlyObservationEntity(factory);
+                assertThat(factory.unwrap(SessionFactory.class).getStatistics().getEntityLoadCount()).isEqualTo(1L);
+                assertThat(context.getBeansOfType(ApplicationRunner.class)).hasSize(1);
+                assertThat(context.getBeansOfType(KisStockRestrictionAnalysisService.class)).hasSize(1);
+                pool = context.getBean(HikariDataSource.class);
+                assertThat(output).contains(COMPLETED_MESSAGE, RESTRICTION_COMPLETED_MESSAGE, "observationId=17",
+                                "collectionId=" + collection.collectionId(), "symbol=" + original.requestedSymbol(), "warningMarket=" + market,
+                                "warningInputSha256=" + warnings.source().source().inputSha256(),
+                                "restrictionStatus=" + expectedBasic.status(), "combinedRestrictionStatus=" + expected.status(),
+                                "combinedRestrictionReasons=" + expected.reasonCodes())
+                        .doesNotContain("synthetic-unrelated-private-key", "pdno", "msg1", "AS_OF_VERIFIED", "rawLine=", "masterBatch=");
+            }
+            assertThat(pool.isClosed()).isTrue();
+            assertDatabasePreserved(connection, original);
+        }
+        assertFilesUnchanged(filesBefore);
+        assertThat(root.resolve("forbidden-schema.sql")).doesNotExist();
+    }
+
+    @Test
+    void explicitWrongMarketRemainsReviewInActualStartupInsteadOfSelectingTheOtherMarket(CapturedOutput output) throws Exception {
+        var collection = collectMaster(KOSDAQ, "03", "Y");
+        var filesBefore = snapshotFiles();
+        try (var connection = preparedDatabase(response().content())) {
+            var settings = settings(connection.getMetaData().getURL(), collection.collectionId());
+            settings.put(PREFIX + "include-market-warnings", "true");
+            settings.put(PREFIX + "warning-market", "KOSPI");
+            HikariDataSource pool;
+            try (var context = new SpringApplicationBuilder(KisStockBasicInfoAnalysisConfiguration.class).web(WebApplicationType.NONE)
+                    .run(arguments(settings))) {
+                assertNoUnrelatedBeans(context);
+                pool = context.getBean(HikariDataSource.class);
+                assertThat(output).contains(RESTRICTION_COMPLETED_MESSAGE, "warningMarket=KOSPI", "combinedRestrictionStatus=REVIEW_REQUIRED",
+                                "combinedRestrictionReasons=[MARKET_WARNING_MARKET_NOT_MATCHED]")
+                        .doesNotContain("MARKET_WARNING_INVESTMENT_RISK_OBSERVED", "MARKET_WARNING_RISK_PREANNOUNCEMENT_Y_OBSERVED");
+            }
+            assertThat(pool.isClosed()).isTrue();
+            assertDatabasePreserved(connection, response().content());
+        }
+        assertFilesUnchanged(filesBefore);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"missing-observation", "business-failure", "corrupt-master"})
+    void combinedStartupFailureClosesPoolWithoutRepairingEvidenceOrLoggingCompletion(String failure, CapturedOutput output) throws Exception {
+        var collection = collectMaster(KOSDAQ, "02", "N");
+        byte[] bytes = failure.equals("business-failure")
+                ? "{\"rt_cd\":\"1\",\"msg1\":\"synthetic-private-body\"}".getBytes(StandardCharsets.UTF_8) : response().content();
+        if (failure.equals("corrupt-master")) {
+            Path mst = root.resolve(collection.collectionId().toString()).resolve("KOSDAQ/kosdaq_code.mst");
+            byte[] changed = Files.readAllBytes(mst);
+            changed[0] ^= 1;
+            Files.write(mst, changed);
+        }
+        var filesBefore = snapshotFiles();
+        var pool = new AtomicReference<HikariDataSource>();
+        try (var connection = preparedDatabase(bytes)) {
+            var settings = settings(connection.getMetaData().getURL(), collection.collectionId());
+            settings.put(PREFIX + "include-market-warnings", "true");
+            settings.put(PREFIX + "warning-market", "KOSDAQ");
+            if (failure.equals("missing-observation")) {
+                settings.put(PREFIX + "observation-id", "18");
+            }
+            var builder = new SpringApplicationBuilder(KisStockBasicInfoAnalysisConfiguration.class).web(WebApplicationType.NONE)
+                    .initializers(context -> context.getBeanFactory().addBeanPostProcessor(new BeanPostProcessor() {
+                        @Override
+                        public Object postProcessAfterInitialization(Object bean, String beanName) {
+                            if (bean instanceof HikariDataSource dataSource) {
+                                pool.set(dataSource);
+                            }
+                            return bean;
+                        }
+                    }));
+            String expectedMessage = switch (failure) {
+                case "missing-observation" -> "KIS stock basic info observation not found. id=18";
+                case "business-failure" -> "rt_cd must be the success string 0.";
+                default -> "File bytes or SHA-256 do not match the manifest.";
+            };
+
+            assertThatThrownBy(() -> builder.run(arguments(settings))).hasStackTraceContaining(expectedMessage);
+
+            assertThat(pool.get()).isNotNull();
+            assertThat(pool.get().isClosed()).isTrue();
+            assertDatabasePreserved(connection, bytes);
+        }
+        assertFilesUnchanged(filesBefore);
+        assertThat(output).doesNotContain(COMPLETED_MESSAGE, RESTRICTION_COMPLETED_MESSAGE, "synthetic-private-body", "synthetic-unrelated-private-key");
     }
 
     private void assertDisabled(ApplicationContext context) {
@@ -315,7 +483,14 @@ class KisStockBasicInfoAnalysisConfigurationTest {
         assertThat(context.getBeansOfType(StockMasterBatchParsingService.class)).isEmpty();
         assertThat(context.getBeansOfType(KisStockBasicInfoAnalysisService.class)).isEmpty();
         assertThat(context.getBeansOfType(ApplicationRunner.class)).isEmpty();
+        assertNoMarketWarningBeans(context);
         assertNoUnrelatedBeans(context);
+    }
+
+    private void assertNoMarketWarningBeans(ApplicationContext context) {
+        assertThat(context.getBeansOfType(KisStockMasterMarketWarningParser.class)).isEmpty();
+        assertThat(context.getBeansOfType(KisStockMarketWarningObservationPolicy.class)).isEmpty();
+        assertThat(context.getBeansOfType(KisStockRestrictionAnalysisService.class)).isEmpty();
     }
 
     private void assertNoUnrelatedBeans(ApplicationContext context) {
@@ -381,6 +556,10 @@ class KisStockBasicInfoAnalysisConfigurationTest {
     }
 
     private Connection preparedDatabase(byte[] bytes) throws SQLException {
+        return preparedDatabase(KisStockBasicInfoObservationFixture.response(bytes));
+    }
+
+    private Connection preparedDatabase(KisStockBasicInfoRawResponse original) throws SQLException {
         var connection = DriverManager.getConnection(newDatabaseUrl(), "sa", "");
         try {
             ScriptUtils.executeSqlScript(connection, new ByteArrayResource("""
@@ -398,7 +577,7 @@ class KisStockBasicInfoAnalysisConfigurationTest {
                     CREATE TABLE analysis_sentinel (id INTEGER PRIMARY KEY);
                     INSERT INTO analysis_sentinel VALUES (41);
                     """.getBytes(StandardCharsets.UTF_8)));
-            var row = KisStockBasicInfoObservationEntity.from(KisStockBasicInfoObservationFixture.response(bytes), RECORDED_AT);
+            var row = KisStockBasicInfoObservationEntity.from(original, RECORDED_AT);
             try (var statement = connection.prepareStatement("""
                     INSERT INTO kis_stock_basic_info_observation
                     (id, requested_symbol, http_status, request_started_at, response_received_at, recorded_at,
@@ -422,14 +601,19 @@ class KisStockBasicInfoAnalysisConfigurationTest {
     }
 
     private void assertDatabasePreserved(Connection connection, byte[] bytes) throws SQLException {
+        assertDatabasePreserved(connection, KisStockBasicInfoObservationFixture.response(bytes));
+    }
+
+    private void assertDatabasePreserved(Connection connection, KisStockBasicInfoRawResponse original) throws SQLException {
+        byte[] bytes = original.content();
         assertThat(queryInt(connection, "SELECT COUNT(*) FROM analysis_sentinel WHERE id = 41")).isEqualTo(1);
         assertThat(queryInt(connection, "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'PUBLIC'")).isEqualTo(2);
         try (var statement = connection.createStatement(); var rows = statement.executeQuery("SELECT * FROM kis_stock_basic_info_observation")) {
             assertThat(rows.next()).isTrue();
             assertThat(rows.getLong("id")).isEqualTo(17L);
-            assertThat(rows.getString("requested_symbol")).isEqualTo(SYMBOL);
+            assertThat(rows.getString("requested_symbol")).isEqualTo(original.requestedSymbol());
             assertThat(rows.getInt("http_status")).isEqualTo(200);
-            var normalized = normalized(KisStockBasicInfoObservationFixture.response(bytes));
+            var normalized = normalized(original);
             assertThat(rows.getTimestamp("request_started_at").toInstant()).isEqualTo(normalized.requestStartedAt());
             assertThat(rows.getTimestamp("response_received_at").toInstant()).isEqualTo(normalized.responseReceivedAt());
             assertThat(rows.getTimestamp("recorded_at").toInstant()).isEqualTo(RECORDED_AT.truncatedTo(ChronoUnit.MICROS));
@@ -450,6 +634,21 @@ class KisStockBasicInfoAnalysisConfigurationTest {
     private StockMasterCollectionResult collectMaster() throws IOException {
         return StockMasterBatchParsingFixture.collect(root, KisStockMasterParsingFixture.content(KisStockMasterParsingFixture.row(KOSPI)),
                 KisStockMasterParsingFixture.content(KisStockMasterParsingFixture.row(KOSDAQ, SYMBOL, "KR70004Y0000", "SYNTHETIC ALPHA")));
+    }
+
+    private StockMasterCollectionResult collectMaster(KisStockMasterMarket market, String code, String preannouncement) throws IOException {
+        byte[] kospi = KisStockMasterParsingFixture.row(KOSPI);
+        byte[] kosdaq = KisStockMasterParsingFixture.row(KOSDAQ, SYMBOL, "KR70004Y0000", "SYNTHETIC ALPHA");
+        byte[] selected = market == KOSPI ? kospi : kosdaq;
+        KisStockMasterParsingFixture.put(selected, market == KOSPI ? 124 : 119, code);
+        KisStockMasterParsingFixture.put(selected, market == KOSPI ? 126 : 121, preannouncement);
+        return StockMasterBatchParsingFixture.collect(root, KisStockMasterParsingFixture.content(kospi), KisStockMasterParsingFixture.content(kosdaq));
+    }
+
+    private static Stream<Arguments> combinedCases() {
+        return Stream.of(KOSPI, KOSDAQ).flatMap(market -> Stream.of(
+                Arguments.of(market, "00", "N"), Arguments.of(market, "02", "N"),
+                Arguments.of(market, "00", "Y"), Arguments.of(market, "99", "N"), Arguments.of(market, "02", "?")));
     }
 
     private Map<Path, byte[]> snapshotFiles() throws IOException {
