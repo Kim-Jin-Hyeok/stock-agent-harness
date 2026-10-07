@@ -50,6 +50,8 @@ Spring 빈이나 새 Provider 인터페이스가 아닌 무상태 일반 Java �
 
 기존 `KisStockMasterRawRecord`, `KisStockMasterParseResult`와 `StockMasterBatchParseResult`의 필드·버전·JSON을 변경하지 않는다. 새 결과는 기존 결과를 감싼 별도 계약이며 기존 소비자가 자동으로 새 필드를 사용하지 않는다.
 
+후속 [시장경보 관측 상태 해석](kis-stock-market-warning-observation.md)은 이 추출 결과를 입력으로 받아 경보 코드와 예고를 별도 관측 상태로 해석한다. 이 파서의 원문 계약·버전·JSON은 그대로 유지하며, 공백·미정의 문자를 정상 값으로 보정하지 않는다. 관측 상태 추가도 후보 제외·주문 차단 연결을 뜻하지 않는다.
+
 [제한 관측](../basicinfo/kis-stock-basic-info-restriction-observation.md)과 [사전 점검 V1·V2](../basicinfo/kis-stock-basic-info-restriction-screening.md)의 상태·사유·JSON도 그대로 유지한다. 해당 점검은 아직 이번 시장경보와 예고를 평가하지 않는다. 따라서 점검의 `NO_EXCLUSION_SIGNAL_OBSERVED`를 시장경보 검사 통과나 최종 투자 후보 승인으로 사용하지 않는다.
 
 `StockEligibilityPolicy`·후보 선정·유동성 평가·백테스트·Risk Guard·주문·스케줄·AI Prompt에 연결하지 않는다. DB·스키마·라이브러리·설정·`.env`·Docker 변경도 없다.
