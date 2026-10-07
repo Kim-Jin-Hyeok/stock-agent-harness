@@ -127,4 +127,6 @@ Gradle의 `--offline`은 의존성 다운로드 제어다. DB 연결을 차단�
 
 2026-10-07 [MySQL 관측 ID 1과 실제 보존 마스터의 분석](validation/kis-stock-basic-info-analysis-observation-01.md)을 검증했다. 기존 Gradle 실행기와 별도 점검 프로세스의 요약이 같고, 분석 서비스의 전체 결과가 기존 정책 직접 호출과 일치했다. 전체 DB 12개 테이블의 덤프와 원본·소스·설정 파일도 유지됐으며 분석 풀과 MySQL을 정상 종료했다.
 
-참고 유형은 `COMMON_STOCK`이지만 제한 사전 점검은 코스피의 투자주의환기 필드 미제공으로 `REVIEW_REQUIRED`다. 분석 재현 검증의 성공을 투자 적격이나 거래 허가로 해석하지 않는다. 후속 증적 비교 도구의 중단·보완 이력은 실환경 검증 문서에 구분하여 기록했다. 실행기 운영 코드와 설정은 변경하지 않았다.
+당시 V1 결과의 참고 유형은 `COMMON_STOCK`이지만 제한 사전 점검은 코스피의 투자주의환기 필드 미제공으로 `REVIEW_REQUIRED`였다. 이 보존 결과와 실환경 증적은 변경하지 않는다. 현재 기본 정책은 [V2](kis-stock-basic-info-restriction-screening.md)이며 확인한 코스피 보통주의 비적용 설명을 분리한다. V2 보존 응답 비교는 [별도 로컬 대조](validation/kis-stock-basic-info-restriction-screening-observation-02.md)이고 MySQL 관측 ID 1의 분석 실행기를 재실행한 결과는 아니다.
+
+분석 재현 검증의 성공을 투자 적격이나 거래 허가로 해석하지 않는다. 후속 증적 비교 도구의 중단·보완 이력은 실환경 검증 문서에 구분하여 기록했다. 실행기 운영 코드와 설정은 변경하지 않았다.

@@ -1,6 +1,7 @@
 package com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.screening.result;
 
 import com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.result.KisStockBasicInfoRestrictionObservationResult;
+import com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.screening.KisStockBasicInfoRestrictionScreeningPolicy;
 
 import java.util.List;
 import java.util.Objects;
@@ -15,13 +16,11 @@ public record KisStockBasicInfoRestrictionScreeningResult(
         Objects.requireNonNull(observation, "observation must not be null.");
         Objects.requireNonNull(status, "status must not be null.");
         reasonCodes = List.copyOf(Objects.requireNonNull(reasonCodes, "reasonCodes must not be null."));
-        if (screeningVersion == null || screeningVersion.isBlank()) {
-            throw new IllegalArgumentException("screeningVersion must not be blank.");
-        }
-        if (!reasonCodes.equals(KisStockBasicInfoRestrictionScreeningReasonCode.fromObservation(observation))) {
+        KisStockBasicInfoRestrictionScreeningPolicy.requireSupportedVersion(screeningVersion);
+        if (!reasonCodes.equals(KisStockBasicInfoRestrictionScreeningReasonCode.fromObservation(observation, screeningVersion))) {
             throw new IllegalArgumentException("reasonCodes must preserve all observed reasons in their defined order.");
         }
-        if (status != KisStockBasicInfoRestrictionScreeningStatus.fromObservation(observation)) {
+        if (status != KisStockBasicInfoRestrictionScreeningStatus.fromObservation(observation, screeningVersion)) {
             throw new IllegalArgumentException("status must agree with the original observation and match outcome.");
         }
     }

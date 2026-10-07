@@ -21,10 +21,14 @@ import java.util.Map;
 
 import static com.stock.market.stock.master.provider.kis.KisStockMasterMarket.KOSDAQ;
 import static com.stock.market.stock.master.provider.kis.KisStockMasterMarket.KOSPI;
+import static com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.screening.KisStockBasicInfoRestrictionScreeningPolicy.SCREENING_VERSION_V1;
+import static com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.screening.KisStockBasicInfoRestrictionScreeningPolicy.SCREENING_VERSION_V2;
 import static com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.support.KisStockBasicInfoRestrictionObservationFixture.input;
 import static com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.screening.result.KisStockBasicInfoRestrictionScreeningReasonCode.MASTER_SPAC_Y_OBSERVED;
+import static com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.screening.result.KisStockBasicInfoRestrictionScreeningReasonCode.MASTER_INVESTMENT_CAUTION_FIELD_NOT_PROVIDED;
 import static com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.screening.result.KisStockBasicInfoRestrictionScreeningStatus.EXCLUSION_SIGNAL_OBSERVED;
 import static com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.screening.result.KisStockBasicInfoRestrictionScreeningStatus.NO_EXCLUSION_SIGNAL_OBSERVED;
+import static com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.screening.result.KisStockBasicInfoRestrictionScreeningStatus.REVIEW_REQUIRED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -37,7 +41,8 @@ class KisStockBasicInfoRestrictionScreeningResultTest {
     @EnumSource(KisStockBasicInfoTypeResolutionReasonCode.class)
     void preservesEntireInputsAcrossJsonRoundTripForAllTypeReasons(KisStockBasicInfoTypeResolutionReasonCode reason) throws Exception {
         var observation = observationPolicy.evaluate(KisStockBasicInfoTypeResolutionFixture.sample(reason));
-        assertRoundTrip(policy.evaluate(observation));
+        assertRoundTrip(policy.evaluate(observation, SCREENING_VERSION_V1));
+        assertRoundTrip(policy.evaluate(observation, SCREENING_VERSION_V2));
     }
 
     @ParameterizedTest
@@ -45,11 +50,12 @@ class KisStockBasicInfoRestrictionScreeningResultTest {
     void roundTripsEveryScreeningStatusAndRejectsAnyDifferentStatus(KisStockBasicInfoRestrictionScreeningStatus status) throws Exception {
         var result = switch (status) {
             case EXCLUSION_SIGNAL_OBSERVED -> policy.evaluate(observation(Map.of("spac", "Y")));
-            case REVIEW_REQUIRED -> policy.evaluate(observationPolicy.evaluate(input(KOSPI, Map.of(), Map.of())));
+            case REVIEW_REQUIRED -> policy.evaluate(observation(Map.of("spac", "?")));
             case NO_EXCLUSION_SIGNAL_OBSERVED -> policy.evaluate(observation(Map.of()));
         };
         assertThat(result.status()).isEqualTo(status);
         assertRoundTrip(result);
+        assertRoundTrip(policy.evaluate(result.observation(), SCREENING_VERSION_V1));
         for (var other : KisStockBasicInfoRestrictionScreeningStatus.values()) {
             if (other != status) {
                 ObjectNode changed = mapper.valueToTree(result);
@@ -141,6 +147,49 @@ class KisStockBasicInfoRestrictionScreeningResultTest {
     void rejectsBlankScreeningVersion(String version) {
         assertThatThrownBy(() -> new KisStockBasicInfoRestrictionScreeningResult(observation(Map.of()),
                 NO_EXCLUSION_SIGNAL_OBSERVED, List.of(), version)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void restoresV1KospiJsonUnderItsOriginalRulesWithoutAddingNewFields() throws Exception {
+        var observation = observationPolicy.evaluate(input(KOSPI, Map.of(), Map.of()));
+        ObjectNode original = mapper.createObjectNode();
+        original.set("observation", mapper.valueToTree(observation));
+        original.put("status", "REVIEW_REQUIRED");
+        original.putArray("reasonCodes").add("MASTER_INVESTMENT_CAUTION_FIELD_NOT_PROVIDED");
+        original.put("screeningVersion", "KIS_STOCK_BASIC_INFO_RESTRICTION_SCREENING_V1");
+
+        var restored = mapper.treeToValue(original, KisStockBasicInfoRestrictionScreeningResult.class);
+
+        assertThat(restored.status()).isEqualTo(REVIEW_REQUIRED);
+        assertThat(restored.reasonCodes()).containsExactly(MASTER_INVESTMENT_CAUTION_FIELD_NOT_PROVIDED);
+        assertThat(restored).isEqualTo(policy.evaluate(observation, SCREENING_VERSION_V1));
+        assertThat(mapper.<ObjectNode>valueToTree(restored)).isEqualTo(original);
+        assertThat(original.size()).isEqualTo(4);
+        assertThat(policy.evaluate(observation).status()).isEqualTo(NO_EXCLUSION_SIGNAL_OBSERVED);
+    }
+
+    @Test
+    void rejectsRelabelingV1AsV2OrV2AsV1WithoutRecomputingReasonsAndStatus() {
+        var observation = observationPolicy.evaluate(input(KOSPI, Map.of(), Map.of()));
+        for (String version : List.of(SCREENING_VERSION_V1, SCREENING_VERSION_V2)) {
+            ObjectNode original = mapper.valueToTree(policy.evaluate(observation, version));
+            original.put("screeningVersion", version.equals(SCREENING_VERSION_V1) ? SCREENING_VERSION_V2 : SCREENING_VERSION_V1);
+            assertThatThrownBy(() -> mapper.treeToValue(original, KisStockBasicInfoRestrictionScreeningResult.class))
+                    .hasRootCauseInstanceOf(IllegalArgumentException.class);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"UNKNOWN", "KIS_STOCK_BASIC_INFO_RESTRICTION_SCREENING_V3", " KIS_STOCK_BASIC_INFO_RESTRICTION_SCREENING_V2"})
+    void rejectsUnknownVersionsInPolicyConstructionAndJson(String version) {
+        var observation = observation(Map.of());
+        assertThatThrownBy(() -> policy.evaluate(observation, version)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new KisStockBasicInfoRestrictionScreeningResult(observation,
+                NO_EXCLUSION_SIGNAL_OBSERVED, List.of(), version)).isInstanceOf(IllegalArgumentException.class);
+        ObjectNode original = mapper.valueToTree(policy.evaluate(observation));
+        original.put("screeningVersion", version);
+        assertThatThrownBy(() -> mapper.treeToValue(original, KisStockBasicInfoRestrictionScreeningResult.class))
+                .hasRootCauseInstanceOf(IllegalArgumentException.class);
     }
 
     private KisStockBasicInfoRestrictionObservationResult observation(Map<String, String> master) {

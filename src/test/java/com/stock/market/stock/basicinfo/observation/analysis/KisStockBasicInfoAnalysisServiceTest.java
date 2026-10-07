@@ -37,6 +37,7 @@ import static com.stock.market.stock.basicinfo.observation.support.KisStockBasic
 import static com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.screening.result.KisStockBasicInfoRestrictionScreeningReasonCode.BASIC_INFO_MANAGEMENT_VALUE_UNVERIFIED;
 import static com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.screening.result.KisStockBasicInfoRestrictionScreeningReasonCode.BASIC_INFO_SUSPENSION_Y_OBSERVED;
 import static com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.screening.result.KisStockBasicInfoRestrictionScreeningReasonCode.MASTER_INVESTMENT_CAUTION_FIELD_NOT_PROVIDED;
+import static com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.screening.result.KisStockBasicInfoRestrictionScreeningReasonCode.MASTER_INVESTMENT_CAUTION_NOT_APPLICABLE;
 import static com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.screening.result.KisStockBasicInfoRestrictionScreeningReasonCode.STANDARD_CODE_AND_MARKET_MATCH_NOT_CONFIRMED;
 import static com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.screening.result.KisStockBasicInfoRestrictionScreeningStatus.EXCLUSION_SIGNAL_OBSERVED;
 import static com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.screening.result.KisStockBasicInfoRestrictionScreeningStatus.NO_EXCLUSION_SIGNAL_OBSERVED;
@@ -257,14 +258,17 @@ class KisStockBasicInfoAnalysisServiceTest {
     }
 
     @Test
-    void kospiMissingInvestmentCautionFieldIsNotTreatedAsNormal() {
+    void kospiCommonStockKeepsMissingObservationAndSeparateV2ApplicabilityExplanation() {
         var output = fields().put("std_pdno", "KR7005930003").put("mket_id_cd", "STK");
         when(store.findById(17L)).thenReturn(Optional.of(response("005930", output)));
 
         var result = service.analyze(17L, batch()).screeningResult();
 
-        assertThat(result.status()).isEqualTo(REVIEW_REQUIRED);
-        assertThat(result.reasonCodes()).containsExactly(MASTER_INVESTMENT_CAUTION_FIELD_NOT_PROVIDED);
+        assertThat(result.status()).isEqualTo(NO_EXCLUSION_SIGNAL_OBSERVED);
+        assertThat(result.reasonCodes()).containsExactly(MASTER_INVESTMENT_CAUTION_FIELD_NOT_PROVIDED,
+                MASTER_INVESTMENT_CAUTION_NOT_APPLICABLE);
+        assertThat(result.screeningVersion()).isEqualTo("KIS_STOCK_BASIC_INFO_RESTRICTION_SCREENING_V2");
+        assertThat(result.observation().typeResolution().masterClassification().rawRecord().rawInvestmentCaution()).isNull();
     }
 
     @Test

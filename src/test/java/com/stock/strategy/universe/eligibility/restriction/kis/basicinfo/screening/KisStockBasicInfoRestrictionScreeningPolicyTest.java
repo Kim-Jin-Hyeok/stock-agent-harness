@@ -21,6 +21,7 @@ import java.util.stream.Stream;
 
 import static com.stock.market.stock.master.provider.kis.KisStockMasterMarket.KOSDAQ;
 import static com.stock.market.stock.master.provider.kis.KisStockMasterMarket.KOSPI;
+import static com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.screening.KisStockBasicInfoRestrictionScreeningPolicy.SCREENING_VERSION_V1;
 import static com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.support.KisStockBasicInfoRestrictionObservationFixture.input;
 import static com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.screening.result.KisStockBasicInfoRestrictionScreeningReasonCode.BASIC_INFO_MANAGEMENT_Y_OBSERVED;
 import static com.stock.strategy.universe.eligibility.restriction.kis.basicinfo.screening.result.KisStockBasicInfoRestrictionScreeningReasonCode.BASIC_INFO_SUSPENSION_Y_OBSERVED;
@@ -52,7 +53,7 @@ class KisStockBasicInfoRestrictionScreeningPolicyTest {
         assertThat(result.status()).isEqualTo(NO_EXCLUSION_SIGNAL_OBSERVED);
         assertThat(result.reasonCodes()).isEmpty();
         assertThat(result.observation()).isSameAs(observation);
-        assertThat(result.screeningVersion()).isEqualTo("KIS_STOCK_BASIC_INFO_RESTRICTION_SCREENING_V1");
+        assertThat(result.screeningVersion()).isEqualTo("KIS_STOCK_BASIC_INFO_RESTRICTION_SCREENING_V2");
     }
 
     @ParameterizedTest
@@ -115,13 +116,13 @@ class KisStockBasicInfoRestrictionScreeningPolicyTest {
     }
 
     @Test
-    void treatsKospiCautionAsMissingEvidenceNotAnImplicitNegative() {
+    void preservesV1KospiMissingEvidenceWithoutApplyingTheNewExemption() {
         var clean = observationPolicy.evaluate(input(KOSPI, Map.of(), Map.of()));
         var positive = observationPolicy.evaluate(input(KOSPI, Map.of("spac", "Y"), Map.of()));
-        assertThat(policy.evaluate(clean).status()).isEqualTo(REVIEW_REQUIRED);
-        assertThat(policy.evaluate(clean).reasonCodes()).containsExactly(MASTER_INVESTMENT_CAUTION_FIELD_NOT_PROVIDED);
-        assertThat(policy.evaluate(positive).status()).isEqualTo(EXCLUSION_SIGNAL_OBSERVED);
-        assertThat(policy.evaluate(positive).reasonCodes()).containsExactly(MASTER_SPAC_Y_OBSERVED,
+        assertThat(policy.evaluate(clean, SCREENING_VERSION_V1).status()).isEqualTo(REVIEW_REQUIRED);
+        assertThat(policy.evaluate(clean, SCREENING_VERSION_V1).reasonCodes()).containsExactly(MASTER_INVESTMENT_CAUTION_FIELD_NOT_PROVIDED);
+        assertThat(policy.evaluate(positive, SCREENING_VERSION_V1).status()).isEqualTo(EXCLUSION_SIGNAL_OBSERVED);
+        assertThat(policy.evaluate(positive, SCREENING_VERSION_V1).reasonCodes()).containsExactly(MASTER_SPAC_Y_OBSERVED,
                 MASTER_INVESTMENT_CAUTION_FIELD_NOT_PROVIDED);
     }
 
